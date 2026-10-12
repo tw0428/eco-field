@@ -205,14 +205,29 @@ function putNew(path,b64,m){return serial(async()=>{
 })}
 const hStore={},hSubs=[];let loadedAt=0;
 function hEmit(){const docs=Object.entries(hStore).map(([id,d])=>({id,data:()=>d})).sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));hSubs.forEach(f=>f({docs}))}
+const CACHE_KEY='eco-cache-habitat';
+function hApply(n){Object.keys(hStore).forEach(k=>delete hStore[k]);Object.assign(hStore,n);hEmit();lsSet(CACHE_KEY,JSON.stringify(hStore))}
+// 開啟時先顯示手機上暫存的上一份資料（秒開），背景再抓最新
+function hLoadCache(){try{const c=JSON.parse(lsGet(CACHE_KEY)||'null');if(!c)return false;Object.assign(hStore,c);hEmit();return true}catch(e){return false}}
+// GraphQL一次請求拿到habitat資料夾所有JSON（REST要先列清單再逐檔抓）；不能用時退回REST
 async function hLoad(){
- const r=await gh('habitat');const list=r?await r.json():[];const n={};
- await Promise.all(list.filter(f=>f.name.endsWith('.json')).map(async f=>{const c=await getJson('habitat/'+f.name);if(c.data)n[f.name.slice(0,-5)]=c.data}));
- Object.keys(hStore).forEach(k=>delete hStore[k]);Object.assign(hStore,n);loadedAt=Date.now();hEmit();
+ let repo=null;
+ try{
+  const r=await fetch('https://api.github.com/graphql',{method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+ghToken,'Content-Type':'application/json'},
+   body:JSON.stringify({query:'query{repository(owner:"tw0428",name:"eco-field-data"){h:object(expression:"HEAD:habitat"){... on Tree{entries{name object{... on Blob{text}}}}}}}'})});
+  if(r.status===401){const e=new Error('401');e.code='bad_token';throw e}
+  if(r.ok){const j=await r.json();repo=j.data&&j.data.repository;
+   if(!repo&&(j.errors||[]).some(x=>x.type==='NOT_FOUND')){const e=new Error('no repo');e.code='no_repo';throw e}}
+ }catch(e){if(e.code==='bad_token'||e.code==='no_repo')throw e;repo=null}
+ const n={};
+ if(repo){((repo.h&&repo.h.entries)||[]).forEach(f=>{if(f.name.endsWith('.json')&&f.object&&f.object.text!=null)n[f.name.slice(0,-5)]=JSON.parse(f.object.text)})}
+ else{await repoCheck();const r=await gh('habitat');const list=r?await r.json():[];
+  await Promise.all(list.filter(f=>f.name.endsWith('.json')).map(async f=>{const c=await getJson('habitat/'+f.name);if(c.data)n[f.name.slice(0,-5)]=c.data}))}
+ loadedAt=Date.now();hApply(n);
 }
 async function hWrite(id,kind,d){
  const res=await mutate(`habitat/${id}.json`,old=>kind==='delete'?null:kind==='set'?d:{...(old||{}),...d});
- if(res==null)delete hStore[id];else hStore[id]=res;hEmit();
+ if(res==null)delete hStore[id];else hStore[id]=res;hEmit();lsSet(CACHE_KEY,JSON.stringify(hStore));
 }
 const ghDb={
  collection(){return {orderBy(){return this},onSnapshot(cb){hSubs.push(cb);return ()=>{}},doc(id){return ghDb.doc('cases/'+(id||newId()))}}},
@@ -224,7 +239,16 @@ const ghAssets={
 };
 // 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
 const blobCache=new Map();
-function blobUrl(id){if(!blobCache.has(id))blobCache.set(id,gh('files/'+id,{headers:{Accept:'application/vnd.github.raw+json'}}).then(r=>{if(!r)throw new Error('missing');return r.blob()}).then(b=>URL.createObjectURL(new Blob([b],{type:'image/jpeg'}))).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
+// 照片上傳後不會再改 → 下載過一次就存在手機（Cache Storage），之後直接讀
+const FILE_CACHE='eco-files',fileKey=id=>location.origin+'/__files/'+id;
+async function fileBlob(id){
+ let b=null;
+ try{const c=await caches.open(FILE_CACHE);const hit=await c.match(fileKey(id));if(hit)b=await hit.blob()}catch(e){}
+ if(!b){const r=await gh('files/'+id,{headers:{Accept:'application/vnd.github.raw+json'}});if(!r)throw new Error('missing');b=await r.blob();
+  try{const c=await caches.open(FILE_CACHE);await c.put(fileKey(id),new Response(b))}catch(e){}}
+ return new Blob([b],{type:'image/jpeg'});
+}
+function blobUrl(id){if(!blobCache.has(id))blobCache.set(id,fileBlob(id).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
 function hydrateImgs(){document.querySelectorAll('img[data-blob]').forEach(i=>{const id=i.dataset.blob;i.removeAttribute('data-blob');blobUrl(id).then(u=>{i.src=u;if(i.parentNode.tagName==='A')i.parentNode.href=u}).catch(()=>{i.alt='載入失敗'})})}
 /* 手機定位：獨立網頁可以用定位，工具內拍照自動帶入 */
 let geo=null,geoWatch=null,geoErr='';
@@ -247,8 +271,8 @@ async function repoCheck(){
 }
 async function connect(){
  if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
- $('conn').textContent='讀取中…';
- try{await repoCheck();await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent='已連線';geoStart()}
+ $('conn').textContent=Object.keys(hStore).length?'更新中…':'讀取中…';
+ try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent='已連線';geoStart()}
  catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾 eco-field-data，Contents 設 Read and write。')}
   else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生一組貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
 }
@@ -265,6 +289,7 @@ async function initDb(){
   if(!cases.find(c=>c.id===curCase)){curCase=(cases.find(c=>c.id===pf.c)||cases[0]||{}).id||'';loadCase(true)}else loadCase(false);
   render();
  });
+ if(ghToken)hLoadCache();
  connect();
 }
 
