@@ -820,7 +820,9 @@ let checkRes={},linkCheck=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
-const stLabels=stage=>stage==="開工前"?CHK_PRE:CHK_ST;
+// 設計：只核對提審階段意見（phase:"report"），確認設計是否納入
+const CHK_DES=[["ok","✓ 已納入"],["adj","△ 部分納入"],["ng","✗ 未納入"]];
+const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_ST;
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
 function resId(){return curCase+"_"+today()}
@@ -828,11 +830,11 @@ function renderChecks(){
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
   const c=cases.find(x=>x.id===curCase),box=$("chkBox"),list=$("chkList");
   const stage=curStage();
-  const items=(stage==="設計"||stage==="提報")?[]:((c&&c.checks)||[]).filter(i=>stage!=="開工前"||i.phase==="design");
+  const items=stage==="提報"?[]:((c&&c.checks)||[]).filter(i=>stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":true);
   box.hidden=!items.length;list.innerHTML="";
   if(linkCheck&&!((c&&c.checks)||[]).find(i=>i.id===linkCheck))setLink(null);
   if(!items.length)return;
-  $("chkTitle").textContent=stage==="開工前"?"設計意見落實確認":"現場核對清單";
+  $("chkTitle").textContent=stage==="設計"?"提審意見納入確認":stage==="開工前"?"設計意見落實確認":"現場核對清單";
   const st=(checkRes[resId()]&&checkRes[resId()].st)||{},notes=(checkRes[resId()]&&checkRes[resId()].notes)||{};
   const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
   const lastOf=id=>{const d=past.find(d=>d.st&&d.st[id]);return d?`上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${stLabel(d.stage,d.st[id])}`:""};
