@@ -857,6 +857,7 @@ function renderChecks(){
     const m=document.createElement("div");m.className="meta";
     [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it.id)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
     el.appendChild(m);
+    if(it.fig){const f=document.createElement("div");f.className="meta";f.textContent="圖："+it.fig;el.appendChild(f)}
     const bs=document.createElement("div");bs.className="btns";
     stLabels(stage).forEach(([k,label])=>{
       const b=document.createElement("button");b.type="button";b.textContent=label;if(k==="ng")b.className="ng";
