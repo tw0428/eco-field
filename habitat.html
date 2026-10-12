@@ -183,11 +183,9 @@ function whoShow(){$('whoIn').value=lsGet('eco-recorder')||''}
 const whoAsk=who;
 function addBy(q){const by=whoAsk();if(by){const l=(q.by||'').split('、').filter(Boolean);if(!l.includes(by)){l.push(by);q.by=l.join('、')}}return by}
 function share(){
- // 網頁無法自己產生GitHub金鑰：分享的是貼進來的「同事用」金鑰，留空才用這支手機目前的金鑰
- const k=prompt('貼上要給同事用的金鑰（建議另開一組「同事用」金鑰；留空＝用這支手機目前的金鑰）','');
- if(k===null)return;const tok=k.trim()||ghToken;
+ // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
+ const tok=ghToken;
  if(!tok){alert('這支手機還沒設定金鑰，無法分享。');return}
- if(!confirm('分享連結裡含金鑰，拿到的人都能讀寫所有案件資料。只傳給同事，不要貼到群組公告或公開地方。繼續？'))return;
  const url=new URL('./',location.href).href+'#k='+encodeURIComponent(tok);
  const text='生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n'+url;
  shareBox(text);
@@ -719,6 +717,7 @@ document.addEventListener('change',e=>{
 });
 /* 案件挑選器：全螢幕清單＋搜尋，最近用過的在前（底層仍是原本的select；與現場紀錄相同） */
 function makePicker(sel,recentKey){
+ if(matchMedia('(pointer:fine)').matches)return; // 電腦（滑鼠）維持原本的下拉選單
  const btn=document.createElement('button');btn.type='button';btn.className='act pickbtn';sel.before(btn);sel.hidden=true;
  const sync=()=>{const o=sel.options[sel.selectedIndex];btn.textContent=o?o.textContent:'（尚無案件）'};
  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
