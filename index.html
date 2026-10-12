@@ -139,7 +139,7 @@ a{color:var(--accent)}
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
     <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
     <div class="hint" style="color:var(--muted)">金鑰只存在這支手機，用來讀寫私人資料專案 eco-field-data。建立方式見使用說明。</div>
-    <input type="password" id="tokIn" placeholder="github_pat_…" autocomplete="off">
+    <input type="password" id="tokIn" placeholder="github_pat_… 或 ghp_…" autocomplete="off">
     <button class="primary" type="button" id="tokSave">儲存並連線</button>
     <div id="tokMsg" class="msg err" hidden></div>
   </section>
@@ -233,7 +233,10 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 
 /* ---------- GitHub 儲存層（私人專案 eco-field-data）：模擬原本 db/assets 介面，其餘程式不用改 ----------
    cases/<caseId>.json 案件；records/<caseId>.json {紀錄id:紀錄}；checkres/<caseId>.json {核對id:結果}；files/<id> 照片與平面圖 */
-const GH_API="https://api.github.com/repos/tw0428/eco-field-data/contents/";
+// 資料專案的擁有者＝網址的帳號（xxx.github.io → xxx），搬到別的帳號/組織不用改程式
+const GH_OWNER=/\.github\.io$/.test(location.hostname)?location.hostname.split(".")[0]:"tw0428";
+const GH_REPO_URL=`https://api.github.com/repos/${GH_OWNER}/eco-field-data`;
+const GH_API=GH_REPO_URL+"/contents/";
 let ghToken=lsGet("gh-token");
 async function gh(path,opt={}){
   // 訊號極差時fetch可能一直掛著：讀30秒、寫45秒逾時，逾時算網路錯誤（新紀錄會轉成待上傳）
@@ -292,7 +295,7 @@ const TREE_FRAG="fragment T on Tree{entries{name object{... on Blob{text}}}}";
 const treeFiles=o=>((o&&o.entries)||[]).filter(f=>f.name.endsWith(".json")&&f.object&&f.object.text!=null).map(f=>[f.name.slice(0,-5),JSON.parse(f.object.text)]);
 async function loadAll(){
   let repo=null;
-  try{const j=await gql(`query{repository(owner:"tw0428",name:"eco-field-data"){c:object(expression:"HEAD:cases"){...T} r:object(expression:"HEAD:records"){...T} k:object(expression:"HEAD:checkres"){...T}}} ${TREE_FRAG}`);
+  try{const j=await gql(`query{repository(owner:"${GH_OWNER}",name:"eco-field-data"){c:object(expression:"HEAD:cases"){...T} r:object(expression:"HEAD:records"){...T} k:object(expression:"HEAD:checkres"){...T}}} ${TREE_FRAG}`);
     repo=j.data&&j.data.repository;
     if(!repo&&(j.errors||[]).some(x=>x.type==="NOT_FOUND")){const e=new Error("no repo");e.code="no_repo";throw e}
   }catch(e){if(e.code==="bad_token"||e.code==="no_repo")throw e;repo=null}
@@ -952,9 +955,9 @@ db=ghDb;assets=ghAssets;
 // 下載：獨立網頁直接用<a download>
 downloads={async save({filename,data}){const u=URL.createObjectURL(data),a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}};
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
-const TOK_REPO_MSG="這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定確認：Repository access 選「Only select repositories」並勾 eco-field-data，Permissions 的 Contents 設 Read and write（可直接編輯原金鑰，不用重貼）。";
+const TOK_REPO_MSG="這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定確認：Repository access 選「Only select repositories」並勾 eco-field-data，Permissions 的 Contents 設 Read and write（可直接編輯原金鑰，不用重貼）。若你是被邀請的協作者，要改用傳統金鑰（classic，勾 repo），並確認已接受邀請。";
 async function repoCheck(){
-  const r=await fetch("https://api.github.com/repos/tw0428/eco-field-data",{cache:"no-store",headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json"}});
+  const r=await fetch(GH_REPO_URL,{cache:"no-store",headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json"}});
   if(r.status===401){const e=new Error("401");e.code="bad_token";throw e}
   if(r.status===404||r.status===403){const e=new Error("no repo");e.code="no_repo";throw e}
   if(!r.ok){const e=new Error("GitHub "+r.status);e.code="http_"+r.status;throw e}
