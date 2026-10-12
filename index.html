@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="現場紀錄">
+<link rel="apple-touch-icon" href="icon-field.png">
 <title>生態現場紀錄</title>
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
@@ -122,6 +123,37 @@ a{color:var(--accent)}
 .photobtns label.cam{background:var(--accent);color:var(--accent-fg);border-style:solid}
 .sub{font-size:13px;margin-top:-6px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
+/* 階段配色：提報／設計／開工前～完工 */
+:root{--stg-a:#3b6ea8;--stg-b:#8a5a9e;--stg-c:var(--accent)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--stg-a:#7fa8d8;--stg-b:#c39ad4}}
+:root[data-theme="dark"]{--stg-a:#7fa8d8;--stg-b:#c39ad4}
+.rec.stg-a{border-left:4px solid var(--stg-a)}.rec.stg-b{border-left:4px solid var(--stg-b)}.rec.stg-c{border-left:4px solid var(--stg-c)}
+.pill.stg-a{color:var(--stg-a)}.pill.stg-b{color:var(--stg-b)}
+.mapbtn{padding:6px 10px;font-size:14px;align-self:flex-start}
+.near{display:block;text-decoration:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:6px 12px;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+#zipBtn{padding:6px 10px;font-size:14px}
+.wall{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.wall a{position:relative;display:block;aspect-ratio:1;background:var(--soft);border-radius:6px;overflow:hidden;border-bottom:3px solid var(--stg-c)}
+.wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
+.wall img{width:100%;height:100%;object-fit:cover;display:block}
+.wall span{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:1px 4px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:40;width:60px;height:60px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
+#albumBtn{font-size:14px;padding:6px 10px}
+/* 案件挑選器（取代過長的下拉選單） */
+.pickbtn{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pickbtn::after{content:" ▾";color:var(--muted)}
+#viewer{z-index:55}
+.leaflet-container{background:var(--bg);font:inherit}
+.picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
+.picker .pkh{display:flex;gap:8px;margin-bottom:8px}
+.picker .pkh input{flex:1}
+.picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
+.picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
+.picker li.on{color:var(--accent);font-weight:600}
+.picker .grp{font-size:12px;color:var(--muted);padding:8px 4px 2px;border:0;cursor:default}
 </style>
 </head>
 <body>
@@ -137,6 +169,16 @@ a{color:var(--accent)}
   </div>
   <div id="vStage" class="vstage"><div id="vContent" class="vcontent"></div></div>
 </div>
+<div id="mapView" class="viewer" hidden>
+  <div class="vbar">
+    <span class="vtitle" id="mapTitle">地圖</span>
+    <button type="button" id="mapBase">正射影像</button>
+    <button type="button" id="mapMe">📍我</button>
+    <button type="button" id="mapClose" class="primary">關閉</button>
+  </div>
+  <div id="mapBox" style="flex:1"></div>
+</div>
+<label for="camIn" id="fab" class="fab" hidden aria-label="拍照">📷</label>
 <div class="wrap">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="shareBtn" style="margin-left:auto">分享給同事</a></div>
@@ -164,6 +206,7 @@ a{color:var(--accent)}
       <div class="chips" id="stageChips"></div>
     </div>
     <div class="hint" id="caseStakeInfo" hidden></div>
+    <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、我的位置）</button>
     <div id="planBox" class="plans" hidden>
       <span class="lbl">平面圖／圖說（點開可放大）</span>
       <div id="planList" class="planlist"></div>
@@ -187,7 +230,9 @@ a{color:var(--accent)}
       <label for="camIn" class="cam">📷 拍照<input type="file" id="camIn" accept="image/*" capture="environment"></label>
       <label for="galIn">🖼 相簿<input type="file" id="galIn" accept="image/*" multiple></label>
     </div>
+    <button type="button" id="albumBtn" hidden></button>
     <div class="hint" id="geoState" hidden></div>
+    <a href="#" class="hint near" id="nearBox" hidden></a>
     <div class="thumbs" id="pendThumbs"></div>
 
     <div>
@@ -220,6 +265,7 @@ a{color:var(--accent)}
 
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
+    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="zipBtn" style="margin-left:auto">⬇ 下載本案照片</button></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
   </section>
 </div>
@@ -451,7 +497,7 @@ function geoStart(){
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoErr&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
 function renderGeo(){const e=$("geoState");const g=geoFresh();
-  e.textContent=g?`📍 定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?"📍 "+geoErr:geoWatch!=null?"📍 取得定位中…":"";e.hidden=!e.textContent}
+  e.textContent=g?`📍 定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?"📍 "+geoErr:geoWatch!=null?"📍 取得定位中…":"";e.hidden=!e.textContent;renderNear()}
 
 function showMsg(t,err){const m=$("formMsg");m.textContent=t;m.className="msg"+(err?" err":"");m.hidden=!t}
 
@@ -561,9 +607,10 @@ async function addFiles(list,fromCam){
     const ex=await readExif(f);
     // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
     ex.fresh=ex.lat==null&&(fromCam||Date.now()-(f.lastModified||0)<300000);
-    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);
+    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam)camFiles.push(f);
   }
-  renderPending();
+  renderPending();renderAlbum();
+  if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
     const g=geoFresh()||await geoWait(10000);
     if(g)add.forEach(p=>{if(p.ex.fresh)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})});
@@ -632,7 +679,7 @@ function renderCases(){
   if(c&&Array.isArray(c.stakes)&&c.stakes.length>1){info.textContent=`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
-  renderPlans(c);renderStage();renderChecks();renderLinkSel();
+  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;
   const dl=$("stakeList");dl.innerHTML="";
   (c&&Array.isArray(c.stakes)?c.stakes:[]).forEach(s=>{const o=document.createElement("option");o.value=s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st);dl.appendChild(o)});
   (c&&Array.isArray(c.sites)?c.sites:[]).forEach(s=>{(s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label]).forEach(v=>{const o=document.createElement("option");o.value=v;dl.appendChild(o)})});
@@ -878,11 +925,13 @@ function renderRecords(){
   const todo=list.filter(r=>!r.species&&!r.note).length;
   $("listCount").textContent=list.length?list.length+" 筆"+(todo?`（${todo} 筆待補說明）`:""):"";
   if(!c){box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
+  $("listTools").hidden=!list.length;renderNear();
   if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
+  if(listMode()==="wall"){renderWall(box,list);return}
   list.forEach(r=>{
-    const el=document.createElement("article");el.className="rec";
+    const el=document.createElement("article");el.className="rec "+stgCls(r.stage);
     const head=document.createElement("div");head.className="head";
-    const t=document.createElement("span");t.className="pill";t.textContent=(r.stage?r.stage+"｜":"")+r.category+(r.abcd?" "+r.abcd:"");
+    const t=document.createElement("span");t.className="pill "+stgCls(r.stage);t.textContent=(r.stage?r.stage+"｜":"")+r.category+(r.abcd?" "+r.abcd:"");
     const time=document.createElement("span");time.className="mono";time.textContent=r.takenAt||fmtMs(r.createdAt);
     head.append(t,time);
     if(!r.species&&!r.note){const w=document.createElement("span");w.className="pill no";w.textContent="待補說明";head.appendChild(w)}
@@ -999,6 +1048,175 @@ $("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
 // 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"||!ghToken)return;flushOutbox();if(!saving&&Date.now()-loadedAt>60000)connect()});
 $("obFlush").onclick=()=>flushOutbox();
+/* ---------- 階段配色：提報(a)／設計(b)／開工前～完工(c) ---------- */
+const stgCls=s=>s==="提報"?"stg-a":s==="設計"?"stg-b":s?"stg-c":"";
+
+/* ---------- 工具內拍的原檔存到手機相簿（網頁不能直接寫相簿，透過分享選單「儲存影像」） ---------- */
+let camFiles=[];
+function renderAlbum(){
+  const b=$("albumBtn"),ok=camFiles.length&&navigator.canShare&&navigator.canShare({files:camFiles});
+  b.hidden=!ok;if(ok)b.textContent=`💾 剛拍的 ${camFiles.length} 張存到手機相簿（原檔）`;
+}
+$("albumBtn").onclick=async()=>{
+  try{await navigator.share({files:camFiles});camFiles=[];renderAlbum()}
+  catch(e){if(e.name!=="AbortError")showMsg("無法開啟分享選單："+(e.message||e.name),true)}
+};
+
+/* ---------- 列表／照片牆 ---------- */
+const listMode=()=>lsGet("eco-listmode")||"list";
+function renderSeg(){document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===listMode())))}
+document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.onclick=()=>{lsSet("eco-listmode",b.dataset.mode);renderSeg();renderRecords()});
+renderSeg();
+const recTitle=r=>[r.stage,r.category+(r.abcd?" "+r.abcd:""),r.stake,r.species].filter(Boolean).join("｜");
+function renderWall(box,list){
+  const w=document.createElement("div");w.className="wall";let none=0;
+  list.forEach(r=>{
+    if(!r.photos||!r.photos.length){none++;return}
+    r.photos.forEach(p=>{
+      const a=document.createElement("a");a.href="#";a.className=stgCls(r.stage);
+      a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",recTitle(r)+(r.note?"｜"+r.note:""))};
+      const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
+      const s=document.createElement("span");s.textContent=[r.stake,r.category].filter(Boolean).join(" ");
+      a.append(i,s);w.appendChild(a);
+    });
+  });
+  box.appendChild(w);
+  if(none){const n=document.createElement("div");n.className="empty";n.textContent=`另有 ${none} 筆沒有照片的紀錄，切到「列表」查看。`;box.appendChild(n)}
+}
+
+/* ---------- 下載本案照片（zip，依階段分資料夾，檔名帶日期、類別、樁號） ---------- */
+let zipReady=null;
+function loadZip(){
+  if(window.JSZip)return Promise.resolve();
+  if(!zipReady)zipReady=new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload=res;s.onerror=()=>{zipReady=null;rej(new Error("壓縮元件載入失敗"))};document.head.appendChild(s)});
+  return zipReady;
+}
+const safeName=s=>String(s||"").replace(/[\\/:*?"<>|\s]+/g,"_").replace(/^_+|_+$/g,"");
+$("zipBtn").onclick=async()=>{
+  const b=$("zipBtn"),old=b.textContent,c=cases.find(x=>x.id===curCase);if(!c)return;
+  const list=records.filter(r=>r.caseId===curCase&&r.photos&&r.photos.length).sort((a,b)=>a.createdAt-b.createdAt);
+  const total=list.reduce((n,r)=>n+r.photos.length,0);if(!total){b.textContent="本案沒有照片";setTimeout(()=>b.textContent=old,2000);return}
+  b.disabled=true;
+  try{
+    await loadZip();const zip=new JSZip(),used=new Set();let n=0;
+    for(const r of list){
+      const day=(r.takenAt||fmtMs(r.createdAt)).replace(/[\/: ]/g,"").slice(0,12);
+      for(let i=0;i<r.photos.length;i++){
+        b.textContent=`準備中 ${++n}/${total}…`;
+        let name=[day,safeName(r.category)+(r.abcd||""),safeName(r.stake),safeName(r.species)].filter(Boolean).join("_");
+        let k=name,j=2;while(used.has((r.stage||"")+k))k=name+"_"+j++;used.add((r.stage||"")+k);
+        zip.file((safeName(r.stage)||"未分階段")+"/"+k+".jpg",await fileBlob(r.photos[i]));
+      }
+    }
+    b.textContent="壓縮中…";
+    const blob=await zip.generateAsync({type:"blob"});
+    await downloads.save({filename:safeName(c.name)+"_照片.zip",data:blob});b.textContent="已下載";
+  }catch(e){b.textContent="下載失敗（"+(e.message||"網路")+"）"}
+  finally{b.disabled=false;setTimeout(()=>b.textContent=old,2500)}
+};
+
+/* ---------- 地圖：中心線、樁號、紀錄點位、我的位置（國土測繪中心圖磚，按鈕開啟才載入元件） ---------- */
+let lfReady=null,map=null,mapLayers=null,meLayer=null,baseOn="EMAP",baseLayer=null,mapTimer=null;
+function loadLeaflet(){
+  if(window.L)return Promise.resolve();
+  if(!lfReady)lfReady=new Promise((res,rej)=>{
+    const l=document.createElement("link");l.rel="stylesheet";l.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";document.head.appendChild(l);
+    const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    s.onload=res;s.onerror=()=>{lfReady=null;rej(new Error("地圖元件載入失敗，請確認網路"))};document.head.appendChild(s)});
+  return lfReady;
+}
+const nlsc=k=>L.tileLayer(`https://wmts.nlsc.gov.tw/wmts/${k}/default/GoogleMapsCompatible/{z}/{y}/{x}`,{maxNativeZoom:19,maxZoom:21,attribution:"國土測繪中心"});
+function stgColor(s){const v=getComputedStyle(document.documentElement).getPropertyValue(s==="提報"?"--stg-a":s==="設計"?"--stg-b":"--accent").trim();return v||"#2f6b4f"}
+function drawMe(){
+  if(!map)return;const g=geoFresh();if(meLayer){meLayer.remove();meLayer=null}if(!g)return;
+  meLayer=L.layerGroup([L.circle([g.lat,g.lng],{radius:g.acc,weight:1,color:"#2a7de1",fillOpacity:.12}),L.circleMarker([g.lat,g.lng],{radius:7,weight:2,color:"#fff",fillColor:"#2a7de1",fillOpacity:1})]).addTo(map);
+}
+async function openMap(focusMe){
+  const c=cases.find(x=>x.id===curCase);if(!c)return;
+  $("mapView").hidden=false;document.body.style.overflow="hidden";$("mapTitle").textContent=c.name;geoStart();
+  try{await loadLeaflet()}catch(e){$("mapBox").innerHTML='<div class="vmsg">'+e.message+'</div>';return}
+  if(!map){map=L.map("mapBox",{zoomControl:true});baseLayer=nlsc(baseOn).addTo(map)}
+  map.invalidateSize();if(mapLayers)mapLayers.remove();mapLayers=L.layerGroup().addTo(map);
+  const pts=[];
+  const s=Array.isArray(c.stakes)?c.stakes.filter(p=>p.lat!=null):[];
+  if(s.length>1){
+    L.polyline(s.map(p=>[p.lat,p.lng]),{color:"#e0a020",weight:4,opacity:.9}).addTo(mapLayers);
+    s.forEach((p,i)=>{const m=L.circleMarker([p.lat,p.lng],{radius:3,color:"#e0a020",weight:2,fillOpacity:1}).addTo(mapLayers);
+      m.bindTooltip(fmtSt(p.st)+(p.note?" "+p.note:""),{permanent:i===0||i===s.length-1||!!p.note,direction:"right",className:"stk"});pts.push([p.lat,p.lng])});
+  }
+  (Array.isArray(c.sites)?c.sites:[]).forEach(p=>{if(p.lat==null)return;L.marker([p.lat,p.lng]).addTo(mapLayers).bindTooltip(p.label,{permanent:true,direction:"right"});pts.push([p.lat,p.lng])});
+  records.filter(r=>r.caseId===curCase&&r.lat!=null).forEach(r=>{
+    const m=L.circleMarker([r.lat,r.lng],{radius:8,weight:2,color:"#fff",fillColor:stgColor(r.stage),fillOpacity:.95}).addTo(mapLayers);pts.push([r.lat,r.lng]);
+    m.on("click",()=>{
+      const d=document.createElement("div");d.style.cssText="width:180px;font-size:13px";
+      if(r.photos&&r.photos.length){const i=document.createElement("img");i.style.cssText="width:180px;height:130px;object-fit:cover;border-radius:6px;display:block;cursor:pointer";setImg(i,r.photos[0]);
+        i.onclick=()=>openViewer(r.photos[0],"image/jpeg",recTitle(r));d.appendChild(i)}
+      const t=document.createElement("div");t.style.marginTop="4px";t.textContent=recTitle(r)+"｜"+(r.takenAt||fmtMs(r.createdAt))+(r.photos&&r.photos.length>1?`｜共${r.photos.length}張`:"");d.appendChild(t);
+      if(r.note){const n=document.createElement("div");n.style.color="#666";n.textContent=r.note.slice(0,60);d.appendChild(n)}
+      L.popup({maxWidth:200}).setLatLng([r.lat,r.lng]).setContent(d).openOn(map);
+    });
+  });
+  drawMe();clearInterval(mapTimer);mapTimer=setInterval(drawMe,3000);
+  const g=geoFresh();
+  if(focusMe&&g)map.setView([g.lat,g.lng],19);
+  else if(pts.length)map.fitBounds(pts,{padding:[30,30],maxZoom:19});
+  else if(g)map.setView([g.lat,g.lng],17);
+  else map.setView([23.9,120.9],8);
+}
+function closeMap(){$("mapView").hidden=true;document.body.style.overflow="";clearInterval(mapTimer)}
+$("mapBtn").onclick=()=>openMap(false);
+$("mapClose").onclick=closeMap;
+$("mapBase").onclick=()=>{baseOn=baseOn==="EMAP"?"PHOTO2":"EMAP";$("mapBase").textContent=baseOn==="EMAP"?"正射影像":"電子地圖";if(map){baseLayer.remove();baseLayer=nlsc(baseOn).addTo(map)}};
+$("mapMe").onclick=()=>{const g=geoFresh();if(map&&g)map.setView([g.lat,g.lng],19)};
+
+/* ---------- 附近的前次紀錄：依手機目前定位（開著頁面就持續更新），30m內、3小時前的紀錄 ---------- */
+function renderNear(){
+  const e=$("nearBox"),g=geoFresh();if(!e)return;
+  if(!g||!curCase){e.hidden=true;return}
+  const kx=Math.cos(g.lat*Math.PI/180)*111320,ky=110540,cut=Date.now()-3*3600e3;
+  const n=records.filter(r=>r.caseId===curCase&&r.lat!=null&&r.photos&&r.photos.length&&r.createdAt<cut&&Math.hypot((r.lng-g.lng)*kx,(r.lat-g.lat)*ky)<=30).length;
+  e.hidden=!n;if(n)e.textContent=`📷 這附近（30m 內）有 ${n} 筆前次紀錄，點開地圖看 ›`;
+}
+$("nearBox").onclick=ev=>{ev.preventDefault();openMap(true)};
+
+/* ---------- 拍照浮動鈕：上方拍照鈕滑出畫面時才出現 ---------- */
+if("IntersectionObserver" in window){
+  new IntersectionObserver(es=>{$("fab").hidden=es[0].isIntersecting||!curCase}).observe(document.querySelector("#recForm .photobtns"));
+}
+
+/* ---------- 案件挑選器：全螢幕清單＋搜尋，最近用過的在前（底層仍是原本的select） ---------- */
+function makePicker(sel,recentKey){
+  const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow";sel.before(btn);sel.hidden=true;
+  const sync=()=>{const o=sel.options[sel.selectedIndex];btn.textContent=o?o.textContent:"（尚無案件）"};
+  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
+  const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
+  const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
+  sel.addEventListener("change",()=>{touch(sel.value);sync()});
+  setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500); // 程式改value不會觸發事件
+  btn.onclick=()=>{
+    const opts=[...sel.options].filter(o=>o.value),rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
+    const ov=document.createElement("div");ov.className="picker";
+    ov.innerHTML='<div class="pkh"><input type="text" placeholder="搜尋案件名稱" aria-label="搜尋案件"><button type="button">取消</button></div><ul></ul>';
+    const q=ov.querySelector("input"),ul=ov.querySelector("ul");
+    const close=()=>{ov.remove();document.body.style.overflow=""};
+    ov.querySelector("button").onclick=close;
+    const draw=()=>{
+      const k=q.value.trim().toLowerCase();ul.innerHTML="";
+      const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k));
+      const r=hit.filter(o=>rank(o.value)<1e9).sort((a,b)=>rank(a.value)-rank(b.value)),rest=hit.filter(o=>rank(o.value)>=1e9);
+      const grp=(t,l)=>{if(!l.length)return;if(!k&&r.length&&rest.length){const h=document.createElement("li");h.className="grp";h.textContent=t;ul.appendChild(h)}
+        l.forEach(o=>{const li=document.createElement("li");li.textContent=o.textContent;if(o.value===sel.value)li.className="on";
+          li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}))}};ul.appendChild(li)})};
+      grp("最近使用",r);grp("其他案件",rest);
+      if(!hit.length){const li=document.createElement("li");li.className="grp";li.textContent="找不到符合的案件";ul.appendChild(li)}
+    };
+    q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow="hidden";
+  };
+  sync();
+}
+makePicker($("caseSel"),"eco-recent-field");
+
 whoShow();
 $("whoIn").oninput=e=>lsSet("eco-recorder",e.target.value);
 $("shareBtn").onclick=e=>{e.preventDefault();share()};
