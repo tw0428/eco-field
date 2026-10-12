@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="棲地評估">
+<link rel="apple-touch-icon" href="icon-habitat.png">
 <title>棲地評估算分</title>
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
@@ -68,7 +71,15 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sub a{color:var(--acc)}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
-button.act.sm{padding:2px 8px;font-size:12px;margin-top:2px}
+.pickbtn{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pickbtn::after{content:" ▾";color:var(--mute)}
+.picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
+.picker .pkh{display:flex;gap:8px;margin-bottom:8px}
+.picker .pkh input{flex:1}
+.picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
+.picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
+.picker li.on{color:var(--acc);font-weight:600}
+.picker .grp{font-size:12px;color:var(--mute);padding:8px 4px 2px;border:0;cursor:default}padding:2px 8px;font-size:12px;margin-top:2px}
 </style>
 </head>
 <body>
@@ -683,8 +694,38 @@ document.addEventListener('change',e=>{
   const sd=k.slice(it.id.length);const r=evalItem(it,sd,p);st.ovr=v;st.ovrBand=r.b;render();return;}
  if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
 });
-whoShow();
-$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
+/* 案件挑選器：全螢幕清單＋搜尋，最近用過的在前（底層仍是原本的select；與現場紀錄相同） */
+function makePicker(sel,recentKey){
+ const btn=document.createElement('button');btn.type='button';btn.className='act pickbtn';sel.before(btn);sel.hidden=true;
+ const sync=()=>{const o=sel.options[sel.selectedIndex];btn.textContent=o?o.textContent:'（尚無案件）'};
+ new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
+ const recent=()=>{try{return JSON.parse(lsGet(recentKey)||'[]')}catch(e){return []}};
+ const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
+ sel.addEventListener('change',()=>{touch(sel.value);sync()});
+ setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500);
+ btn.onclick=()=>{
+  const opts=[...sel.options].filter(o=>o.value),rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
+  const ov=document.createElement('div');ov.className='picker';
+  ov.innerHTML='<div class="pkh"><input type="text" placeholder="搜尋案件名稱" aria-label="搜尋案件"><button type="button" class="act">取消</button></div><ul></ul>';
+  const q=ov.querySelector('input'),ul=ov.querySelector('ul');
+  const close=()=>{ov.remove();document.body.style.overflow=''};
+  ov.querySelector('button').onclick=close;
+  const draw=()=>{
+   const k=q.value.trim().toLowerCase();ul.innerHTML='';
+   const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k));
+   const r=hit.filter(o=>rank(o.value)<1e9).sort((a,b)=>rank(a.value)-rank(b.value)),rest=hit.filter(o=>rank(o.value)>=1e9);
+   const grp=(t,l)=>{if(!l.length)return;if(!k&&r.length&&rest.length){const h=document.createElement('li');h.className='grp';h.textContent=t;ul.appendChild(h)}
+    l.forEach(o=>{const li=document.createElement('li');li.textContent=o.textContent;if(o.value===sel.value)li.className='on';
+     li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event('change',{bubbles:true}))}};ul.appendChild(li)})};
+   grp('最近使用',r);grp('其他案件',rest);
+   if(!hit.length){const li=document.createElement('li');li.className='grp';li.textContent='找不到符合的案件';ul.appendChild(li)}
+  };
+  q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow='hidden';
+ };
+ sync();
+}
+makePicker($('caseSel'),'eco-recent-habitat');
+whoShow();$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
 $('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
 initDb();
