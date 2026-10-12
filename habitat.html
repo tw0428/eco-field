@@ -26,19 +26,19 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
 *{box-sizing:border-box}
 [hidden]{display:none!important} /* .row的display:flex會蓋過hidden屬性 */
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
-header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px 10px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px 8px}
 header>*{max-width:640px;margin-left:auto;margin-right:auto}
-.top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px}
 h1{font-size:20px;margin:0;letter-spacing:.02em}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
-.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 12px;border-radius:999px;font:inherit;font-size:14px;cursor:pointer}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:5px 11px;border-radius:999px;font:inherit;font-size:14px;cursor:pointer}
 .tab.on{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
-main{padding:12px 16px 48px;max-width:640px;margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 12px}
+main{padding:10px 16px 48px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 10px}
 .card h3{margin:0 0 8px;font-size:16px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
 label{color:var(--mute);font-size:13px}
-input[type=number],input[type=text],input[type=date],input[type=password],select{font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:0}
+input[type=number],input[type=text],input[type=date],input[type=password],select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:0}
 input[type=number]{width:90px}
 .side{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
 .res{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
@@ -53,7 +53,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border:1px solid var(--line);padding:4px 6px;text-align:center}
 th{background:var(--accbg)}td.l{text-align:left}
 .up{color:var(--good)}.dn{color:var(--bad)}
-button.act{font:inherit;border:1px solid var(--line);color:var(--ink);background:var(--card);border-radius:8px;padding:10px 14px;cursor:pointer}
+button.act{font:inherit;border:1px solid var(--line);color:var(--ink);background:var(--card);border-radius:8px;padding:8px 12px;cursor:pointer}
 button.act.primary{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:600}
 button.act.danger{color:var(--bad);border-color:var(--bad)}
 .status{font-size:13px;color:var(--mute)}.status a{color:var(--acc)}
@@ -63,17 +63,18 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .ph img{width:150px;height:110px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
 .ph a{color:var(--acc)}
 .photobtns{display:grid;grid-template-columns:1fr;gap:8px}
-.photobtns label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);font-weight:600;font-size:15px;cursor:pointer;text-align:center}
+.photobtns label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);font-weight:600;cursor:pointer;text-align:center}
 .photobtns input{position:absolute;opacity:0;width:1px;height:1px}
 .photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
-.sub{font-size:13px;margin:-2px 0 8px}
+.sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.sub a{color:var(--acc)}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 button.act.sm{padding:2px 8px;font-size:12px;margin-top:2px}
 </style>
 </head>
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="sub mut">紀錄者：<a href="#" id="whoBtn">未設定</a>　<a href="#" id="shareBtn">分享給同事</a></div>
+<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="shareBtn" style="margin-left:auto">分享給同事</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -159,11 +160,9 @@ try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 /* 紀錄者（兩頁共用 eco-recorder）與分享連結 */
-let whoAsked=false;
-function who(){return lsGet('eco-recorder')||''}
-function whoShow(){$('whoBtn').textContent=who()||'未設定'}
-function whoSet(){const v=prompt('你的名字（會記在紀錄上）',who());if(v!==null){lsSet('eco-recorder',v.trim());whoShow()}return who()}
-function whoAsk(){if(!who()&&!whoAsked){whoAsked=true;return whoSet()}return who()}
+function who(){return (lsGet('eco-recorder')||'').trim()}
+function whoShow(){$('whoIn').value=lsGet('eco-recorder')||''}
+const whoAsk=who;
 function addBy(q){const by=whoAsk();if(by){const l=(q.by||'').split('、').filter(Boolean);if(!l.includes(by)){l.push(by);q.by=l.join('、')}}return by}
 function share(){
  // 網頁無法自己產生GitHub金鑰：分享的是貼進來的「同事用」金鑰，留空才用這支手機目前的金鑰
@@ -685,7 +684,7 @@ document.addEventListener('change',e=>{
  if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
 });
 whoShow();
-$('whoBtn').onclick=e=>{e.preventDefault();whoSet()};
+$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
 $('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
 initDb();
