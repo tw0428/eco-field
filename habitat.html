@@ -336,7 +336,7 @@ function photosHtml(p,kind){
 }/* 樁號推估：案件doc有 stakes:[{label,st,note,lat,lng}] 時，把GPS投影到設計中心線（同現場紀錄App） */
 function fmtSt(st){const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
 function nearestStation(lat,lng){
- const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(!s||s.length<2||lat==null)return null;
+ const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(!Array.isArray(s)||s.length<2||lat==null)return null;
  const lat0=s[0].lat,kx=Math.cos(lat0*Math.PI/180)*111320,ky=110540;
  const P=p=>[(p.lng-s[0].lng)*kx,(p.lat-lat0)*ky];const q=P({lat,lng});let best=null;
  for(let i=0;i<s.length-1;i++){const a=P(s[i]),b=P(s[i+1]),dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
