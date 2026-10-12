@@ -130,6 +130,8 @@ a{color:var(--accent)}
 :root{--stg-a:#3b6ea8;--stg-b:#8a5a9e;--stg-c:var(--accent)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--stg-a:#7fa8d8;--stg-b:#c39ad4}}
 :root[data-theme="dark"]{--stg-a:#7fa8d8;--stg-b:#c39ad4}
+/* 整頁主色跟著「本次階段」：提報藍、設計紫、開工前～完工維持綠 */
+body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var(--stg-b)}
 .rec.stg-a{border-left:4px solid var(--stg-a)}.rec.stg-b{border-left:4px solid var(--stg-b)}.rec.stg-c{border-left:4px solid var(--stg-c)}
 .pill.stg-a{color:var(--stg-a)}.pill.stg-b{color:var(--stg-b)}
 .mapbtn{padding:6px 10px;font-size:14px;align-self:flex-start}
@@ -797,7 +799,7 @@ function renderPlans(c){
 const STAGES=["提報","設計","開工前","施工中","完工"];
 function curStage(){return lsGet("eco-stage-"+curCase)||"施工中"}
 function renderStage(){
-  $("stageBox").hidden=!curCase;renderChips();if(!curCase)return;
+  $("stageBox").hidden=!curCase;document.body.dataset.stg=curCase?stgCls(curStage()):"";renderChips();if(!curCase)return;
   chips($("stageChips"),STAGES.map(s=>[s,s]),curStage,v=>{if(v){lsSet("eco-stage-"+curCase,v);renderStage();renderChecks()}});
 }
 
