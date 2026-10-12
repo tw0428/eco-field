@@ -205,7 +205,7 @@ function putNew(path,b64,m){return serial(async()=>{
 })}
 const hStore={},hSubs=[];let loadedAt=0;
 function hEmit(){const docs=Object.entries(hStore).map(([id,d])=>({id,data:()=>d})).sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));hSubs.forEach(f=>f({docs}))}
-const CACHE_KEY='eco-cache-habitat';
+const CACHE_KEY='eco-cache-habitat';let loadMode='';
 function hApply(n){Object.keys(hStore).forEach(k=>delete hStore[k]);Object.assign(hStore,n);hEmit();lsSet(CACHE_KEY,JSON.stringify(hStore))}
 // 開啟時先顯示手機上暫存的上一份資料（秒開），背景再抓最新
 function hLoadCache(){try{const c=JSON.parse(lsGet(CACHE_KEY)||'null');if(!c)return false;Object.assign(hStore,c);hEmit();return true}catch(e){return false}}
@@ -219,7 +219,7 @@ async function hLoad(){
   if(r.ok){const j=await r.json();repo=j.data&&j.data.repository;
    if(!repo&&(j.errors||[]).some(x=>x.type==='NOT_FOUND')){const e=new Error('no repo');e.code='no_repo';throw e}}
  }catch(e){if(e.code==='bad_token'||e.code==='no_repo')throw e;repo=null}
- const n={};
+ const n={};loadMode=repo?'':'（逐檔）';
  if(repo){((repo.h&&repo.h.entries)||[]).forEach(f=>{if(f.name.endsWith('.json')&&f.object&&f.object.text!=null)n[f.name.slice(0,-5)]=JSON.parse(f.object.text)})}
  else{await repoCheck();const r=await gh('habitat');const list=r?await r.json():[];
   await Promise.all(list.filter(f=>f.name.endsWith('.json')).map(async f=>{const c=await getJson('habitat/'+f.name);if(c.data)n[f.name.slice(0,-5)]=c.data}))}
@@ -272,7 +272,8 @@ async function repoCheck(){
 async function connect(){
  if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
  $('conn').textContent=Object.keys(hStore).length?'更新中…':'讀取中…';
- try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent='已連線';geoStart()}
+ const t0=performance.now();
+ try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
  catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾 eco-field-data，Contents 設 Read and write。')}
   else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生一組貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
 }
