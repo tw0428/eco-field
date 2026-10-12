@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="現場紀錄">
 <title>生態現場紀錄</title>
+<script>
+// LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
+if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set("openExternalBrowser","1");location.replace(u.href)}
+</script>
 <style>
 body{margin:0}
 [hidden]{display:none!important}
