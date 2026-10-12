@@ -13,6 +13,7 @@ if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161a17;--card:#1f2521;--ink:#e6ebe7;--mute:#98a39c;--line:#333c36;--acc:#6fc79a;--accbg:#22382c;--warn:#f0a070;--warnbg:#3a2a1f;--good:#6fc79a;--mid:#d8c65a;--bad:#e58a8a}}
 :root[data-theme="dark"]{--bg:#161a17;--card:#1f2521;--ink:#e6ebe7;--mute:#98a39c;--line:#333c36;--acc:#6fc79a;--accbg:#22382c;--warn:#f0a070;--warnbg:#3a2a1f;--good:#6fc79a;--mid:#d8c65a;--bad:#e58a8a}
 *{box-sizing:border-box}
+[hidden]{display:none!important} /* .row的display:flex會蓋過hidden屬性 */
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "微軟正黑體","Noto Sans TC",system-ui,sans-serif}
 header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:8px 12px}
 h1{font-size:16px;margin:0 0 6px}
