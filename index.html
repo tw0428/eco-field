@@ -205,8 +205,6 @@ a{color:var(--accent)}
   </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script>
 // 照片類別對應各階段檢核表的照片欄：提報=表1現況照片1~9、設計=表2、開工前=表5、施工中=表9、完工=表10
 const CATS_BY={"提報":["植被相","水域類型","水域底質","水域型態","其他"],"設計":["生態保護對象","棲地影像","其他"],"開工前":["生態保護對象","生態友善措施","其他"],"施工中":["生態保護對象","生態友善措施","棲地影像","異常狀況","改善","其他"],"完工":["生態保護對象","生態友善措施","棲地影像","其他"]};
@@ -553,13 +551,23 @@ $("vSave").onclick=async()=>{
   }catch(e){b.textContent=e&&e.code==="declined"?old:"下載失敗"}
   finally{b.disabled=false;setTimeout(()=>{b.textContent=old},2000)}
 };
+// PDF元件約1.3MB：只在真的開PDF時才下載（原本開頁就載，拖慢首次開啟）
+let pdfReady=null;
+function loadPdfJs(){
+  if(window.pdfjsLib)return Promise.resolve();
+  if(!pdfReady)pdfReady=new Promise((res,rej)=>{const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";res()};
+    s.onerror=()=>{pdfReady=null;rej(new Error("PDF元件載入失敗，請確認網路"))};document.head.appendChild(s)});
+  return pdfReady;
+}
 async function openViewer(id,type,title){
   vCur={id,type,title};$("vSave").hidden=!downloads;
   const tok=++vToken;$("vTitle").textContent=title;$("viewer").hidden=false;document.body.style.overflow="hidden";
   const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];
   try{
     if(type==="application/pdf"){
-      if(!window.pdfjsLib)throw new Error("PDF元件未載入");
+      await loadPdfJs();
       const buf=await (await fileBlob(id)).arrayBuffer();
       const pdf=await pdfjsLib.getDocument({data:buf}).promise;
       if(tok!==vToken)return;box.innerHTML="";
