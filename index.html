@@ -1048,7 +1048,7 @@ async function connect(){
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
-$("tokSave").onclick=()=>{let t=$("tokIn").value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]); // 也可整串貼分享連結if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
+$("tokSave").onclick=()=>{let t=$("tokIn").value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]);if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
 $("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
 // 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"||!ghToken)return;flushOutbox();if(!saving&&Date.now()-loadedAt>60000)connect()});
