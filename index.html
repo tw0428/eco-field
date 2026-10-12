@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="現場紀錄">
+<title>生態現場紀錄</title>
+<style>
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: single-column field form on top, record log below; built for one-handed phone use */
+:root{
+  --bg:#eef1ee; --surface:#ffffff; --fg:#1d2621; --muted:#5d6b63; --line:#cfd8d2;
+  --accent:#2f6b4f; --accent-fg:#ffffff; --soft:#dfeae3; --warn:#9a5b12; --warn-soft:#f6ead8; --danger:#a33a2c;
+  --font:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a17; --surface:#1d2521; --fg:#e4ebe6; --muted:#9aa8a0; --line:#34413a;
+  --accent:#6fb592; --accent-fg:#0f1712; --soft:#24352c; --warn:#e2a95a; --warn-soft:#3a2e1d; --danger:#ec8576; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a17; --surface:#1d2521; --fg:#e4ebe6; --muted:#9aa8a0; --line:#34413a;
+  --accent:#6fb592; --accent-fg:#0f1712; --soft:#24352c; --warn:#e2a95a; --warn-soft:#3a2e1d; --danger:#ec8576; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.5}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:12px 48px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:20px;margin:0;letter-spacing:.02em}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.status{font-size:13px;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+label.lbl{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+select,input[type=text],input[type=number],textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+textarea{min-height:72px;resize:vertical}
+button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:10px 14px;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+.grow{flex:1}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:7px 12px;border-radius:999px;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.photobtns{display:grid;grid-template-columns:1fr;gap:8px}
+.photobtns label{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:8px;border:1.5px dashed var(--accent);color:var(--accent);font-weight:600;cursor:pointer;text-align:center}
+.photobtns input{position:absolute;opacity:0;width:1px;height:1px}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px}
+.thumb{position:relative;width:84px}
+.thumb img{width:84px;height:84px;object-fit:cover;border-radius:6px;display:block;background:var(--soft)}
+.thumb button{position:absolute;top:2px;right:2px;padding:0 7px;font-size:13px;line-height:22px;border-radius:999px}
+.gps{font-size:11px;font-family:var(--mono);margin-top:2px;color:var(--muted);word-break:break-all}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--accent)}
+.pill.no{background:var(--warn-soft);color:var(--warn)}
+.msg{font-size:14px;padding:8px 10px;border-radius:8px;background:var(--soft)}
+.msg.err{background:var(--warn-soft);color:var(--warn)}
+.list{display:flex;flex-direction:column;gap:10px}
+.rec{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.rec .head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--muted)}
+.rec .title{font-weight:600;color:var(--fg);font-size:15px}
+.rec .note{white-space:pre-wrap;word-break:break-word}
+.rec .imgs{display:flex;gap:6px;overflow-x:auto}
+.rec .imgs img{width:96px;height:96px;object-fit:cover;border-radius:6px;flex:none;background:var(--soft)}
+.rec .acts{display:flex;gap:8px;justify-content:flex-end}
+.rec .acts button{padding:6px 12px;font-size:14px}
+button.danger{color:var(--danger);border-color:var(--danger)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--accent);margin-top:4px}
+.viewer{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+.vbar{display:flex;gap:6px;align-items:center;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
+.vbar button{padding:6px 12px}
+.vtitle{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
+.vcontent{transform-origin:0 0}
+.vcontent img,.vcontent canvas{display:block;max-width:none;background:#fff;margin-bottom:8px}
+.vmsg{padding:24px;color:var(--muted)}
+.plans{display:flex;flex-direction:column;gap:6px}
+.planlist{display:flex;flex-direction:column;gap:6px}
+.planitem{display:flex;gap:8px;align-items:center}
+.planitem a{flex:1;min-width:0;display:block;padding:10px 12px;border-radius:8px;background:var(--soft);color:var(--accent);font-weight:600;text-decoration:none;overflow-wrap:anywhere}
+.planitem button{padding:6px 10px;font-size:13px}
+.addcase{display:flex;flex-direction:column;gap:8px}
+.planadd{font-size:13px;color:var(--muted);cursor:pointer}
+.planadd input{position:absolute;opacity:0;width:1px;height:1px}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:16px}
+.sectionhead{display:flex;justify-content:space-between;align-items:baseline}
+.sectionhead h2{font-size:16px;margin:0}
+a{color:var(--accent)}
+.checks summary{cursor:pointer;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.checks summary::-webkit-details-marker{display:none}
+.checks summary::before{content:"▸ ";color:var(--muted)}
+.checks[open] summary::before{content:"▾ "}
+.chklist{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.chkgrp{display:flex;flex-direction:column;gap:8px;background:var(--soft);border:2px solid var(--accent);border-radius:12px;padding:0 8px 8px}
+.chkgroup{font-weight:700;font-size:15px;margin:0 -8px;padding:8px 12px;background:var(--accent);color:#fff;border-radius:9px 9px 0 0}
+.chkgrp .chk{background:var(--surface)}
+.chk{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.chk.done{opacity:.75}
+.chk .txt{font-size:15px;line-height:1.45}
+.chk .meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+.chk .btns{display:flex;flex-wrap:wrap;gap:6px}
+.chk .btns button{padding:6px 10px;font-size:13px}
+.chk .btns button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.chk .btns button.ng[aria-pressed="true"]{background:#c0392b;border-color:#c0392b}
+.chkbanner{display:flex;gap:8px;align-items:center;font-size:13px;background:var(--soft);border-radius:8px;padding:8px 10px}
+.chkbanner span{flex:1;min-width:0}
+.photobtns.two2{grid-template-columns:1fr 1fr}
+.photobtns label.cam{background:var(--accent);color:var(--accent-fg);border-style:solid}
+</style>
+</head>
+<body>
+
+<div id="viewer" class="viewer" hidden>
+  <div class="vbar">
+    <span id="vTitle" class="vtitle"></span>
+    <button type="button" id="vOut" aria-label="縮小">－</button>
+    <button type="button" id="vIn" aria-label="放大">＋</button>
+    <button type="button" id="vFit">符合寬度</button>
+    <button type="button" id="vSave" hidden>下載</button>
+    <button type="button" id="vClose" class="primary">關閉</button>
+  </div>
+  <div id="vStage" class="vstage"><div id="vContent" class="vcontent"></div></div>
+</div>
+<div class="wrap">
+  <div class="top"><h1>生態現場紀錄</h1><span class="status"><span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+
+  <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
+    <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
+    <div class="hint" style="color:var(--muted)">金鑰只存在這支手機，用來讀寫私人資料專案 eco-field-data。建立方式見使用說明。</div>
+    <input type="password" id="tokIn" placeholder="github_pat_…" autocomplete="off">
+    <button class="primary" type="button" id="tokSave">儲存並連線</button>
+    <div id="tokMsg" class="msg err" hidden></div>
+  </section>
+
+  <section class="panel" aria-label="案件">
+    <div>
+      <label class="lbl" for="caseSel">案件</label>
+      <div class="row">
+        <select id="caseSel" class="grow"><option value="">（尚無案件，請先新增）</option></select>
+        <button id="caseAddBtn" type="button">新增</button>
+        <button id="caseDelBtn" type="button" class="danger">刪除</button>
+      </div>
+      <div id="caseDelMsg" class="msg err" hidden></div>
+    </div>
+    <div id="stageBox" hidden>
+      <span class="lbl">本次階段（之後新增的紀錄都會標上）</span>
+      <div class="chips" id="stageChips"></div>
+    </div>
+    <div class="hint" id="caseStakeInfo" hidden></div>
+    <div id="planBox" class="plans" hidden>
+      <span class="lbl">平面圖／圖說（點開可放大）</span>
+      <div id="planList" class="planlist"></div>
+    </div>
+    <div id="caseAddRow" class="row" hidden>
+      <input type="text" id="caseNameIn" class="grow" placeholder="輸入案件名稱">
+      <button class="primary" id="caseSaveBtn" type="button">建立</button>
+    </div>
+  </section>
+
+  <details class="panel checks" id="chkBox" hidden>
+    <summary><span id="chkTitle">現場核對清單</span><span class="status" id="chkCount"></span></summary>
+    <div class="hint">按「📷 記錄」會帶入措施分類與樁號，存下的照片會連到這一項。</div>
+    <div id="chkList" class="chklist"></div>
+  </details>
+
+  <form class="panel" id="recForm" aria-label="新增紀錄">
+    <div class="sectionhead"><h2 id="formTitle">新增紀錄</h2><button type="button" id="cancelEdit" hidden>取消編輯</button></div>
+
+    <div class="photobtns two2">
+      <label for="camIn" class="cam">📷 拍照<input type="file" id="camIn" accept="image/*" capture="environment"></label>
+      <label for="galIn">🖼 相簿<input type="file" id="galIn" accept="image/*" multiple></label>
+    </div>
+    <div class="hint" id="geoState" hidden></div>
+    <div class="thumbs" id="pendThumbs"></div>
+
+    <div>
+      <span class="lbl">類別</span>
+      <div class="chips" id="catChips"></div>
+    </div>
+    <div id="abcdBox" hidden>
+      <span class="lbl">措施分類</span>
+      <div class="chips" id="abcdChips"></div>
+    </div>
+
+    <div class="two">
+      <div><label class="lbl" for="stakeIn">樁號／位置</label><input type="text" id="stakeIn" list="stakeList" placeholder="例 0K+120 左岸"><datalist id="stakeList"></datalist><div class="hint" id="stakeHint" hidden></div></div>
+      <div><label class="lbl" for="countIn">數量</label><input type="text" id="countIn" placeholder="例 3隻、1株"></div>
+    </div>
+    <div><label class="lbl" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="例 臺灣白魚、胸徑60cm榕樹"></div>
+    <div id="chkLinkBox" hidden><label class="lbl" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
+    <div><label class="lbl" for="noteIn">說明</label><textarea id="noteIn" placeholder="現況、建議、待確認事項"></textarea></div>
+
+    <div id="formMsg" class="msg" hidden></div>
+    <button class="primary" type="submit" id="saveBtn">儲存紀錄</button>
+    <button type="button" id="batchBtn" hidden>每張照片各存一筆（說明之後補）</button>
+  </form>
+
+  <section aria-label="紀錄列表" class="list">
+    <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
+    <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+// 照片類別對應各階段檢核表的照片欄：提報=表1現況照片1~9、設計=表2、開工前=表5、施工中=表9、完工=表10
+const CATS_BY={"提報":["植被相","水域類型","水域底質","水域型態","其他"],"設計":["生態保護對象","棲地影像","其他"],"開工前":["生態保護對象","生態友善措施","其他"],"施工中":["生態保護對象","生態友善措施","棲地影像","異常狀況","改善","其他"],"完工":["生態保護對象","生態友善措施","棲地影像","其他"]};
+const isFM=c=>/友善措施/.test(c||"");
+function catList(){const l=[...(CATS_BY[curStage()]||CATS_BY["施工中"])];if(cat&&!l.includes(cat))l.unshift(cat);return l}
+const ABCD=[["A","迴避"],["B","縮小"],["C","減輕"],["D","補償"]];
+const $=id=>document.getElementById(id);
+let db=null, assets=null, cases=[], records=[], curCase="", cat="", abcd="", pending=[], editing=null, saving=false;
+
+function lsGet(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+/* ---------- GitHub 儲存層（私人專案 eco-field-data）：模擬原本 db/assets 介面，其餘程式不用改 ----------
+   cases/<caseId>.json 案件；records/<caseId>.json {紀錄id:紀錄}；checkres/<caseId>.json {核對id:結果}；files/<id> 照片與平面圖 */
+const GH_API="https://api.github.com/repos/tw0428/eco-field-data/contents/";
+let ghToken=lsGet("gh-token");
+async function gh(path,opt={}){
+  const r=await fetch(GH_API+path.split("/").map(encodeURIComponent).join("/"),{cache:"no-store",...opt,
+    headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",...(opt.headers||{})}});
+  if(r.status===404)return null;
+  if(!r.ok){const e=new Error("GitHub "+r.status);e.code=r.status===401||r.status===403?"bad_token":r.status===409||r.status===422?"conflict":"http_"+r.status;throw e}
+  return r;
+}
+const b64e=s=>{const b=new TextEncoder().encode(s);let x="";for(let i=0;i<b.length;i+=0x8000)x+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(x)};
+const b64d=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g,"")),c=>c.charCodeAt(0)));
+const blobB64=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(",")[1]);f.onerror=rej;f.readAsDataURL(b)});
+const newId=()=>crypto.randomUUID().replace(/-/g,"");
+async function getJson(path){const r=await gh(path);if(!r)return {data:null,sha:null};const j=await r.json();return {data:JSON.parse(b64d(j.content)),sha:j.sha}}
+async function putB64(path,b64,sha,msg){return gh(path,{method:"PUT",body:JSON.stringify({message:msg||"update "+path,content:b64,...(sha?{sha}:{})})})}
+// 讀最新→套用修改→寫回；別台裝置同時改過（衝突）時重讀重做
+async function mutate(path,fn){
+  for(let i=0;;i++){
+    const {data,sha}=await getJson(path);const next=fn(data);
+    try{
+      if(next==null){if(sha)await gh(path,{method:"DELETE",body:JSON.stringify({message:"delete "+path,sha})});return null}
+      await putB64(path,b64e(JSON.stringify(next,null,1)),sha);return next;
+    }catch(e){if(e.code!=="conflict"||i>=3)throw e}
+  }
+}
+const store={cases:{},records:{},checkres:{}},subs={cases:[],records:[],checkres:[]};
+function emit(col){const docs=Object.entries(store[col]).map(([id,d])=>({id,data:()=>d}));
+  if(col==="cases")docs.sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));
+  subs[col].forEach(f=>f({docs}))}
+let loadedAt=0;
+async function loadAll(){
+  const r=await gh("cases");const list=r?await r.json():[];
+  const nc={},nr={},nk={};
+  await Promise.all(list.filter(f=>f.name.endsWith(".json")).map(async f=>{const cid=f.name.slice(0,-5);
+    const [c,rs,ks]=await Promise.all([getJson("cases/"+f.name),getJson("records/"+f.name),getJson("checkres/"+f.name)]);
+    if(c.data)nc[cid]=c.data;Object.assign(nr,rs.data||{});Object.assign(nk,ks.data||{})}));
+  store.cases=nc;store.records=nr;store.checkres=nk;loadedAt=Date.now();
+  emit("cases");emit("records");emit("checkres");
+}
+async function write(col,id,kind,d){
+  if(col==="cases"){
+    const res=await mutate(`cases/${id}.json`,old=>kind==="delete"?null:kind==="set"?d:{...(old||{}),...d});
+    if(res==null)delete store.cases[id];else store.cases[id]=res;emit(col);return;
+  }
+  const cid=(d&&d.caseId)||(store[col][id]&&store[col][id].caseId);if(!cid)throw new Error("缺caseId");
+  const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};
+    if(kind==="delete")delete m[id];else m[id]=kind==="set"?d:{...(m[id]||{}),...d};return m});
+  for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
+  Object.assign(store[col],res);emit(col);
+}
+const ghDb={
+  collection(col){return {orderBy(){return this},onSnapshot(cb){subs[col].push(cb);return ()=>{}},doc(id){return ghDb.doc(col+"/"+(id||newId()))}}},
+  doc(p){const [col,id]=p.split("/");return {id,set:d=>write(col,id,"set",d),update:d=>write(col,id,"update",d),delete:()=>write(col,id,"delete")}}
+};
+const ghAssets={
+  async upload(blob){const id=newId();await putB64("files/"+id,await blobB64(blob),null,"file "+id);return {id}},
+  async delete(id){const r=await gh("files/"+id);if(!r)return;const j=await r.json();await gh("files/"+id,{method:"DELETE",body:JSON.stringify({message:"delete file "+id,sha:j.sha})})}
+};
+// 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
+const blobCache=new Map();
+async function fileBlob(id,type){const r=await gh("files/"+id,{headers:{Accept:"application/vnd.github.raw+json"}});if(!r)throw new Error("找不到檔案");const b=await r.blob();return type?new Blob([b],{type}):b}
+function blobUrl(id,type){if(!blobCache.has(id))blobCache.set(id,fileBlob(id,type).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
+function setImg(img,id){blobUrl(id,"image/jpeg").then(u=>{img.src=u}).catch(()=>{img.alt="載入失敗"})}
+
+/* ---------- 手機定位：獨立網頁可以用定位，拍照時自動帶入 ---------- */
+let geo=null,geoWatch=null,geoErr="";
+function geoStart(){
+  if(geoWatch!=null||!navigator.geolocation)return;
+  geoWatch=navigator.geolocation.watchPosition(
+    p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr="";renderGeo()},
+    e=>{geoErr=e.code===1?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
+      if(e.code===1){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
+    {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
+}
+const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
+async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoErr&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+function renderGeo(){const e=$("geoState");const g=geoFresh();
+  e.textContent=g?`📍 定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?"📍 "+geoErr:geoWatch!=null?"📍 取得定位中…":"";e.hidden=!e.textContent}
+
+function showMsg(t,err){const m=$("formMsg");m.textContent=t;m.className="msg"+(err?" err":"");m.hidden=!t}
+
+function chips(box,items,getSel,onPick){
+  box.innerHTML="";
+  items.forEach(([val,label])=>{
+    const b=document.createElement("button");b.type="button";b.className="chip";
+    b.textContent=label;b.setAttribute("aria-pressed",String(getSel()===val));
+    b.onclick=()=>{onPick(getSel()===val&&box.id==="abcdChips"?"":val);renderChips()};
+    box.appendChild(b);
+  });
+}
+function renderChips(){
+  const base=CATS_BY[curStage()]||CATS_BY["施工中"];
+  if(!cat||(!editing&&!base.includes(cat)))cat=base[0];
+  chips($("catChips"),catList().map(c=>[c,c]),()=>cat,v=>{cat=v});
+  $("abcdBox").hidden=!isFM(cat);
+  chips($("abcdChips"),ABCD.map(([k,n])=>[k,k+" "+n]),()=>abcd,v=>{abcd=v});
+}
+
+/* ---------- EXIF (JPEG) : 拍攝時間與GPS ---------- */
+async function readExif(file){
+  try{
+    const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
+    if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {};
+    let off=2;
+    while(off+4<v.byteLength){
+      const mk=v.getUint16(off);if((mk&0xFF00)!==0xFF00)break;
+      const len=v.getUint16(off+2);
+      if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966)return parseTiff(v,off+10);
+      off+=2+len;
+    }
+  }catch(e){}
+  return {};
+}
+function parseTiff(v,t){
+  const le=v.getUint16(t)===0x4949;
+  const u16=o=>v.getUint16(t+o,le),u32=o=>v.getUint32(t+o,le);
+  const ifd=o=>{const n=u16(o),tags={};for(let i=0;i<n;i++){const e=o+2+i*12;tags[u16(e)]={count:u32(e+4),vo:e+8}}return tags};
+  const rat=(tag)=>{const o=u32(tag.vo),out=[];for(let i=0;i<tag.count;i++){const a=u32(o+i*8),b=u32(o+i*8+4);out.push(b?a/b:0)}return out};
+  const asc=(tag)=>{const o=tag.count>4?u32(tag.vo):tag.vo;let s="";for(let i=0;i<tag.count;i++){const c=v.getUint8(t+o+i);if(!c)break;s+=String.fromCharCode(c)}return s};
+  const out={};
+  try{
+    const i0=ifd(u32(4));
+    if(i0[0x8769]){const ex=ifd(u32(i0[0x8769].vo));const d=ex[0x9003]||ex[0x9004];if(d)out.taken=asc(d)}
+    if(!out.taken&&i0[0x0132])out.taken=asc(i0[0x0132]);
+    if(i0[0x8825]){
+      const g=ifd(u32(i0[0x8825].vo));
+      if(g[2]&&g[4]){
+        const dms=a=>a[0]+a[1]/60+a[2]/3600;
+        let lat=dms(rat(g[2])),lng=dms(rat(g[4]));
+        if(g[1]&&asc(g[1])==="S")lat=-lat;
+        if(g[3]&&asc(g[3])==="W")lng=-lng;
+        if(lat||lng){out.lat=+lat.toFixed(6);out.lng=+lng.toFixed(6)}
+      }
+    }
+  }catch(e){}
+  return out;
+}
+function fmtExifTime(s){const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(s||"");return m?`${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`:""}
+function fmtMs(ms){const d=new Date(ms),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+
+/* ---------- 壓縮照片（長邊1920px） ---------- */
+async function compress(file){
+  let src;
+  try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}
+  catch(e){src=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
+  const w=src.width,h=src.height,s=Math.min(1,1920/Math.max(w,h));
+  const c=document.createElement("canvas");c.width=Math.round(w*s);c.height=Math.round(h*s);
+  c.getContext("2d").drawImage(src,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
+}
+
+/* ---------- 樁號推估：把GPS投影到設計中心線 ---------- */
+function fmtSt(st){const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
+function nearestStation(lat,lng){
+  const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(lat==null)return null;
+  if((!s||s.length<2)&&c&&c.sites&&c.sites.length){ // 無樁號的案子：找最近的工區標示點
+    const kx=Math.cos(lat*Math.PI/180)*111320,ky=110540;let b=null;
+    c.sites.forEach(p=>{const d=Math.hypot((p.lng-lng)*kx,(p.lat-lat)*ky);if(!b||d<b.off)b={site:p.label,off:d}});return b;
+  }
+  if(!s||s.length<2)return null;
+  const lat0=s[0].lat,kx=Math.cos(lat0*Math.PI/180)*111320,ky=110540;
+  const P=p=>[(p.lng-s[0].lng)*kx,(p.lat-lat0)*ky];const q=P({lat,lng});
+  let best=null;
+  for(let i=0;i<s.length-1;i++){
+    const a=P(s[i]),b=P(s[i+1]),dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
+    let t=((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));
+    const px=a[0]+t*dx,py=a[1]+t*dy,d=Math.hypot(q[0]-px,q[1]-py);
+    if(!best||d<best.off)best={st:s[i].st+t*(s[i+1].st-s[i].st),off:d};
+  }
+  return best;
+}
+function fillOf(r){if(!r)return "";return r.site?(r.off<=1500?r.site:""):(r.off<=60?`約${fmtSt(r.st)}`:"")}
+function stationText(r){if(!r)return "";if(r.site)return r.off>1500?`離最近工區${(r.off/1000).toFixed(1)}km，可能不在工區`:`近${r.site}（離工區標示點${Math.round(r.off)}m）`;return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st)}（距中心線${Math.round(r.off)}m）`}
+function suggestStake(){
+  const gp=pending.find(p=>p.ex.lat!=null);
+  if(!gp){const c=cases.find(x=>x.id===curCase);if(pending.length&&c&&(c.stakes||c.sites)){$("stakeHint").textContent="照片無GPS，點樁號欄可從清單選";$("stakeHint").hidden=false}return}
+  const r=nearestStation(gp.ex.lat,gp.ex.lng);if(!r)return;
+  if(!$("stakeIn").value.trim()&&fillOf(r))$("stakeIn").value=fillOf(r);
+  $("stakeHint").textContent="GPS推估："+stationText(r);$("stakeHint").hidden=false;
+}
+
+async function addFiles(list,fromCam){
+  const add=[];
+  for(const f of list){
+    const ex=await readExif(f);
+    // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
+    ex.fresh=ex.lat==null&&(fromCam||Date.now()-(f.lastModified||0)<300000);
+    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);
+  }
+  renderPending();
+  if(add.some(p=>p.ex.fresh)){
+    const g=geoFresh()||await geoWait(10000);
+    if(g)add.forEach(p=>{if(p.ex.fresh)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})});
+    else showMsg(geoErr||"還沒取得定位，這張照片沒有GPS，可從樁號清單選位置。",true);
+    renderPending();
+  }
+  suggestStake();
+}
+function renderPending(){
+  const box=$("pendThumbs");box.innerHTML="";
+  pending.forEach((p,i)=>{
+    const d=document.createElement("div");d.className="thumb";
+    const im=document.createElement("img");im.src=p.url;im.alt="待上傳照片";
+    const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
+    x.onclick=()=>{URL.revokeObjectURL(p.url);pending.splice(i,1);renderPending()};
+    const g=document.createElement("div");g.className="gps";
+    g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoErr?"定位中…":"無GPS";
+    d.append(im,x,g);box.appendChild(d);
+  });
+  $("batchBtn").hidden=pending.length<2||!!editing;
+}
+
+/* ---------- 批次：每張照片各一筆，說明之後補 ---------- */
+$("batchBtn").onclick=async()=>{
+  if(saving)return;
+  if(!db||!assets){showMsg("尚未連上儲存空間，請確認已登入claude.ai並重新整理。",true);return}
+  if(!curCase){showMsg("請先選擇或新增案件。",true);return}
+  const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
+  const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
+  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
+  const total=pending.length;let done=0;
+  try{
+    while(pending.length){
+      const p=pending[0];
+      showMsg(`上傳並建立紀錄 ${done+1}/${total}…`);
+      let blob;try{blob=await compress(p.file)}catch(err){blob=p.file}
+      const res=await assets.upload(blob,{type:blob.type||"image/jpeg"});
+      const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
+      const stake=manualStake&&!autoFilled?manualStake:fillOf(ns);
+      await db.collection("records").doc().set({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(linkCheck?{checkId:linkCheck}:{}),
+        photos:[res.id],createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
+        lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})});
+      URL.revokeObjectURL(p.url);pending.shift();done++;renderPending();
+    }
+    clearForm();showMsg(`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`);
+  }catch(err){
+    renderPending();
+    showMsg(`已存 ${done} 筆，第 ${done+1} 張失敗（${(err&&err.code)||"網路"}）。剩下 ${pending.length} 張還在上面，有訊號時再按一次。`,true);
+  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false}
+};
+$("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
+$("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
+$("camIn").onclick=()=>geoStart();/* ---------- 案件 ---------- */
+function renderCases(){
+  const sel=$("caseSel");sel.innerHTML="";
+  if(!cases.length){sel.innerHTML='<option value="">（尚無案件，請先新增）</option>'}
+  cases.forEach(c=>{
+    const o=document.createElement("option");o.value=c.id;
+    const n=records.filter(r=>r.caseId===c.id).length;
+    o.textContent=`${c.name}（${n}）`;sel.appendChild(o);
+  });
+  if(!cases.find(c=>c.id===curCase))curCase=cases.find(c=>c.id===lsGet("eco-case"))?lsGet("eco-case"):(cases[0]?.id||"");
+  sel.value=curCase;
+  const c=cases.find(x=>x.id===curCase),info=$("caseStakeInfo");
+  if(c&&c.stakes&&c.stakes.length>1){info.textContent=`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
+  else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
+  else info.hidden=true;
+  renderPlans(c);renderStage();renderChecks();renderLinkSel();
+  const dl=$("stakeList");dl.innerHTML="";
+  ((c&&c.stakes)||[]).forEach(s=>{const o=document.createElement("option");o.value=s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st);dl.appendChild(o)});
+  ((c&&c.sites)||[]).forEach(s=>{(s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label]).forEach(v=>{const o=document.createElement("option");o.value=v;dl.appendChild(o)})});
+}
+$("caseSel").onchange=e=>{curCase=e.target.value;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()};
+/* ---------- 頁內檢視器：圖片／PDF，可縮放、雙指縮放 ---------- */
+let vZoom=1,vBase=[],vToken=0;
+function vApply(){
+  const items=$("vContent").children;
+  for(let i=0;i<items.length;i++){const w=vBase[i];if(w)items[i].style.width=Math.round(w*vZoom)+"px"}
+}
+function vFit(){const w=$("vStage").clientWidth-4;const mx=Math.max(...vBase.filter(Boolean),1);vZoom=w/mx;vApply()}
+function vSetZoom(z,cx,cy){
+  const st=$("vStage"),old=vZoom;z=Math.max(0.1,Math.min(6,z));
+  const px=(st.scrollLeft+(cx??st.clientWidth/2))/old,py=(st.scrollTop+(cy??st.clientHeight/2))/old;
+  vZoom=z;vApply();
+  st.scrollLeft=px*z-(cx??st.clientWidth/2);st.scrollTop=py*z-(cy??st.clientHeight/2);
+}
+let downloads=null,vCur=null;
+$("vSave").onclick=async()=>{
+  if(!downloads||!vCur)return;const b=$("vSave"),old=b.textContent;
+  try{
+    b.disabled=true;b.textContent="準備中…";
+    const blob=await fileBlob(vCur.id,vCur.type);
+    const ext=vCur.type==="application/pdf"?"pdf":vCur.type==="image/png"?"png":"jpg";
+    const name=(vCur.title||"檔案").replace(/[\\/:*?"<>|]/g,"_")+"."+ext;
+    await downloads.save({filename:name,data:blob});b.textContent="已下載";
+  }catch(e){b.textContent=e&&e.code==="declined"?old:"下載失敗"}
+  finally{b.disabled=false;setTimeout(()=>{b.textContent=old},2000)}
+};
+async function openViewer(id,type,title){
+  vCur={id,type,title};$("vSave").hidden=!downloads;
+  const tok=++vToken;$("vTitle").textContent=title;$("viewer").hidden=false;document.body.style.overflow="hidden";
+  const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];
+  try{
+    if(type==="application/pdf"){
+      if(!window.pdfjsLib)throw new Error("PDF元件未載入");
+      const buf=await (await fileBlob(id)).arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      if(tok!==vToken)return;box.innerHTML="";
+      for(let n=1;n<=pdf.numPages;n++){
+        const page=await pdf.getPage(n),vp=page.getViewport({scale:2});
+        const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
+        await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+        if(tok!==vToken)return;box.appendChild(cv);vBase.push(vp.width/2);
+        if(n===1)vFit();else vApply();
+      }
+    }else{
+      const img=new Image();img.alt=title;
+      await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;blobUrl(id,type).then(u=>{img.src=u},rej)});
+      if(tok!==vToken)return;box.innerHTML="";box.appendChild(img);vBase=[img.naturalWidth];vFit();
+    }
+  }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟這個檔案（'+(e.message||"載入失敗")+'）。</div>'}
+}
+function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow=""}
+$("vClose").onclick=closeViewer;
+$("vIn").onclick=()=>vSetZoom(vZoom*1.5);
+$("vOut").onclick=()=>vSetZoom(vZoom/1.5);
+$("vFit").onclick=vFit;
+(()=>{const st=$("vStage");const pts=new Map();let d0=0,z0=1;
+  const dist=()=>{const p=[...pts.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};
+  st.addEventListener("pointerdown",e=>{try{st.setPointerCapture(e.pointerId)}catch(_){};pts.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pts.size===2){d0=dist();z0=vZoom}});
+  st.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId))return;const prev=pts.get(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1){st.scrollLeft-=e.clientX-prev.x;st.scrollTop-=e.clientY-prev.y;return}
+    if(pts.size===2&&d0){const p=[...pts.values()],r=st.getBoundingClientRect();vSetZoom(z0*dist()/d0,(p[0].x+p[1].x)/2-r.left,(p[0].y+p[1].y)/2-r.top)}});
+  const up=e=>{pts.delete(e.pointerId);if(pts.size<2)d0=0};
+  st.addEventListener("pointerup",up);st.addEventListener("pointercancel",up);
+  st.addEventListener("wheel",e=>{if(e.ctrlKey){e.preventDefault();const r=st.getBoundingClientRect();vSetZoom(vZoom*(e.deltaY<0?1.1:0.9),e.clientX-r.left,e.clientY-r.top)}},{passive:false});
+})();
+
+/* ---------- 平面圖（存在案件的 plans:[{id,title,type}]） ---------- */
+function renderPlans(c){
+  const box=$("planBox"),list=$("planList");
+  if(!c){box.hidden=true;return}
+  list.innerHTML="";
+  (c.plans||[]).forEach((p,i)=>{
+    const row=document.createElement("div");row.className="planitem";
+    const a=document.createElement("a");a.href="#";a.textContent="📄 "+(p.title||"平面圖");
+    a.onclick=ev=>{ev.preventDefault();openViewer(p.id,p.type,p.title||"平面圖")};
+    row.appendChild(a);
+    if(assets){
+      const del=document.createElement("button");del.type="button";del.className="danger";del.textContent="移除";
+      del.onclick=async()=>{
+        if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="確認移除";setTimeout(()=>{del.dataset.armed="";del.textContent="移除"},4000);return}
+        del.disabled=true;
+        try{const plans=(c.plans||[]).filter((_,j)=>j!==i);await db.doc("cases/"+c.id).update({plans});try{await assets.delete(p.id)}catch(e){}}
+        catch(e){del.disabled=false;del.textContent="移除失敗"}
+      };
+      row.appendChild(del);
+    }
+    list.appendChild(row);
+  });
+  box.hidden=!(c.plans&&c.plans.length);
+}
+
+/* ---------- 階段（每案記在本機，新紀錄帶 stage） ---------- */
+const STAGES=["提報","設計","開工前","施工中","完工"];
+function curStage(){return lsGet("eco-stage-"+curCase)||"施工中"}
+function renderStage(){
+  $("stageBox").hidden=!curCase;renderChips();if(!curCase)return;
+  chips($("stageChips"),STAGES.map(s=>[s,s]),curStage,v=>{if(v){lsSet("eco-stage-"+curCase,v);renderStage();renderChecks()}});
+}
+
+/* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
+   勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
+let checkRes={},linkCheck=null;
+const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
+// 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
+const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
+const stLabels=stage=>stage==="開工前"?CHK_PRE:CHK_ST;
+const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
+function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
+function resId(){return curCase+"_"+today()}
+function renderChecks(){
+  const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
+  const c=cases.find(x=>x.id===curCase),box=$("chkBox"),list=$("chkList");
+  const stage=curStage();
+  const items=(stage==="設計"||stage==="提報")?[]:((c&&c.checks)||[]).filter(i=>stage!=="開工前"||i.phase==="design");
+  box.hidden=!items.length;list.innerHTML="";
+  if(linkCheck&&!((c&&c.checks)||[]).find(i=>i.id===linkCheck))setLink(null);
+  if(!items.length)return;
+  $("chkTitle").textContent=stage==="開工前"?"設計意見落實確認":"現場核對清單";
+  const st=(checkRes[resId()]&&checkRes[resId()].st)||{},notes=(checkRes[resId()]&&checkRes[resId()].notes)||{};
+  const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
+  const lastOf=id=>{const d=past.find(d=>d.st&&d.st[id]);return d?`上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${stLabel(d.stage,d.st[id])}`:""};
+  $("chkCount").textContent=`今天已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`;
+  // 有 group（工區）時依群組首次出現順序分組並加標題
+  const gOrder=[...new Set(items.map(i=>i.group||""))];
+  if(gOrder.some(Boolean))items.sort((a,b)=>gOrder.indexOf(a.group||"")-gOrder.indexOf(b.group||""));
+  let lastG=null,dest=list;
+  items.forEach(it=>{
+    if(gOrder.some(Boolean)&&(it.group||"")!==lastG){lastG=it.group||"";
+      const gi=items.filter(i=>(i.group||"")===lastG);
+      const h=document.createElement("div");h.className="chkgroup";h.textContent=`${lastG||"其他"}（${gi.filter(i=>st[i.id]).length}/${gi.length}）`;
+      dest=document.createElement("div");dest.className="chkgrp";dest.appendChild(h);list.appendChild(dest)}
+    const el=document.createElement("div");el.className="chk"+(st[it.id]?" done":"");
+    const tx=document.createElement("div");tx.className="txt";
+    const p=document.createElement("span");p.className="pill";p.textContent=it.abcd||"—";
+    tx.append(p," "+it.text);el.appendChild(tx);
+    const n=records.filter(r=>r.caseId===curCase&&r.checkId===it.id).length;
+    const m=document.createElement("div");m.className="meta";
+    [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it.id)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
+    el.appendChild(m);
+    const bs=document.createElement("div");bs.className="btns";
+    stLabels(stage).forEach(([k,label])=>{
+      const b=document.createElement("button");b.type="button";b.textContent=label;if(k==="ng")b.className="ng";
+      b.setAttribute("aria-pressed",String(st[it.id]===k));
+      b.onclick=()=>setCheck(it.id,st[it.id]===k?"":k);bs.appendChild(b);
+    });
+    const rb=document.createElement("button");rb.type="button";rb.textContent="📷 記錄";
+    rb.onclick=()=>{cancelEdit();clearForm();cat="生態友善措施";abcd=it.abcd||"";renderChips();
+      if(it.stake)$("stakeIn").value=it.stake;setLink(it.id);$("recForm").scrollIntoView({behavior:"smooth"})};
+    bs.appendChild(rb);el.appendChild(bs);
+    if(st[it.id]==="adj"||st[it.id]==="ng"){
+      const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
+      ta.placeholder=st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
+      ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
+      ta.onblur=()=>setTimeout(renderChecks,0);
+      el.appendChild(ta);
+    }
+    dest.appendChild(el);
+  });
+}
+async function setCheck(id,v,note){
+  if(!db)return;const rid=resId(),cur=checkRes[rid]||{st:{}};const st={...cur.st},nt={...(cur.notes||{})};
+  if(v)st[id]=v;else delete st[id];
+  if(note!==undefined){if(note)nt[id]=note;else delete nt[id]}
+  const doc={caseId:curCase,date:today(),stage:curStage(),st,notes:nt,updatedAt:Date.now()};
+  checkRes[rid]=doc;renderChecks();
+  try{await db.doc("checkres/"+rid).set(doc)}
+  catch(e){showMsg("核對狀態儲存失敗，有訊號時再按一次。",true)}
+}
+function renderLinkSel(){
+  const c=cases.find(x=>x.id===curCase),items=(c&&c.checks)||[],sel=$("chkLinkSel");
+  $("chkLinkBox").hidden=!items.length;sel.innerHTML="";
+  const o0=document.createElement("option");o0.value="";o0.textContent="（不連結）";sel.appendChild(o0);
+  const groups=[...new Set(items.map(i=>i.group||""))];
+  groups.forEach(g=>{
+    const parent=g?document.createElement("optgroup"):sel;if(g){parent.label=g;sel.appendChild(parent)}
+    items.filter(i=>(i.group||"")===g).forEach(i=>{const o=document.createElement("option");o.value=i.id;o.textContent=(i.abcd?i.abcd+" ":"")+i.text;parent.appendChild(o)});
+  });
+  sel.value=linkCheck&&items.find(i=>i.id===linkCheck)?linkCheck:"";
+}
+function setLink(id){linkCheck=id||null;renderLinkSel()}
+$("chkLinkSel").onchange=e=>{linkCheck=e.target.value||null;
+  const c=cases.find(x=>x.id===curCase),it=linkCheck&&c&&(c.checks||[]).find(i=>i.id===linkCheck);
+  if(it&&!editing){if(!isFM(cat)&&(CATS_BY[curStage()]||[]).includes("生態友善措施")){cat="生態友善措施"}if(isFM(cat)&&!abcd)abcd=it.abcd||"";renderChips();if(it.stake&&!$("stakeIn").value.trim())$("stakeIn").value=it.stake}};
+
+let delArmTimer=null;
+function disarmCaseDel(){clearTimeout(delArmTimer);const b=$("caseDelBtn");b.dataset.armed="";b.textContent="刪除";$("caseDelMsg").hidden=true}
+$("caseDelBtn").onclick=async()=>{
+  const b=$("caseDelBtn"),c=cases.find(x=>x.id===curCase);if(!c||!db)return;
+  const recs=records.filter(r=>r.caseId===c.id);
+  if(b.dataset.armed!=="1"){
+    b.dataset.armed="1";b.textContent="確認刪除";
+    const m=$("caseDelMsg");m.hidden=false;
+    m.textContent=recs.length?`「${c.name}」連同 ${recs.length} 筆紀錄和照片會一起刪掉，無法復原。確定請再按「確認刪除」。`:`確定刪除「${c.name}」？請再按「確認刪除」。`;
+    delArmTimer=setTimeout(disarmCaseDel,6000);return;
+  }
+  clearTimeout(delArmTimer);b.disabled=true;b.textContent="刪除中…";
+  try{
+    for(const r of recs){
+      await db.doc("records/"+r.id).delete();
+      if(assets)for(const p of (r.photos||[])){try{await assets.delete(p)}catch(e){}}
+    }
+    for(const k of Object.keys(checkRes).filter(k=>checkRes[k].caseId===c.id)){try{await db.doc("checkres/"+k).delete()}catch(e){}}
+    await db.doc("cases/"+c.id).delete();
+    curCase="";lsSet("eco-case","");
+  }catch(e){$("caseDelMsg").hidden=false;$("caseDelMsg").textContent="刪除失敗，請有訊號時再試。"}
+  finally{b.disabled=false;disarmCaseDel()}
+};
+$("caseAddBtn").onclick=()=>{$("caseAddRow").hidden=!$("caseAddRow").hidden;if(!$("caseAddRow").hidden)$("caseNameIn").focus()};
+$("caseSaveBtn").onclick=async()=>{
+  const name=$("caseNameIn").value.trim();if(!name||!db)return;
+  try{
+    const ref=db.collection("cases").doc();
+    await ref.set({name,createdAt:Date.now()});
+    curCase=ref.id;lsSet("eco-case",curCase);$("caseNameIn").value="";$("caseAddRow").hidden=true;
+  }catch(e){showMsg("案件建立失敗："+(e.message||e.code),true)}
+};
+
+/* ---------- 紀錄列表 ---------- */
+function renderRecords(){
+  const box=$("recList");box.innerHTML="";
+  const c=cases.find(x=>x.id===curCase);
+  $("listTitle").textContent=c?c.name+" 的紀錄":"本案紀錄";
+  const list=records.filter(r=>r.caseId===curCase).sort((a,b)=>b.createdAt-a.createdAt);
+  const todo=list.filter(r=>!r.species&&!r.note).length;
+  $("listCount").textContent=list.length?list.length+" 筆"+(todo?`（${todo} 筆待補說明）`:""):"";
+  if(!c){box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
+  if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
+  list.forEach(r=>{
+    const el=document.createElement("article");el.className="rec";
+    const head=document.createElement("div");head.className="head";
+    const t=document.createElement("span");t.className="pill";t.textContent=(r.stage?r.stage+"｜":"")+r.category+(r.abcd?" "+r.abcd:"");
+    const time=document.createElement("span");time.className="mono";time.textContent=r.takenAt||fmtMs(r.createdAt);
+    head.append(t,time);
+    if(!r.species&&!r.note){const w=document.createElement("span");w.className="pill no";w.textContent="待補說明";head.appendChild(w)}
+    if(r.stake){const s=document.createElement("span");s.textContent=r.stake;head.appendChild(s)}
+    if(r.checkId){const ck=((c.checks||[]).find(i=>i.id===r.checkId));if(ck){const s=document.createElement("span");s.className="pill";s.textContent="核對："+ck.text.slice(0,14)+(ck.text.length>14?"…":"");head.appendChild(s)}}
+    if(r.lat!=null){
+      const a=document.createElement("a");a.className="mono";a.target="_blank";a.rel="noopener";
+      a.href=`https://www.google.com/maps?q=${r.lat},${r.lng}`;a.textContent=`${r.lat}, ${r.lng}`+(r.gpsSource==="device"?`（手機定位±${r.gpsAcc}m）`:"");head.appendChild(a);
+      const ns=nearestStation(r.lat,r.lng);if(ns){const e=document.createElement("span");e.textContent="GPS "+stationText(ns);head.appendChild(e)}
+    }else if(r.photos&&r.photos.length){const n=document.createElement("span");n.className="pill no";n.textContent="照片無GPS";head.appendChild(n)}
+    el.appendChild(head);
+    if(r.species||r.count){const ti=document.createElement("div");ti.className="title";ti.textContent=[r.species,r.count].filter(Boolean).join("　");el.appendChild(ti)}
+    if(r.note){const n=document.createElement("div");n.className="note";n.textContent=r.note;el.appendChild(n)}
+    if(r.photos&&r.photos.length){
+      const im=document.createElement("div");im.className="imgs";
+      r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a)});
+      el.appendChild(im);
+    }
+    const acts=document.createElement("div");acts.className="acts";
+    const eb=document.createElement("button");eb.type="button";eb.textContent="編輯";eb.onclick=()=>startEdit(r);
+    const db_=document.createElement("button");db_.type="button";db_.className="danger";db_.textContent="刪除";
+    db_.onclick=async()=>{
+      if(db_.dataset.armed!=="1"){db_.dataset.armed="1";db_.textContent="再按一次確認刪除";setTimeout(()=>{db_.dataset.armed="";db_.textContent="刪除"},4000);return}
+      db_.disabled=true;
+      try{
+        await db.doc("records/"+r.id).delete();
+        if(assets)for(const p of (r.photos||[])){try{await assets.delete(p)}catch(e){}}
+      }catch(e){db_.disabled=false;db_.textContent="刪除失敗，再試一次"}
+    };
+    acts.append(eb,db_);el.appendChild(acts);
+    box.appendChild(el);
+  });
+}
+
+/* ---------- 編輯 ---------- */
+function startEdit(r){
+  editing=r;cat=r.category||"其他";abcd=r.abcd||"";setLink(r.checkId);
+  $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";
+  $("formTitle").textContent="編輯紀錄（可再加照片）";$("cancelEdit").hidden=false;$("saveBtn").textContent="儲存修改";
+  renderChips();renderPending();showMsg("");$("recForm").scrollIntoView({behavior:"smooth"});
+}
+function cancelEdit(){
+  editing=null;$("formTitle").textContent="新增紀錄";$("cancelEdit").hidden=true;$("saveBtn").textContent="儲存紀錄";renderPending();
+}
+$("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
+function clearForm(){
+  pending.forEach(p=>URL.revokeObjectURL(p.url));pending=[];renderPending();
+  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
+}
+
+/* ---------- 儲存 ---------- */
+$("recForm").onsubmit=async e=>{
+  e.preventDefault();if(saving)return;
+  if(!db){showMsg("尚未連上儲存空間，請確認已登入claude.ai並重新整理。",true);return}
+  if(!curCase){showMsg("請先選擇或新增案件。",true);return}
+  const f={stake:$("stakeIn").value.trim(),count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
+  if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("至少拍一張照片或填一個欄位。",true);return}
+  if(pending.length&&!assets){showMsg("這個檢視無法上傳照片（需用你自己的帳號開啟）。",true);return}
+  saving=true;$("saveBtn").disabled=true;
+  try{
+    const ids=[];
+    for(let i=0;i<pending.length;i++){
+      showMsg(`上傳照片 ${i+1}/${pending.length}…`);
+      let blob;try{blob=await compress(pending[i].file)}catch(err){blob=pending[i].file}
+      const res=await assets.upload(blob,{type:blob.type||"image/jpeg"});
+      ids.push(res.id);
+    }
+    const gp=pending.find(p=>p.ex.lat!=null);const tp=pending.find(p=>p.ex.taken);
+    const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
+    if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
+    if(!editing)body.stage=curStage();
+    if(editing){
+      const upd={...body,photos:[...(editing.photos||[]),...ids]};
+      if(editing.lat==null&&gp){upd.lat=gp.ex.lat;upd.lng=gp.ex.lng;upd.gpsSource=gp.ex.src||"exif";if(gp.ex.acc!=null)upd.gpsAcc=gp.ex.acc}
+      if(!editing.takenAt&&tp)upd.takenAt=fmtExifTime(tp.ex.taken);
+      await db.doc("records/"+editing.id).update(upd);
+      cancelEdit();
+    }else{
+      const doc={...body,photos:ids,createdAt:Date.now(),takenAt:tp?fmtExifTime(tp.ex.taken):"",
+        lat:gp?gp.ex.lat:null,lng:gp?gp.ex.lng:null,gpsSource:gp?(gp.ex.src||"exif"):"none",...(gp&&gp.ex.acc!=null?{gpsAcc:gp.ex.acc}:{})};
+      await db.collection("records").doc().set(doc);
+    }
+    clearForm();
+    showMsg(gp||!ids.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。",!gp&&ids.length>0);
+  }catch(err){
+    const c=err&&err.code;
+    showMsg(c==="too_large"?"照片太大，無法上傳。":c==="quota_or_state"||c==="quota_exceeded"?"儲存空間已滿。":"儲存失敗（"+(c||"網路")+"），資料還在表單上，有訊號時再按一次。",true);
+  }finally{saving=false;$("saveBtn").disabled=false}
+};
+
+/* ---------- 啟動 ---------- */
+renderChips();
+db=ghDb;assets=ghAssets;
+// 下載：獨立網頁直接用<a download>
+downloads={async save({filename,data}){const u=URL.createObjectURL(data),a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}};
+async function connect(){
+  if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
+  $("conn").textContent="讀取中…";
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
+  catch(e){$("conn").textContent=e.code==="bad_token"?"金鑰無效":"讀取失敗（"+(e.code||"網路")+"）";
+    if(e.code==="bad_token"){$("tokBox").hidden=false;$("tokMsg").textContent="金鑰無效或沒有 eco-field-data 的讀寫權限，請重新建立。";$("tokMsg").hidden=false}}
+}
+$("tokSave").onclick=()=>{const t=$("tokIn").value.trim();if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
+$("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
+// 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&ghToken&&!saving&&Date.now()-loadedAt>60000)connect()});
+(async()=>{
+  db.collection("cases").orderBy("createdAt").onSnapshot(s=>{cases=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
+    ()=>{$("conn").textContent="連線中斷，請重新整理"});
+  db.collection("records").onSnapshot(s=>{records=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
+    ()=>{$("conn").textContent="連線中斷，請重新整理"});
+  db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});renderChecks()},()=>{});
+  connect();
+})();
+</script>
+</body>
+</html>
