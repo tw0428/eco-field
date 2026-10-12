@@ -236,16 +236,23 @@ const blobB64=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>r
 const newId=()=>crypto.randomUUID().replace(/-/g,"");
 async function getJson(path){const r=await gh(path);if(!r)return {data:null,sha:null};const j=await r.json();return {data:JSON.parse(b64d(j.content)),sha:j.sha}}
 async function putB64(path,b64,sha,msg){return gh(path,{method:"PUT",body:JSON.stringify({message:msg||"update "+path,content:b64,...(sha?{sha}:{})})})}
+// GitHub同一分支同時兩筆寫入會409 → 所有寫入排隊一筆一筆送，撞到仍重試
+let wq=Promise.resolve();
+function serial(fn){const p=wq.then(fn,fn);wq=p.catch(()=>{});return p}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // 讀最新→套用修改→寫回；別台裝置同時改過（衝突）時重讀重做
-async function mutate(path,fn){
+function mutate(path,fn){return serial(async()=>{
   for(let i=0;;i++){
     const {data,sha}=await getJson(path);const next=fn(data);
     try{
       if(next==null){if(sha)await gh(path,{method:"DELETE",body:JSON.stringify({message:"delete "+path,sha})});return null}
       await putB64(path,b64e(JSON.stringify(next,null,1)),sha);return next;
-    }catch(e){if(e.code!=="conflict"||i>=3)throw e}
+    }catch(e){if(e.code!=="conflict"||i>=4)throw e;await sleep(800*(i+1))}
   }
-}
+})}
+function putNew(path,b64,m){return serial(async()=>{
+  for(let i=0;;i++){try{return await putB64(path,b64,null,m)}catch(e){if(e.code!=="conflict"||i>=4)throw e;await sleep(800*(i+1))}}
+})}
 const store={cases:{},records:{},checkres:{}},subs={cases:[],records:[],checkres:[]};
 function emit(col){const docs=Object.entries(store[col]).map(([id,d])=>({id,data:()=>d}));
   if(col==="cases")docs.sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));
@@ -276,8 +283,8 @@ const ghDb={
   doc(p){const [col,id]=p.split("/");return {id,set:d=>write(col,id,"set",d),update:d=>write(col,id,"update",d),delete:()=>write(col,id,"delete")}}
 };
 const ghAssets={
-  async upload(blob){const id=newId();await putB64("files/"+id,await blobB64(blob),null,"file "+id);return {id}},
-  async delete(id){const r=await gh("files/"+id);if(!r)return;const j=await r.json();await gh("files/"+id,{method:"DELETE",body:JSON.stringify({message:"delete file "+id,sha:j.sha})})}
+  async upload(blob){const id=newId();await putNew("files/"+id,await blobB64(blob),"file "+id);return {id}},
+  delete(id){return serial(async()=>{const r=await gh("files/"+id);if(!r)return;const j=await r.json();await gh("files/"+id,{method:"DELETE",body:JSON.stringify({message:"delete file "+id,sha:j.sha})})})}
 };
 // 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
 const blobCache=new Map();
