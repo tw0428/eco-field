@@ -9,6 +9,14 @@
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
 if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set("openExternalBrowser","1");location.replace(u.href)}
+// 網頁存手機（sw.js）：有新版時顯示提示條，點了才換新版（避免表單填一半被重新整理）
+if("serviceWorker" in navigator&&location.protocol==="https:"){
+  navigator.serviceWorker.onmessage=e=>{if(!e.data||e.data.type!=="update"||document.getElementById("updBar"))return;
+    const b=document.createElement("button");b.id="updBar";b.type="button";b.textContent="有新版本，點這裡更新";
+    b.style.cssText="position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99;padding:14px;border-radius:10px;border:0;background:#2f6b4f;color:#fff;font:inherit;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3)";
+    b.onclick=()=>location.reload();document.body.appendChild(b)};
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
 </script>
 <style>
 body{margin:0}
@@ -199,6 +207,12 @@ a{color:var(--accent)}
     <button type="button" id="batchBtn" hidden>每張照片各存一筆（說明之後補）</button>
   </form>
 
+  <section class="panel" id="obBox" hidden aria-label="待上傳">
+    <div class="sectionhead"><h2>待上傳 <span class="status" id="obCount"></span></h2><button type="button" id="obFlush">立即上傳</button></div>
+    <div class="hint" id="obMsg"></div>
+    <div id="obList" class="list"></div>
+  </section>
+
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
@@ -222,12 +236,18 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 const GH_API="https://api.github.com/repos/tw0428/eco-field-data/contents/";
 let ghToken=lsGet("gh-token");
 async function gh(path,opt={}){
-  const r=await fetch(GH_API+path.split("/").map(encodeURIComponent).join("/"),{cache:"no-store",...opt,
-    headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",...(opt.headers||{})}});
-  if(r.status===404)return null;
-  if(!r.ok){const e=new Error("GitHub "+r.status);e.code=r.status===401||r.status===403?"bad_token":r.status===409||r.status===422?"conflict":"http_"+r.status;throw e}
-  return r;
+  // 訊號極差時fetch可能一直掛著：讀30秒、寫45秒逾時，逾時算網路錯誤（新紀錄會轉成待上傳）
+  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),opt.method&&opt.method!=="GET"?45000:30000);
+  try{
+    const r=await fetch(GH_API+path.split("/").map(encodeURIComponent).join("/"),{cache:"no-store",...opt,signal:ac.signal,
+      headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",...(opt.headers||{})}});
+    if(r.status===404)return null;
+    if(!r.ok){const e=new Error("GitHub "+r.status);e.code=r.status===401||r.status===403?"bad_token":r.status===409||r.status===422?"conflict":"http_"+r.status;throw e}
+    return r;
+  }finally{clearTimeout(tm)}
 }
+// 沒訊號／逾時／GitHub暫時故障 → 可以先存手機稍後重傳；金鑰錯誤等則不是
+const isNetErr=e=>!e||navigator.onLine===false||e.name==="TypeError"||e.name==="AbortError"||/^http_5/.test(e.code||"")||(!e.code&&/fetch|network|load failed/i.test(e.message||""));
 const b64e=s=>{const b=new TextEncoder().encode(s);let x="";for(let i=0;i<b.length;i+=0x8000)x+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(x)};
 const b64d=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g,"")),c=>c.charCodeAt(0)));
 const blobB64=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(",")[1]);f.onerror=rej;f.readAsDataURL(b)});
@@ -326,6 +346,72 @@ async function fileBlob(id,type){
 }
 function blobUrl(id,type){if(!blobCache.has(id))blobCache.set(id,fileBlob(id,type).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
 function setImg(img,id){blobUrl(id,"image/jpeg").then(u=>{img.src=u}).catch(()=>{img.alt="載入失敗"})}
+
+/* ---------- 離線待上傳（IndexedDB）：沒訊號時新紀錄、核對結果先存手機，有訊號自動補傳 ----------
+   紀錄 {qid:"rec_<紀錄id>",kind:"record",recId,doc,photos:[{buf,type}],uploaded:[已傳照片id],at}
+   核對 {qid:"chk_<核對id>",kind:"check",rid,doc,at}（同一天同案只留最新一份） */
+let outbox=[],flushing=false,obErr="";
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("eco-outbox",1);r.onupgradeneeded=()=>r.result.createObjectStore("q",{keyPath:"qid"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function obTx(mode,fn){const d=await idb();return new Promise((res,rej)=>{const t=d.transaction("q",mode);const out=fn(t.objectStore("q"));t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)})}
+const obLoad=async()=>{try{outbox=(await obTx("readonly",s=>s.getAll()))||[]}catch(e){outbox=[]}};
+const obPut=it=>{const {_urls,...rest}=it;return obTx("readwrite",s=>s.put(rest))};
+async function obRemove(qid){const it=outbox.find(x=>x.qid===qid);if(!it)return;(it._urls||[]).forEach(u=>URL.revokeObjectURL(u));
+  outbox=outbox.filter(x=>x.qid!==qid);try{await obTx("readwrite",s=>s.delete(qid))}catch(e){}renderOutbox()}
+async function obAddRecord(recId,doc,blobs,uploaded){
+  const photos=await Promise.all(blobs.map(async b=>({buf:await b.arrayBuffer(),type:b.type||"image/jpeg"})));
+  const it={qid:"rec_"+recId,kind:"record",recId,doc,photos,uploaded:uploaded||[],at:Date.now()};
+  await obPut(it);outbox.push(it);renderOutbox();
+}
+async function obAddCheck(rid,doc){const it={qid:"chk_"+rid,kind:"check",rid,doc,at:Date.now()};await obPut(it);outbox=outbox.filter(x=>x.qid!==it.qid);outbox.push(it);renderOutbox()}
+// 新紀錄：有訊號直接存，沒訊號或中途斷線就整筆轉成待上傳（已傳好的照片id一起記著，補傳時不重傳）
+async function saveNew(doc,blobs){
+  const recId=newId(),ids=[];
+  if(navigator.onLine!==false){
+    try{for(const b of blobs)ids.push((await assets.upload(b)).id);
+      await db.collection("records").doc(recId).set({...doc,photos:ids});return "saved"}
+    catch(e){if(!isNetErr(e))throw e}
+  }
+  await obAddRecord(recId,doc,blobs,ids);return "queued";
+}
+async function flushOutbox(){
+  if(flushing||!ghToken||!outbox.length||navigator.onLine===false)return;
+  flushing=true;obErr="";renderOutbox();
+  try{
+    for(const it of [...outbox].sort((a,b)=>a.at-b.at)){
+      if(it.kind==="record"){
+        const ids=it.uploaded||[];
+        for(let i=ids.length;i<it.photos.length;i++){const p=it.photos[i];ids.push((await assets.upload(new Blob([p.buf],{type:p.type}))).id);it.uploaded=ids;await obPut(it)}
+        await db.collection("records").doc(it.recId).set({...it.doc,photos:ids});
+      }else if(it.kind==="check")await db.doc("checkres/"+it.rid).set(it.doc);
+      await obRemove(it.qid);
+    }
+  }catch(e){obErr=isNetErr(e)?"":"補傳失敗（"+(e.code||e.message)+"），稍後會再試"}
+  finally{flushing=false;renderOutbox()}
+}
+function renderOutbox(){
+  const box=$("obBox");if(!box)return;box.hidden=!outbox.length;if(!outbox.length)return;
+  const recs=outbox.filter(i=>i.kind==="record"),chks=outbox.filter(i=>i.kind==="check");
+  $("obCount").textContent=`${outbox.length} 筆`;
+  $("obMsg").textContent=flushing?"上傳中…":obErr||(navigator.onLine===false?"目前沒訊號，有訊號時會自動上傳":"有訊號時會自動上傳，也可以按「立即上傳」");
+  $("obFlush").disabled=flushing;
+  const list=$("obList");list.innerHTML="";
+  recs.forEach(it=>{
+    const d=it.doc,el=document.createElement("article");el.className="rec";
+    const head=document.createElement("div");head.className="head";
+    const t=document.createElement("span");t.className="pill no";t.textContent="待上傳";
+    const c=document.createElement("span");c.className="pill";c.textContent=(d.stage?d.stage+"｜":"")+d.category+(d.abcd?" "+d.abcd:"");
+    const cn=document.createElement("span");cn.textContent=(cases.find(x=>x.id===d.caseId)||{}).name||"";
+    head.append(t,c,cn);if(d.stake){const s=document.createElement("span");s.textContent=d.stake;head.appendChild(s)}
+    el.appendChild(head);
+    const txt=[d.species,d.count,d.note].filter(Boolean).join("　");if(txt){const n=document.createElement("div");n.className="note";n.textContent=txt;el.appendChild(n)}
+    if(it.photos.length){it._urls=it._urls||it.photos.map(p=>URL.createObjectURL(new Blob([p.buf],{type:p.type})));
+      const im=document.createElement("div");im.className="imgs";it._urls.forEach(u=>{const i=document.createElement("img");i.src=u;i.alt="待上傳照片";im.appendChild(i)});el.appendChild(im)}
+    const acts=document.createElement("div");acts.className="acts";const del=document.createElement("button");del.type="button";del.className="danger";del.textContent="刪除";
+    del.onclick=()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="再按一次確認刪除";setTimeout(()=>{del.dataset.armed="";del.textContent="刪除"},4000);return}obRemove(it.qid)};
+    acts.appendChild(del);el.appendChild(acts);list.appendChild(el);
+  });
+  if(chks.length){const n=document.createElement("div");n.className="hint";n.textContent=`另有 ${chks.length} 份核對結果待上傳`;list.appendChild(n)}
+}
 
 /* ---------- 手機定位：獨立網頁可以用定位，拍照時自動帶入 ---------- */
 let geo=null,geoWatch=null,geoErr="";
@@ -483,24 +569,24 @@ $("batchBtn").onclick=async()=>{
   const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
   saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
-  const total=pending.length;let done=0;
+  const total=pending.length;let done=0,queued=0;
   try{
     while(pending.length){
       const p=pending[0];
-      showMsg(`上傳並建立紀錄 ${done+1}/${total}…`);
+      showMsg(`建立紀錄 ${done+queued+1}/${total}…`);
       let blob;try{blob=await compress(p.file)}catch(err){blob=p.file}
-      const res=await assets.upload(blob,{type:blob.type||"image/jpeg"});
       const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
       const stake=manualStake&&!autoFilled?manualStake:fillOf(ns);
-      await db.collection("records").doc().set({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(linkCheck?{checkId:linkCheck}:{}),
-        photos:[res.id],createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
-        lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})});
-      URL.revokeObjectURL(p.url);pending.shift();done++;renderPending();
+      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(linkCheck?{checkId:linkCheck}:{}),
+        createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
+        lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})},[blob]);
+      r==="queued"?queued++:done++;
+      URL.revokeObjectURL(p.url);pending.shift();renderPending();
     }
-    clearForm();showMsg(`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`);
+    clearForm();showMsg(queued?`已存 ${done} 筆；${queued} 筆沒訊號，先存在手機（見上方「待上傳」），有訊號會自動上傳。`:`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`,queued>0);
   }catch(err){
     renderPending();
-    showMsg(`已存 ${done} 筆，第 ${done+1} 張失敗（${(err&&err.code)||"網路"}）。剩下 ${pending.length} 張還在上面，有訊號時再按一次。`,true);
+    showMsg(`已存 ${done+queued} 筆，第 ${done+queued+1} 張失敗（${(err&&err.code)||"錯誤"}）。剩下 ${pending.length} 張還在上面。`,true);
   }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false}
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
@@ -700,8 +786,13 @@ async function setCheck(id,v,note){
   if(note!==undefined){if(note)nt[id]=note;else delete nt[id]}
   const doc={caseId:curCase,date:today(),stage:curStage(),st,notes:nt,updatedAt:Date.now()};
   checkRes[rid]=doc;renderChecks();
-  try{await db.doc("checkres/"+rid).set(doc)}
-  catch(e){showMsg("核對狀態儲存失敗，有訊號時再按一次。",true)}
+  try{
+    if(navigator.onLine===false)throw new TypeError("offline");
+    await db.doc("checkres/"+rid).set(doc);if(outbox.some(x=>x.qid==="chk_"+rid))obRemove("chk_"+rid);
+  }catch(e){
+    if(isNetErr(e)){try{await obAddCheck(rid,doc)}catch(_){showMsg("核對狀態儲存失敗，有訊號時再按一次。",true)}}
+    else showMsg("核對狀態儲存失敗（"+(e.code||e.message)+"）。",true);
+  }
 }
 function renderLinkSel(){
   const c=cases.find(x=>x.id===curCase),items=(c&&c.checks)||[],sel=$("chkLinkSel");
@@ -826,33 +917,32 @@ $("recForm").onsubmit=async e=>{
   if(pending.length&&!assets){showMsg("這個檢視無法上傳照片（需用你自己的帳號開啟）。",true);return}
   saving=true;$("saveBtn").disabled=true;
   try{
-    const ids=[];
-    for(let i=0;i<pending.length;i++){
-      showMsg(`上傳照片 ${i+1}/${pending.length}…`);
-      let blob;try{blob=await compress(pending[i].file)}catch(err){blob=pending[i].file}
-      const res=await assets.upload(blob,{type:blob.type||"image/jpeg"});
-      ids.push(res.id);
-    }
+    const blobs=[];
+    for(let i=0;i<pending.length;i++){let blob;try{blob=await compress(pending[i].file)}catch(err){blob=pending[i].file}blobs.push(blob)}
     const gp=pending.find(p=>p.ex.lat!=null);const tp=pending.find(p=>p.ex.taken);
     const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
     if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
     if(!editing)body.stage=curStage();
-    if(editing){
+    let queued=false;
+    if(editing){ // 編輯既有紀錄需要網路（不進待上傳）
+      const ids=[];
+      for(let i=0;i<blobs.length;i++){showMsg(`上傳照片 ${i+1}/${blobs.length}…`);ids.push((await assets.upload(blobs[i])).id)}
       const upd={...body,photos:[...(editing.photos||[]),...ids]};
       if(editing.lat==null&&gp){upd.lat=gp.ex.lat;upd.lng=gp.ex.lng;upd.gpsSource=gp.ex.src||"exif";if(gp.ex.acc!=null)upd.gpsAcc=gp.ex.acc}
       if(!editing.takenAt&&tp)upd.takenAt=fmtExifTime(tp.ex.taken);
       await db.doc("records/"+editing.id).update(upd);
       cancelEdit();
     }else{
-      const doc={...body,photos:ids,createdAt:Date.now(),takenAt:tp?fmtExifTime(tp.ex.taken):"",
+      showMsg(blobs.length?`上傳照片（${blobs.length} 張）…`:"儲存中…");
+      const doc={...body,createdAt:Date.now(),takenAt:tp?fmtExifTime(tp.ex.taken):"",
         lat:gp?gp.ex.lat:null,lng:gp?gp.ex.lng:null,gpsSource:gp?(gp.ex.src||"exif"):"none",...(gp&&gp.ex.acc!=null?{gpsAcc:gp.ex.acc}:{})};
-      await db.collection("records").doc().set(doc);
+      queued=(await saveNew(doc,blobs))==="queued";
     }
     clearForm();
-    showMsg(gp||!ids.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。",!gp&&ids.length>0);
+    showMsg(queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。",queued||(!gp&&blobs.length>0));
   }catch(err){
     const c=err&&err.code;
-    showMsg(c==="too_large"?"照片太大，無法上傳。":c==="quota_or_state"||c==="quota_exceeded"?"儲存空間已滿。":"儲存失敗（"+(c||"網路")+"），資料還在表單上，有訊號時再按一次。",true);
+    showMsg(editing&&isNetErr(err)?"編輯既有紀錄需要網路，資料還在表單上，有訊號時再按一次。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
   }finally{saving=false;$("saveBtn").disabled=false}
 };
 
@@ -880,15 +970,21 @@ async function connect(){
 $("tokSave").onclick=()=>{const t=$("tokIn").value.trim();if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
 $("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
 // 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&ghToken&&!saving&&Date.now()-loadedAt>60000)connect()});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"||!ghToken)return;flushOutbox();if(!saving&&Date.now()-loadedAt>60000)connect()});
+$("obFlush").onclick=()=>flushOutbox();
 (async()=>{
   db.collection("cases").orderBy("createdAt").onSnapshot(s=>{cases=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
   db.collection("records").onSnapshot(s=>{records=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
-  db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});renderChecks()},()=>{});
+  // 待上傳的核對結果蓋在雲端資料上面，重新讀取時不會被舊資料覆蓋
+  db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});outbox.filter(x=>x.kind==="check").forEach(x=>{checkRes[x.rid]=x.doc});renderChecks()},()=>{});
+  await obLoad();renderOutbox();
   if(ghToken)loadCache();
-  connect();
+  await connect();flushOutbox();
+  window.addEventListener("online",()=>{renderOutbox();flushOutbox()});
+  window.addEventListener("offline",renderOutbox);
+  setInterval(()=>{if(outbox.length)flushOutbox()},60000);
 })();
 </script>
 </body>
