@@ -382,7 +382,7 @@ async function compress(file){
 /* ---------- 樁號推估：把GPS投影到設計中心線 ---------- */
 function fmtSt(st){const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
 function nearestStation(lat,lng){
-  const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(lat==null)return null;
+  const c=cases.find(x=>x.id===curCase);const s=c&&Array.isArray(c.stakes)?c.stakes:null;if(lat==null)return null;
   if((!s||s.length<2)&&c&&c.sites&&c.sites.length){ // 無樁號的案子：找最近的工區標示點
     const kx=Math.cos(lat*Math.PI/180)*111320,ky=110540;let b=null;
     c.sites.forEach(p=>{const d=Math.hypot((p.lng-lng)*kx,(p.lat-lat)*ky);if(!b||d<b.off)b={site:p.label,off:d}});return b;
@@ -482,13 +482,13 @@ function renderCases(){
   if(!cases.find(c=>c.id===curCase))curCase=cases.find(c=>c.id===lsGet("eco-case"))?lsGet("eco-case"):(cases[0]?.id||"");
   sel.value=curCase;
   const c=cases.find(x=>x.id===curCase),info=$("caseStakeInfo");
-  if(c&&c.stakes&&c.stakes.length>1){info.textContent=`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
+  if(c&&Array.isArray(c.stakes)&&c.stakes.length>1){info.textContent=`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
   renderPlans(c);renderStage();renderChecks();renderLinkSel();
   const dl=$("stakeList");dl.innerHTML="";
-  ((c&&c.stakes)||[]).forEach(s=>{const o=document.createElement("option");o.value=s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st);dl.appendChild(o)});
-  ((c&&c.sites)||[]).forEach(s=>{(s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label]).forEach(v=>{const o=document.createElement("option");o.value=v;dl.appendChild(o)})});
+  (c&&Array.isArray(c.stakes)?c.stakes:[]).forEach(s=>{const o=document.createElement("option");o.value=s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st);dl.appendChild(o)});
+  (c&&Array.isArray(c.sites)?c.sites:[]).forEach(s=>{(s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label]).forEach(v=>{const o=document.createElement("option");o.value=v;dl.appendChild(o)})});
 }
 $("caseSel").onchange=e=>{curCase=e.target.value;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()};
 /* ---------- 頁內檢視器：圖片／PDF，可縮放、雙指縮放 ---------- */
