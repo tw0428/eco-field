@@ -7,6 +7,8 @@
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
 if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.href)}
+// 同事分享連結 #k=金鑰：存進這支手機後從網址拿掉（#後面的內容不會送到任何伺服器）
+else{const m=location.hash.match(/[#&]k=([^&]+)/);if(m){try{localStorage.setItem('gh-token',decodeURIComponent(m[1]))}catch(e){}history.replaceState(null,'',location.pathname+location.search)}}
 // 網頁存手機（sw.js）：有新版時顯示提示條，點了才換新版
 if('serviceWorker' in navigator&&location.protocol==='https:'){
  navigator.serviceWorker.onmessage=e=>{if(!e.data||e.data.type!=='update'||document.getElementById('updBar'))return;
@@ -64,12 +66,14 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .photobtns label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);font-weight:600;font-size:15px;cursor:pointer;text-align:center}
 .photobtns input{position:absolute;opacity:0;width:1px;height:1px}
 .photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
+.sub{font-size:13px;margin:-2px 0 8px}
 button.act.sm{padding:2px 8px;font-size:12px;margin-top:2px}
 </style>
 </head>
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+<div class="sub mut">紀錄者：<a href="#" id="whoBtn">未設定</a>　<a href="#" id="shareBtn">分享給同事</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -154,6 +158,23 @@ const PREF='habitat_pref';
 try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+/* 紀錄者（兩頁共用 eco-recorder）與分享連結 */
+let whoAsked=false;
+function who(){return lsGet('eco-recorder')||''}
+function whoShow(){$('whoBtn').textContent=who()||'未設定'}
+function whoSet(){const v=prompt('你的名字（會記在紀錄上）',who());if(v!==null){lsSet('eco-recorder',v.trim());whoShow()}return who()}
+function whoAsk(){if(!who()&&!whoAsked){whoAsked=true;return whoSet()}return who()}
+function addBy(q){const by=whoAsk();if(by){const l=(q.by||'').split('、').filter(Boolean);if(!l.includes(by)){l.push(by);q.by=l.join('、')}}return by}
+function share(){
+ // 網頁無法自己產生GitHub金鑰：分享的是貼進來的「同事用」金鑰，留空才用這支手機目前的金鑰
+ const k=prompt('貼上要給同事用的金鑰（建議另開一組「同事用」金鑰；留空＝用這支手機目前的金鑰）','');
+ if(k===null)return;const tok=k.trim()||ghToken;
+ if(!tok){alert('這支手機還沒設定金鑰，無法分享。');return}
+ if(!confirm('分享連結裡含金鑰，拿到的人都能讀寫所有案件資料。只傳給同事，不要貼到群組公告或公開地方。繼續？'))return;
+ const url=new URL('./',location.href).href+'#k='+encodeURIComponent(tok);
+ const text='生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n'+url;
+ if(navigator.share)navigator.share({text}).catch(()=>{});else{const done=()=>alert('已複製，貼到LINE傳給同事。');try{navigator.clipboard.writeText(text).then(done,()=>fallback(text,done))}catch(_){fallback(text,done)}}
+}
 function msg(t){const m=$('caseMsg');m.hidden=!t;m.textContent=t||''}
 function save(){
  if(!db){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}return;}
@@ -361,7 +382,7 @@ const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${
 // 已有評分/照片但沒日期的舊期別不動，免得誤填
 function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
 const exifDay=s=>{const m=/^(\d{4}):(\d\d):(\d\d)/.exec(s||'');return m?`${m[1]}-${m[2]}-${m[3]}`:''};
-function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>`}
+function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
@@ -439,7 +460,8 @@ async function upPhotos(files,kind,fromCam){
   try{const r=await assets.upload(blob,{type:blob.type||'image/jpeg'});
    if(curCase!==id||!S.p)return;
    if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
-   phList(S.p[ci],kind).push({id:r.id,lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
+   const by=addBy(S.p[ci]);
+   phList(S.p[ci],kind).push({id:r.id,...(by?{by}:{}),lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
    if(ex.lat==null)noGps++;render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
@@ -644,6 +666,7 @@ document.addEventListener('change',e=>{
  if(t.id==='caseSel'){msg('');(async()=>{await flush();curCase=t.value;S.cur=0;loadCase(true);render()})();return}
  if(!S.p)return;
  const p=S.p[S.cur];
+ if(t.dataset.c||t.dataset.o||t.dataset.sl||t.dataset.f||t.dataset.gps!=null)addBy(p);
  if(t.dataset.ph){const fs=[...t.files];t.value='';if(fs.length)upPhotos(fs,t.dataset.ph,!!t.dataset.cam);return}
  if(t.dataset.gps!=null){const m=t.value.match(/(-?\d+(?:\.\d+)?)\s*[,，\s]\s*(-?\d+(?:\.\d+)?)/);
   if(!m){t.style.borderColor='var(--bad)';return}
@@ -661,6 +684,9 @@ document.addEventListener('change',e=>{
   const sd=k.slice(it.id.length);const r=evalItem(it,sd,p);st.ovr=v;st.ovrBand=r.b;render();return;}
  if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
 });
+whoShow();
+$('whoBtn').onclick=e=>{e.preventDefault();whoSet()};
+$('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
 initDb();
 </script>
