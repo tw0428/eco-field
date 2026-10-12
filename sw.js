@@ -1,10 +1,11 @@
 // 網頁存手機：開啟時直接用手機上的副本（秒開、沒訊號也能開），背景再抓新版；
 // 新版和副本不同時通知頁面顯示「有新版本」提示條。只管兩個網頁本身，GitHub資料與照片另有暫存。
-const CACHE = "eco-pages-v1";
+const CACHE = "eco-pages-v2"; // 改這個檔的邏輯時要升版號
 const PAGES = ["index.html", "habitat.html"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PAGES)));
+  // cache:"reload" 略過瀏覽器HTTP快取，確保存到的是GitHub上最新的
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PAGES.map(p => new Request(p, { cache: "reload" })))));
   self.skipWaiting();
 });
 self.addEventListener("activate", e => {
@@ -33,10 +34,11 @@ self.addEventListener("fetch", e => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const hit = await cache.match(page);
+    // 舊副本的內容要在交給頁面之前先讀出來（交出去後body會被頁面讀走，不能再讀）
+    const old = hit ? await hit.clone().text() : null;
     const update = fetch(page, { cache: "no-store" }).then(async res => {
       if (!res.ok) return res;
       const fresh = await res.clone().text();
-      const old = hit ? await hit.clone().text() : null;
       await cache.put(page, res.clone());
       if (old !== null && old !== fresh) {
         for (const c of await self.clients.matchAll({ type: "window" })) c.postMessage({ type: "update", page });
