@@ -809,12 +809,20 @@ renderChips();
 db=ghDb;assets=ghAssets;
 // 下載：獨立網頁直接用<a download>
 downloads={async save({filename,data}){const u=URL.createObjectURL(data),a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}};
+// 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
+const TOK_REPO_MSG="這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定確認：Repository access 選「Only select repositories」並勾 eco-field-data，Permissions 的 Contents 設 Read and write（可直接編輯原金鑰，不用重貼）。";
+async function repoCheck(){
+  const r=await fetch("https://api.github.com/repos/tw0428/eco-field-data",{cache:"no-store",headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json"}});
+  if(r.status===401){const e=new Error("401");e.code="bad_token";throw e}
+  if(r.status===404||r.status===403){const e=new Error("no repo");e.code="no_repo";throw e}
+  if(!r.ok){const e=new Error("GitHub "+r.status);e.code="http_"+r.status;throw e}
+}
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
   $("conn").textContent="讀取中…";
-  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
-  catch(e){$("conn").textContent=e.code==="bad_token"?"金鑰無效":"讀取失敗（"+(e.code||"網路")+"）";
-    if(e.code==="bad_token"){$("tokBox").hidden=false;$("tokMsg").textContent="金鑰無效或沒有 eco-field-data 的讀寫權限，請重新建立。";$("tokMsg").hidden=false}}
+  try{await repoCheck();await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
+  catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
+    if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
 $("tokSave").onclick=()=>{const t=$("tokIn").value.trim();if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
 $("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
