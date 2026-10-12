@@ -104,10 +104,11 @@ button.danger{color:var(--danger);border-color:var(--danger)}
 .sectionhead{display:flex;justify-content:space-between;align-items:baseline}
 .sectionhead h2{font-size:16px;margin:0}
 a{color:var(--accent)}
-.checks summary{cursor:pointer;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.checks summary{cursor:pointer;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .checks summary::-webkit-details-marker{display:none}
-.checks summary::before{content:"▸ ";color:var(--muted)}
-.checks[open] summary::before{content:"▾ "}
+.checks summary::before{content:"▸";color:var(--accent);font-size:22px;line-height:1;width:22px;flex:none}
+.checks summary #chkTitle{flex:1}
+.checks[open] summary::before{content:"▾"}
 .chklist{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .chkgrp{display:flex;flex-direction:column;gap:8px;background:var(--soft);border:2px solid var(--accent);border-radius:12px;padding:0 8px 8px}
 .chkgroup{font-weight:700;font-size:15px;margin:0 -8px;padding:8px 12px;background:var(--accent);color:#fff;border-radius:9px 9px 0 0}
