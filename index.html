@@ -258,25 +258,53 @@ function emit(col){const docs=Object.entries(store[col]).map(([id,d])=>({id,data
   if(col==="cases")docs.sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));
   subs[col].forEach(f=>f({docs}))}
 let loadedAt=0;
+const CACHE_KEY="eco-cache-field";
+function applyStore(nc,nr,nk){store.cases=nc;store.records=nr;store.checkres=nk;emit("cases");emit("records");emit("checkres");
+  lsSet(CACHE_KEY,JSON.stringify({cases:nc,records:nr,checkres:nk}))}
+// 開啟時先顯示手機上暫存的上一份資料（秒開），背景再抓最新
+function loadCache(){try{const c=JSON.parse(lsGet(CACHE_KEY)||"null");if(!c)return false;store.cases=c.cases||{};store.records=c.records||{};store.checkres=c.checkres||{};emit("cases");emit("records");emit("checkres");return true}catch(e){return false}}
+// GraphQL一次請求拿到三個資料夾所有JSON內容（REST要先列清單再逐檔抓）
+async function gql(query){
+  const r=await fetch("https://api.github.com/graphql",{method:"POST",cache:"no-store",headers:{Authorization:"Bearer "+ghToken,"Content-Type":"application/json"},body:JSON.stringify({query})});
+  if(r.status===401){const e=new Error("401");e.code="bad_token";throw e}
+  if(!r.ok){const e=new Error("graphql "+r.status);e.code="gql_"+r.status;throw e}
+  return r.json();
+}
+const TREE_FRAG="fragment T on Tree{entries{name object{... on Blob{text}}}}";
+const treeFiles=o=>((o&&o.entries)||[]).filter(f=>f.name.endsWith(".json")&&f.object&&f.object.text!=null).map(f=>[f.name.slice(0,-5),JSON.parse(f.object.text)]);
 async function loadAll(){
+  let repo=null;
+  try{const j=await gql(`query{repository(owner:"tw0428",name:"eco-field-data"){c:object(expression:"HEAD:cases"){...T} r:object(expression:"HEAD:records"){...T} k:object(expression:"HEAD:checkres"){...T}}} ${TREE_FRAG}`);
+    repo=j.data&&j.data.repository;
+    if(!repo&&(j.errors||[]).some(x=>x.type==="NOT_FOUND")){const e=new Error("no repo");e.code="no_repo";throw e}
+  }catch(e){if(e.code==="bad_token"||e.code==="no_repo")throw e;repo=null}
+  if(!repo)return loadAllRest(); // GraphQL不能用時退回逐檔讀
+  const nc={},nr={},nk={};
+  treeFiles(repo.c).forEach(([id,d])=>{nc[id]=d});
+  treeFiles(repo.r).forEach(([,m])=>Object.assign(nr,m||{}));
+  treeFiles(repo.k).forEach(([,m])=>Object.assign(nk,m||{}));
+  loadedAt=Date.now();applyStore(nc,nr,nk);
+}
+async function loadAllRest(){
+  await repoCheck();
   const r=await gh("cases");const list=r?await r.json():[];
   const nc={},nr={},nk={};
   await Promise.all(list.filter(f=>f.name.endsWith(".json")).map(async f=>{const cid=f.name.slice(0,-5);
     const [c,rs,ks]=await Promise.all([getJson("cases/"+f.name),getJson("records/"+f.name),getJson("checkres/"+f.name)]);
     if(c.data)nc[cid]=c.data;Object.assign(nr,rs.data||{});Object.assign(nk,ks.data||{})}));
-  store.cases=nc;store.records=nr;store.checkres=nk;loadedAt=Date.now();
-  emit("cases");emit("records");emit("checkres");
+  loadedAt=Date.now();applyStore(nc,nr,nk);
 }
 async function write(col,id,kind,d){
   if(col==="cases"){
     const res=await mutate(`cases/${id}.json`,old=>kind==="delete"?null:kind==="set"?d:{...(old||{}),...d});
-    if(res==null)delete store.cases[id];else store.cases[id]=res;emit(col);return;
+    if(res==null)delete store.cases[id];else store.cases[id]=res;emit(col);lsSet(CACHE_KEY,JSON.stringify(store));return;
   }
   const cid=(d&&d.caseId)||(store[col][id]&&store[col][id].caseId);if(!cid)throw new Error("缺caseId");
   const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};
     if(kind==="delete")delete m[id];else m[id]=kind==="set"?d:{...(m[id]||{}),...d};return m});
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);
+  lsSet(CACHE_KEY,JSON.stringify(store));
 }
 const ghDb={
   collection(col){return {orderBy(){return this},onSnapshot(cb){subs[col].push(cb);return ()=>{}},doc(id){return ghDb.doc(col+"/"+(id||newId()))}}},
@@ -288,7 +316,15 @@ const ghAssets={
 };
 // 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
 const blobCache=new Map();
-async function fileBlob(id,type){const r=await gh("files/"+id,{headers:{Accept:"application/vnd.github.raw+json"}});if(!r)throw new Error("找不到檔案");const b=await r.blob();return type?new Blob([b],{type}):b}
+// 照片/平面圖上傳後不會再改 → 下載過一次就存在手機（Cache Storage），之後直接讀
+const FILE_CACHE="eco-files",fileKey=id=>location.origin+"/__files/"+id;
+async function fileBlob(id,type){
+  let b=null;
+  try{const c=await caches.open(FILE_CACHE);const hit=await c.match(fileKey(id));if(hit)b=await hit.blob()}catch(e){}
+  if(!b){const r=await gh("files/"+id,{headers:{Accept:"application/vnd.github.raw+json"}});if(!r)throw new Error("找不到檔案");b=await r.blob();
+    try{const c=await caches.open(FILE_CACHE);await c.put(fileKey(id),new Response(b))}catch(e){}}
+  return type?new Blob([b],{type}):b;
+}
 function blobUrl(id,type){if(!blobCache.has(id))blobCache.set(id,fileBlob(id,type).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
 function setImg(img,id){blobUrl(id,"image/jpeg").then(u=>{img.src=u}).catch(()=>{img.alt="載入失敗"})}
 
@@ -826,8 +862,8 @@ async function repoCheck(){
 }
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
-  $("conn").textContent="讀取中…";
-  try{await repoCheck();await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
+  $("conn").textContent=Object.keys(store.cases).length?"更新中…":"讀取中…";
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
@@ -841,6 +877,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
   db.collection("records").onSnapshot(s=>{records=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
   db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});renderChecks()},()=>{});
+  if(ghToken)loadCache();
   connect();
 })();
 </script>
