@@ -34,6 +34,7 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
 header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px 8px}
 header>*{max-width:640px;margin-left:auto;margin-right:auto}
+header>.row{margin-left:auto;margin-right:auto} /* .row的margin:6px 0會蓋掉置中 */
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px}
 h1{font-size:20px;margin:0;letter-spacing:.02em}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
