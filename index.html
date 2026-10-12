@@ -153,6 +153,9 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .pickbtn::after{content:" ▾";color:var(--muted)}
 #viewer{z-index:55}
 .leaflet-container{background:var(--bg);font:inherit}
+.ovctl{background:#fff;color:#222;border-radius:8px;padding:8px 10px;box-shadow:0 1px 5px rgba(0,0,0,.35);font-size:13px;line-height:1.6;max-width:210px}
+.ovctl .ovh{font-weight:600;margin-bottom:2px}.ovctl label{display:block;cursor:pointer}.ovctl .ovst{color:#888}
+.ovctl .ovr{display:flex;align-items:center;gap:4px;margin-top:4px;color:#666}.ovctl input[type=range]{flex:1;min-width:0}
 .stklbl{background:#fff;color:#222;border:1px solid #bbb;border-radius:4px;padding:3px 6px;font-size:12px;line-height:16px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25);box-sizing:border-box}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
@@ -1184,6 +1187,7 @@ async function openMap(focusMe){
       L.popup({maxWidth:200}).setLatLng([r.lat,r.lng]).setContent(d).openOn(map);
     });
   });
+  renderOverlayCtl(c);
   drawMe();clearInterval(mapTimer);mapTimer=setInterval(drawMe,3000);
   const g=geoFresh();
   if(focusMe&&g)map.setView([g.lat,g.lng],19);
@@ -1191,6 +1195,33 @@ async function openMap(focusMe){
   else if(g)map.setView([g.lat,g.lng],17);
   else map.setView([23.9,120.9],8);
   relabel();
+}
+// 對位後設計圖（案件 overlays:[{id,title,bounds:[[南,西],[北,東]]}]，Claude 對位後上傳）：地圖右上角勾選開關＋透明度
+let ovCtl=null,ovLayers={},ovOpacity=0.85;
+function renderOverlayCtl(c){
+  Object.values(ovLayers).forEach(l=>l.remove());ovLayers={};if(ovCtl){ovCtl.remove();ovCtl=null}
+  const list=Array.isArray(c.overlays)?c.overlays.filter(o=>o&&o.id&&Array.isArray(o.bounds)):[];if(!list.length)return;
+  ovCtl=L.control({position:"topright"});
+  ovCtl.onAdd=()=>{
+    const d=L.DomUtil.create("div","ovctl");L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);
+    const h=document.createElement("div");h.className="ovh";h.textContent="設計圖";d.appendChild(h);
+    list.forEach(o=>{
+      const lb=document.createElement("label"),cb=document.createElement("input");cb.type="checkbox";
+      const st=document.createElement("span");st.className="ovst";
+      cb.onchange=async()=>{
+        if(!cb.checked){if(ovLayers[o.id]){ovLayers[o.id].remove();delete ovLayers[o.id]}return}
+        st.textContent=" 載入中…";
+        try{const u=await blobUrl(o.id,o.type||"image/png");if(!cb.checked)return;ovLayers[o.id]=L.imageOverlay(u,o.bounds,{opacity:ovOpacity,interactive:false}).addTo(map);st.textContent=""}
+        catch(e){st.textContent=" 載入失敗";cb.checked=false}
+      };
+      lb.append(cb," "+(o.title||"設計圖"),st);d.appendChild(lb);
+    });
+    const r=document.createElement("input");r.type="range";r.min="0.2";r.max="1";r.step="0.05";r.value=String(ovOpacity);r.setAttribute("aria-label","設計圖透明度");
+    r.oninput=()=>{ovOpacity=+r.value;Object.values(ovLayers).forEach(l=>l.setOpacity(ovOpacity))};
+    const rl=document.createElement("div");rl.className="ovr";rl.append("淡",r,"濃");d.appendChild(rl);
+    return d;
+  };
+  ovCtl.addTo(map);
 }
 // 常駐樁號標籤：全部都顯示。放到最大仍重疊的合併成多行；其餘若會壓到，就往上下（再換左邊）錯開，用細線連回橘點
 let mapLabels=[],labelLayer=null;
