@@ -9,6 +9,8 @@
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
 if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set("openExternalBrowser","1");location.replace(u.href)}
+// 同事分享連結 #k=金鑰：存進這支手機後從網址拿掉（#後面的內容不會送到任何伺服器）
+else{const m=location.hash.match(/[#&]k=([^&]+)/);if(m){try{localStorage.setItem("gh-token",decodeURIComponent(m[1]))}catch(e){}history.replaceState(null,"",location.pathname+location.search)}}
 // 網頁存手機（sw.js）：有新版時顯示提示條，點了才換新版（避免表單填一半被重新整理）
 if("serviceWorker" in navigator&&location.protocol==="https:"){
   navigator.serviceWorker.onmessage=e=>{if(!e.data||e.data.type!=="update"||document.getElementById("updBar"))return;
@@ -118,6 +120,7 @@ a{color:var(--accent)}
 .chkbanner span{flex:1;min-width:0}
 .photobtns.two2{grid-template-columns:1fr 1fr}
 .photobtns label.cam{background:var(--accent);color:var(--accent-fg);border-style:solid}
+.sub{font-size:13px;margin:-2px 0 8px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -135,6 +138,7 @@ a{color:var(--accent)}
 </div>
 <div class="wrap">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+  <div class="sub">紀錄者：<a href="#" id="whoBtn">未設定</a>　<a href="#" id="shareBtn">分享給同事</a></div>
 
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
     <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
@@ -230,6 +234,25 @@ let db=null, assets=null, cases=[], records=[], curCase="", cat="", abcd="", pen
 
 function lsGet(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+/* 紀錄者（兩頁共用 eco-recorder）：新紀錄帶 by；第一次存紀錄時沒填會問一次 */
+let whoAsked=false;
+function who(){return lsGet("eco-recorder")}
+function whoShow(){$("whoBtn").textContent=who()||"未設定"}
+function whoSet(){const v=prompt("你的名字（會記在紀錄上）",who());if(v!==null){lsSet("eco-recorder",v.trim());whoShow()}return who()}
+function whoAsk(){if(!who()&&!whoAsked){whoAsked=true;return whoSet()}return who()}
+// 網頁無法自己產生GitHub金鑰：分享的是貼進來的「同事用」金鑰，留空才用這支手機目前的金鑰
+function share(){
+  const k=prompt("貼上要給同事用的金鑰（建議另開一組「同事用」金鑰；留空＝用這支手機目前的金鑰）","");
+  if(k===null)return;const tok=k.trim()||ghToken;
+  if(!tok){alert("這支手機還沒設定金鑰，無法分享。");return}
+  if(!confirm("分享連結裡含金鑰，拿到的人都能讀寫所有案件資料。只傳給同事，不要貼到群組公告或公開地方。繼續？"))return;
+  const text="生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n"+new URL("./",location.href).href+"#k="+encodeURIComponent(tok);
+  if(navigator.share){navigator.share({text}).catch(()=>{});return}
+  const done=()=>alert("已複製，貼到LINE傳給同事。");
+  const fb=()=>{const a=document.createElement("textarea");a.value=text;document.body.appendChild(a);a.select();try{document.execCommand("copy");done()}catch(_){}a.remove()};
+  try{navigator.clipboard.writeText(text).then(done,fb)}catch(_){fb()}
+}
 
 /* ---------- GitHub 儲存層（私人專案 eco-field-data）：模擬原本 db/assets 介面，其餘程式不用改 ----------
    cases/<caseId>.json 案件；records/<caseId>.json {紀錄id:紀錄}；checkres/<caseId>.json {核對id:結果}；files/<id> 照片與平面圖 */
@@ -571,6 +594,7 @@ $("batchBtn").onclick=async()=>{
   if(!curCase){showMsg("請先選擇或新增案件。",true);return}
   const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
+  const by=whoAsk();
   saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
   const total=pending.length;let done=0,queued=0;
   try{
@@ -580,7 +604,7 @@ $("batchBtn").onclick=async()=>{
       let blob;try{blob=await compress(p.file)}catch(err){blob=p.file}
       const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
       const stake=manualStake&&!autoFilled?manualStake:fillOf(ns);
-      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(linkCheck?{checkId:linkCheck}:{}),
+      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),
         createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
         lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})},[blob]);
       r==="queued"?queued++:done++;
@@ -864,6 +888,7 @@ function renderRecords(){
     head.append(t,time);
     if(!r.species&&!r.note){const w=document.createElement("span");w.className="pill no";w.textContent="待補說明";head.appendChild(w)}
     if(r.stake){const s=document.createElement("span");s.textContent=r.stake;head.appendChild(s)}
+    if(r.by){const s=document.createElement("span");s.textContent="👤"+r.by;head.appendChild(s)}
     if(r.checkId){const ck=((c.checks||[]).find(i=>i.id===r.checkId));if(ck){const s=document.createElement("span");s.className="pill";s.textContent="核對："+ck.text.slice(0,14)+(ck.text.length>14?"…":"");head.appendChild(s)}}
     if(r.lat!=null){
       const a=document.createElement("a");a.className="mono";a.target="_blank";a.rel="noopener";
@@ -925,7 +950,7 @@ $("recForm").onsubmit=async e=>{
     const gp=pending.find(p=>p.ex.lat!=null);const tp=pending.find(p=>p.ex.taken);
     const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
     if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
-    if(!editing)body.stage=curStage();
+    if(!editing){body.stage=curStage();const by=whoAsk();if(by)body.by=by}
     let queued=false;
     if(editing){ // 編輯既有紀錄需要網路（不進待上傳）
       const ids=[];
@@ -975,6 +1000,9 @@ $("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
 // 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"||!ghToken)return;flushOutbox();if(!saving&&Date.now()-loadedAt>60000)connect()});
 $("obFlush").onclick=()=>flushOutbox();
+whoShow();
+$("whoBtn").onclick=e=>{e.preventDefault();whoSet()};
+$("shareBtn").onclick=e=>{e.preventDefault();share()};
 (async()=>{
   db.collection("cases").orderBy("createdAt").onSnapshot(s=>{cases=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
