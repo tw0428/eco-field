@@ -70,7 +70,7 @@ button.act.sm{padding:2px 8px;font-size:12px;margin-top:2px}
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
+<div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
@@ -181,7 +181,10 @@ function renderCases(){
 }
 /* ===== GitHub 儲存層（私人專案 eco-field-data，與現場紀錄共用金鑰）=====
    habitat/<caseId>.json 案件（含三期評分）；files/<id> 照片。模擬原本 db/assets 介面 */
-const GH_API='https://api.github.com/repos/tw0428/eco-field-data/contents/';
+// 資料專案的擁有者＝網址的帳號（xxx.github.io → xxx），搬到別的帳號/組織不用改程式
+const GH_OWNER=/\.github\.io$/.test(location.hostname)?location.hostname.split('.')[0]:'tw0428';
+const GH_REPO_URL=`https://api.github.com/repos/${GH_OWNER}/eco-field-data`;
+const GH_API=GH_REPO_URL+'/contents/';
 let ghToken=lsGet('gh-token')||'';
 async function gh(path,opt={}){
  const r=await fetch(GH_API+path.split('/').map(encodeURIComponent).join('/'),{cache:'no-store',...opt,
@@ -223,7 +226,7 @@ async function hLoad(){
  let repo=null;
  try{
   const r=await fetch('https://api.github.com/graphql',{method:'POST',cache:'no-store',headers:{Authorization:'Bearer '+ghToken,'Content-Type':'application/json'},
-   body:JSON.stringify({query:'query{repository(owner:"tw0428",name:"eco-field-data"){h:object(expression:"HEAD:habitat"){... on Tree{entries{name object{... on Blob{text}}}}}}}'})});
+   body:JSON.stringify({query:`query{repository(owner:"${GH_OWNER}",name:"eco-field-data"){h:object(expression:"HEAD:habitat"){... on Tree{entries{name object{... on Blob{text}}}}}}}`})});
   if(r.status===401){const e=new Error('401');e.code='bad_token';throw e}
   if(r.ok){const j=await r.json();repo=j.data&&j.data.repository;
    if(!repo&&(j.errors||[]).some(x=>x.type==='NOT_FOUND')){const e=new Error('no repo');e.code='no_repo';throw e}}
@@ -273,7 +276,7 @@ async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!ge
 function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();e.textContent=g?`📍 定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?'📍 '+geoErr:geoWatch!=null?'📍 取得定位中…':''}
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
 async function repoCheck(){
- const r=await fetch('https://api.github.com/repos/tw0428/eco-field-data',{cache:'no-store',headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json'}});
+ const r=await fetch(GH_REPO_URL,{cache:'no-store',headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json'}});
  if(r.status===401){const e=new Error('401');e.code='bad_token';throw e}
  if(r.status===404||r.status===403){const e=new Error('no repo');e.code='no_repo';throw e}
  if(!r.ok){const e=new Error('GitHub '+r.status);e.code='http_'+r.status;throw e}
