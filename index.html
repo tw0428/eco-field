@@ -298,10 +298,22 @@ function share(){
   if(!tok){alert("這支手機還沒設定金鑰，無法分享。");return}
   if(!confirm("分享連結裡含金鑰，拿到的人都能讀寫所有案件資料。只傳給同事，不要貼到群組公告或公開地方。繼續？"))return;
   const text="生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n"+new URL("./",location.href).href+"#k="+encodeURIComponent(tok);
-  if(navigator.share){navigator.share({text}).catch(()=>{});return}
-  const done=()=>alert("已複製，貼到LINE傳給同事。");
-  const fb=()=>{const a=document.createElement("textarea");a.value=text;document.body.appendChild(a);a.select();try{document.execCommand("copy");done()}catch(_){}a.remove()};
-  try{navigator.clipboard.writeText(text).then(done,fb)}catch(_){fb()}
+  shareBox(text);
+}
+function shareBox(text){
+  let b=document.getElementById("shareBox");if(b)b.remove();
+  b=document.createElement("div");b.id="shareBox";
+  b.style.cssText="border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 10px;background:var(--surface,var(--card));display:flex;flex-direction:column;gap:8px;font-size:13px";
+  const t=document.createElement("textarea");t.readOnly=true;t.value=text;t.style.cssText="width:100%;box-sizing:border-box;min-height:70px;font:13px/1.4 monospace;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:inherit";
+  const row=document.createElement("div");row.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+  const mk=(l,f)=>{const x=document.createElement("button");x.type="button";x.className="act";x.textContent=l;x.style.cssText="padding:6px 12px";x.onclick=f;row.appendChild(x);return x};
+  const st=document.createElement("span");st.style.color="var(--muted,var(--mute))";
+  const cp=mk("複製",()=>{const ok=()=>{st.textContent="已複製，貼到LINE傳給同事或自己"};
+    try{navigator.clipboard.writeText(text).then(ok,()=>{t.select();try{document.execCommand("copy");ok()}catch(_){st.textContent="請手動全選複製"}})}catch(_){t.select();try{document.execCommand("copy");ok()}catch(e){st.textContent="請手動全選複製"}}});
+  if(navigator.share&&matchMedia("(pointer:coarse)").matches)mk("分享…",()=>navigator.share({text}).catch(()=>{}));
+  mk("關閉",()=>b.remove());row.appendChild(st);
+  b.append("連結含金鑰，只傳給同事或自己備份：",t,row);
+  document.querySelector(".sub").after(b);
 }
 
 /* ---------- GitHub 儲存層（私人專案 eco-field-data）：模擬原本 db/assets 介面，其餘程式不用改 ----------
