@@ -41,7 +41,9 @@ body{margin:0}
   --bg:#141a17; --surface:#1d2521; --fg:#e4ebe6; --muted:#9aa8a0; --line:#34413a;
   --accent:#6fb592; --accent-fg:#0f1712; --soft:#24352c; --warn:#e2a95a; --warn-soft:#3a2e1d; --danger:#ec8576; color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.5}
-.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:10px 48px;display:flex;flex-direction:column;gap:10px}
+/* 頂端狀態列區塊用實色蓋住：避免內容捲到時鐘底下被iOS模糊化 */
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:45}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:calc(10px + env(safe-area-inset-top,0px)) 48px;display:flex;flex-direction:column;gap:10px}
 h1{font-size:20px;margin:0;letter-spacing:.02em}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .status{font-size:13px;color:var(--muted)}
