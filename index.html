@@ -1181,9 +1181,8 @@ function renderNear(){
 $("nearBox").onclick=ev=>{ev.preventDefault();openMap(true)};
 
 /* ---------- 拍照浮動鈕：上方拍照鈕滑出畫面時才出現 ---------- */
-if("IntersectionObserver" in window){
-  new IntersectionObserver(es=>{$("fab").hidden=es[0].isIntersecting||!curCase}).observe(document.querySelector("#recForm .photobtns"));
-}
+function fabUpd(){const r=document.querySelector("#recForm .photobtns").getBoundingClientRect();$("fab").hidden=!curCase||(r.bottom>0&&r.top<innerHeight)}
+addEventListener("scroll",fabUpd,{passive:true});addEventListener("resize",fabUpd);
 
 /* ---------- 案件挑選器：全螢幕清單＋搜尋，最近用過的在前（底層仍是原本的select） ---------- */
 function makePicker(sel,recentKey){
