@@ -41,7 +41,9 @@ body{margin:0}
   --bg:#141a17; --surface:#1d2521; --fg:#e4ebe6; --muted:#9aa8a0; --line:#34413a;
   --accent:#6fb592; --accent-fg:#0f1712; --soft:#24352c; --warn:#e2a95a; --warn-soft:#3a2e1d; --danger:#ec8576; color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.5}
-.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:10px 48px;display:flex;flex-direction:column;gap:10px}
+/* 頂端固定實色標題列（同棲地評估）：內容捲上去時藏在它底下，不會跑到狀態列被iOS模糊 */
+.head{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:0 48px;display:flex;flex-direction:column;gap:10px}
 h1{font-size:20px;margin:0;letter-spacing:.02em}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .status{font-size:13px;color:var(--muted)}
@@ -192,8 +194,10 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 </div>
 <label for="camIn" id="fab" class="fab" hidden aria-label="拍照">📷</label>
 <div class="wrap">
+  <div class="head">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="shareBtn" style="margin-left:auto">分享給同事</a></div>
+  </div>
 
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
     <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
