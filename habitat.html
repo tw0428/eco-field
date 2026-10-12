@@ -74,6 +74,10 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sub a{color:var(--acc)}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
+/* 野溪頁主色＝水藍、坡地頁＝土黃（評分顏色--good等不受影響） */
+body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--acc:#8a5a2b;--accbg:#f1e6d8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#7fb3d8;--accbg:#1f3240}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#d9a46a;--accbg:#3a2e20}}
+:root[data-theme="dark"] body[data-view="creek"]{--acc:#7fb3d8;--accbg:#1f3240}:root[data-theme="dark"] body[data-view="slope"]{--acc:#d9a46a;--accbg:#3a2e20}
 .pickbtn{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .pickbtn::after{content:" ▾";color:var(--mute)}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
@@ -382,6 +386,7 @@ function render(){
  $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
  const v=[['creek','野溪治理工程生態回復追蹤評估指標'],['slope','坡地棲地評估指標'],['cmp','匯出'],['note','說明']];
  $('vtabs').innerHTML=v.map(([k,n])=>`<button class="tab ${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('');
+ document.body.dataset.view=S.view; // 野溪藍、坡地土黃，其他維持綠
  const m=$('app');
  if(S.view==='creek')m.innerHTML=viewCreek();
  else if(S.view==='slope')m.innerHTML=viewSlope();
