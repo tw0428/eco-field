@@ -422,7 +422,12 @@ function setImg(img,id){blobUrl(id,"image/jpeg").then(u=>{img.src=u}).catch(()=>
    紀錄 {qid:"rec_<紀錄id>",kind:"record",recId,doc,photos:[{buf,type}],uploaded:[已傳照片id],at}
    核對 {qid:"chk_<核對id>",kind:"check",rid,doc,at}（同一天同案只留最新一份） */
 let outbox=[],flushing=false,obErr="";
-function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("eco-outbox",1);r.onupgradeneeded=()=>r.result.createObjectStore("q",{keyPath:"qid"});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+// iOS主畫面App第一次開時indexedDB.open可能一直不回應 → 3秒逾時，成功的連線留著重用
+let idbP=null;
+function idb(){if(idbP)return idbP;idbP=new Promise((res,rej)=>{const tm=setTimeout(()=>rej(new Error("idb_timeout")),3000);
+  try{const r=indexedDB.open("eco-outbox",1);r.onupgradeneeded=()=>r.result.createObjectStore("q",{keyPath:"qid"});
+    r.onsuccess=()=>{clearTimeout(tm);res(r.result)};r.onerror=r.onblocked=()=>{clearTimeout(tm);rej(r.error||new Error("idb_blocked"))}}catch(e){clearTimeout(tm);rej(e)}});
+  idbP.catch(()=>{idbP=null});return idbP}
 async function obTx(mode,fn){const d=await idb();return new Promise((res,rej)=>{const t=d.transaction("q",mode);const out=fn(t.objectStore("q"));t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)})}
 const obLoad=async()=>{try{outbox=(await obTx("readonly",s=>s.getAll()))||[]}catch(e){outbox=[]}};
 const obPut=it=>{const {_urls,...rest}=it;return obTx("readwrite",s=>s.put(rest))};
@@ -1226,8 +1231,8 @@ $("shareBtn").onclick=e=>{e.preventDefault();share()};
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
   // 待上傳的核對結果蓋在雲端資料上面，重新讀取時不會被舊資料覆蓋
   db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});outbox.filter(x=>x.kind==="check").forEach(x=>{checkRes[x.rid]=x.doc});renderChecks()},()=>{});
-  await obLoad();renderOutbox();
   if(ghToken)loadCache();
+  obLoad().then(renderOutbox); // 不等待：手機資料庫卡住也不影響連線
   await connect();flushOutbox();
   window.addEventListener("online",()=>{renderOutbox();flushOutbox()});
   window.addEventListener("offline",renderOutbox);
