@@ -312,9 +312,11 @@ function render(){
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`};
-// 打開某一期時日期空白且尚無資料 → 預設今天（已有評分/照片的舊期別不動，免得誤填）
+// 空白期別：日期欄只「顯示」今天，不存；第一次填資料時才存（只是點開看不會把日期鎖住）
+// 已有評分/照片但沒日期的舊期別不動，免得誤填
 function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
-function head(p){if(isBlankP(p))p.date=todayStr();return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(p.date)}"></div>`}
+const exifDay=s=>{const m=/^(\d{4}):(\d\d):(\d\d)/.exec(s||'');return m?`${m[1]}-${m[2]}-${m[3]}`:''};
+function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
@@ -391,6 +393,7 @@ async function upPhotos(files,kind,fromCam){
   let blob;try{blob=await compress(files[i])}catch(e){blob=files[i]}
   try{const r=await assets.upload(blob,{type:blob.type||'image/jpeg'});
    if(curCase!==id||!S.p)return;
+   if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
    phList(S.p[ci],kind).push({id:r.id,lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
    if(ex.lat==null)noGps++;render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
@@ -602,6 +605,7 @@ document.addEventListener('change',e=>{
   const x=phList(p,t.dataset.kind)[+t.dataset.gps];x.lat=+(+m[1]).toFixed(6);x.lng=+(+m[2]).toFixed(6);x.gps='manual';render();return}
  if(t.dataset.hi){const h=t.value==='1';S.p.forEach(q=>{q.high=h;Object.keys(q.creek).forEach(k=>{if(k.startsWith('lat'))q.creek[k].ovr=null})});render();return;}
  if(t.dataset.f){const f=t.dataset.f;p[f]=t.type==='checkbox'?t.checked:t.value;render();return;}
+ if((t.dataset.c||t.dataset.o||t.dataset.sl)&&isBlankP(p))p.date=todayStr(); // 第一筆評分：存入當天日期
  if(t.dataset.c){const k=t.dataset.c;const st=p.creek[k]=p.creek[k]||{};st[t.dataset.k]=t.value;st.ovr=null;
   if(k==='wchg'&&t.dataset.k==='t')delete st.v;
   if((k.startsWith('riffle')||k.startsWith('long'))&&t.dataset.k==='v')delete st.t;
