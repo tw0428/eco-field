@@ -153,6 +153,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .pickbtn::after{content:" ▾";color:var(--muted)}
 #viewer{z-index:55}
 .leaflet-container{background:var(--bg);font:inherit}
+.stklbl{background:#fff;color:#222;border:1px solid #bbb;border-radius:4px;padding:3px 6px;font-size:12px;line-height:16px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25);box-sizing:border-box}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
 .picker .pkh input{flex:1}
@@ -1190,25 +1191,34 @@ async function openMap(focusMe){
   else map.setView([23.9,120.9],8);
   relabel();
 }
-// 常駐樁號標籤：放到最大仍會重疊的先合併成多行；其餘依目前縮放「放得下才顯示」，會壓到的先隱藏（點橘點仍可看），放大後自動出現
+// 常駐樁號標籤：全部都顯示。放到最大仍重疊的合併成多行；其餘若會壓到，就往上下（再換左邊）錯開，用細線連回橘點
 let mapLabels=[],labelLayer=null;
 const lblText=p=>fmtSt(p.st)+(p.note?" "+p.note:"");
-const lblW=t=>[...t].reduce((w,c)=>w+(c.charCodeAt(0)>255?13:7),0)+20;
-function lblBox(g,z){const xy=map.project([g.lat,g.lng],z),w=Math.max(...g.lines.map(lblW)),h=g.lines.length*17+10;return {x1:xy.x+8,x2:xy.x+8+w,y1:xy.y-h/2,y2:xy.y+h/2}}
+const lblW=t=>[...t].reduce((w,c)=>w+(c.charCodeAt(0)>255?13:7),0)+16;
+const lblSize=g=>({w:Math.max(...g.lines.map(lblW)),h:g.lines.length*16+8});
 const hit=(a,b)=>a.x1<b.x2&&b.x1<a.x2&&a.y1<b.y2&&b.y1<a.y2;
 function relabel(){
   if(!map)return;if(labelLayer)labelLayer.remove();labelLayer=L.layerGroup().addTo(map);
   const zMax=map.getMaxZoom(),groups=[];
+  const boxAt=(g,z,dx,dy,left)=>{const xy=map.project([g.lat,g.lng],z),{w,h}=lblSize(g);const x1=left?xy.x-8-w+dx:xy.x+8+dx;return {x1,x2:x1+w,y1:xy.y+dy-h/2,y2:xy.y+dy+h/2}};
   [...mapLabels].sort((a,b)=>a.st-b.st).forEach(p=>{
-    const g={lat:p.lat,lng:p.lng,lines:[lblText(p)]};
-    const prev=groups[groups.length-1];
-    if(prev&&hit(lblBox(prev,zMax),lblBox(g,zMax)))prev.lines.push(g.lines[0]);else groups.push(g);
+    const g={lat:p.lat,lng:p.lng,lines:[lblText(p)]},prev=groups[groups.length-1];
+    if(prev&&hit(boxAt(prev,zMax,0,0),boxAt(g,zMax,0,0)))prev.lines.push(g.lines[0]);else groups.push(g);
   });
-  const z=map.getZoom(),placed=[];
-  groups.forEach((g,i)=>{
-    const b=lblBox(g,z);if(placed.some(x=>hit(x,b)))return;placed.push(b);
-    const d=document.createElement("div");g.lines.forEach(t=>{const l=document.createElement("div");l.textContent=t;d.appendChild(l)});
-    L.tooltip({permanent:true,direction:"right",interactive:false}).setLatLng([g.lat,g.lng]).setContent(d).addTo(labelLayer);
+  const z=map.getZoom(),placed=[],slots=[];
+  for(let k=0;k<=8;k++)for(const sg of k?[-1,1]:[1])slots.push(sg*k);
+  groups.forEach(g=>{
+    const {h}=lblSize(g);let best=null;
+    for(const left of [false,true]){for(const k of slots){const b=boxAt(g,z,0,k*(h+4),left);if(!placed.some(x=>hit(x,b))){best={b,k,left};break}}if(best)break}
+    if(!best)best={b:boxAt(g,z,0,0,false),k:0,left:false}; // 實在放不下也照樣顯示
+    placed.push(best.b);
+    const anchor=map.project([g.lat,g.lng],z),lp=L.point(best.left?best.b.x2:best.b.x1,(best.b.y1+best.b.y2)/2);
+    const d=document.createElement("div");d.className="stklbl";g.lines.forEach(t=>{const l=document.createElement("div");l.textContent=t;d.appendChild(l)});
+    const ll=map.unproject(lp,z);
+    if(best.k||best.left)L.polyline([[g.lat,g.lng],ll],{color:"#555",weight:1,opacity:.8,interactive:false}).addTo(labelLayer);
+    else if(Math.hypot(lp.x-anchor.x,lp.y-anchor.y)>9)L.polyline([[g.lat,g.lng],ll],{color:"#555",weight:1,opacity:.8,interactive:false}).addTo(labelLayer);
+    const {w,h:hh}=lblSize(g);
+    L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:"",html:d,iconSize:[w,hh],iconAnchor:[best.left?w:0,hh/2]})}).addTo(labelLayer);
   });
 }function closeMap(){$("mapView").hidden=true;document.body.style.overflow="";clearInterval(mapTimer)}
 $("mapBtn").onclick=()=>openMap(false);
