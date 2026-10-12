@@ -155,6 +155,8 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .leaflet-container{background:var(--bg);font:inherit}
 .ovctl{background:#fff;color:#222;border-radius:8px;padding:8px 10px;box-shadow:0 1px 5px rgba(0,0,0,.35);font-size:13px;line-height:1.6;max-width:210px}
 .ovctl .ovh{font-weight:600;margin-bottom:2px}.ovctl label{display:block;cursor:pointer}.ovctl .ovst{color:#888}
+.ovctl .ovsw{display:flex;gap:6px;margin-top:6px}.ovctl .ovsw button{width:24px;height:24px;padding:0;border-radius:50%;border:1px solid #999;cursor:pointer}
+.ovctl .ovsw button[aria-pressed="true"]{outline:2px solid #2a7de1;outline-offset:1px}
 .ovctl .ovr{display:flex;align-items:center;gap:4px;margin-top:4px;color:#666}.ovctl input[type=range]{flex:1;min-width:0}
 .stklbl{background:#fff;color:#222;border:1px solid #bbb;border-radius:4px;padding:3px 6px;font-size:12px;line-height:16px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25);box-sizing:border-box}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
@@ -1197,7 +1199,17 @@ async function openMap(focusMe){
   relabel();
 }
 // 對位後設計圖（案件 overlays:[{id,title,bounds:[[南,西],[北,東]]}]，Claude 對位後上傳）：地圖右上角勾選開關＋透明度
-let ovCtl=null,ovLayers={},ovOpacity=0.85;
+let ovCtl=null,ovLayers={},ovOpacity=0.85,ovColor=lsGet("eco-ovcolor")||"#d60078";const ovTint=new Map();
+const OV_COLORS=[["#d60078","洋紅"],["#ff2a2a","紅"],["#ffd400","黃"],["#00d5ff","青"],["#ffffff","白"],["#111111","黑"]];
+// 設計圖是單色＋透明度：在手機上用canvas把線條換成指定顏色（保留透明度），結果快取
+async function tinted(o){
+  const key=o.id+ovColor;if(ovTint.has(key))return ovTint.get(key);
+  const src=await blobUrl(o.id,o.type||"image/png");
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});
+  const cv=document.createElement("canvas");cv.width=img.naturalWidth;cv.height=img.naturalHeight;const x=cv.getContext("2d");
+  x.drawImage(img,0,0);x.globalCompositeOperation="source-in";x.fillStyle=ovColor;x.fillRect(0,0,cv.width,cv.height);
+  const u=URL.createObjectURL(await new Promise(r=>cv.toBlob(r,"image/png")));ovTint.set(key,u);return u;
+}
 function renderOverlayCtl(c){
   Object.values(ovLayers).forEach(l=>l.remove());ovLayers={};if(ovCtl){ovCtl.remove();ovCtl=null}
   const list=Array.isArray(c.overlays)?c.overlays.filter(o=>o&&o.id&&Array.isArray(o.bounds)):[];if(!list.length)return;
@@ -1211,7 +1223,7 @@ function renderOverlayCtl(c){
       cb.onchange=async()=>{
         if(!cb.checked){if(ovLayers[o.id]){ovLayers[o.id].remove();delete ovLayers[o.id]}return}
         st.textContent=" 載入中…";
-        try{const u=await blobUrl(o.id,o.type||"image/png");if(!cb.checked)return;ovLayers[o.id]=L.imageOverlay(u,o.bounds,{opacity:ovOpacity,interactive:false}).addTo(map);st.textContent=""}
+        try{const u=await tinted(o);if(!cb.checked)return;ovLayers[o.id]=L.imageOverlay(u,o.bounds,{opacity:ovOpacity,interactive:false}).addTo(map);st.textContent=""}
         catch(e){st.textContent=" 載入失敗";cb.checked=false}
       };
       lb.append(cb," "+(o.title||"設計圖"),st);d.appendChild(lb);
@@ -1219,6 +1231,11 @@ function renderOverlayCtl(c){
     const r=document.createElement("input");r.type="range";r.min="0.2";r.max="1";r.step="0.05";r.value=String(ovOpacity);r.setAttribute("aria-label","設計圖透明度");
     r.oninput=()=>{ovOpacity=+r.value;Object.values(ovLayers).forEach(l=>l.setOpacity(ovOpacity))};
     const rl=document.createElement("div");rl.className="ovr";rl.append("淡",r,"濃");d.appendChild(rl);
+    const sw=document.createElement("div");sw.className="ovsw";
+    OV_COLORS.forEach(([c,n])=>{const b=document.createElement("button");b.type="button";b.title=n;b.setAttribute("aria-label","線條顏色："+n);b.style.background=c;b.setAttribute("aria-pressed",String(c===ovColor));
+      b.onclick=async()=>{ovColor=c;lsSet("eco-ovcolor",c);sw.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+        for(const o of list){if(ovLayers[o.id]){try{ovLayers[o.id].setUrl(await tinted(o))}catch(e){}}}};sw.appendChild(b)});
+    d.appendChild(sw);
     return d;
   };
   ovCtl.addTo(map);
