@@ -322,7 +322,7 @@ async function connect(){
 }
 async function initDb(){
  db=ghDb;assets=ghAssets;
- $('tokSave').onclick=()=>{let t=$('tokIn').value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]); // 也可整串貼分享連結if(!t)return;ghToken=t;lsSet('gh-token',t);$('tokIn').value='';connect()};
+ $('tokSave').onclick=()=>{let t=$('tokIn').value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]);if(!t)return;ghToken=t;lsSet('gh-token',t);$('tokIn').value='';connect()};
  $('reloadBtn').onclick=e=>{e.preventDefault();flush().then(connect)};
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ghToken&&!saveTimer&&Date.now()-loadedAt>60000)connect()});
  let pf={};try{pf=JSON.parse(lsGet(PREF)||'{}')}catch(e){}
