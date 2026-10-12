@@ -830,7 +830,7 @@ function renderChecks(){
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
   const c=cases.find(x=>x.id===curCase),box=$("chkBox"),list=$("chkList");
   const stage=curStage();
-  const items=stage==="提報"?[]:((c&&c.checks)||[]).filter(i=>stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":true);
+  const items=stage==="提報"?[]:((c&&c.checks)||[]).filter(i=>stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report");
   box.hidden=!items.length;list.innerHTML="";
   if(linkCheck&&!((c&&c.checks)||[]).find(i=>i.id===linkCheck))setLink(null);
   if(!items.length)return;
