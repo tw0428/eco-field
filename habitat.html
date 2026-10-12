@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>棲地評估算分</title>
+<style>
+:root{--bg:#f6f7f4;--card:#fff;--ink:#1d2320;--mute:#6a746e;--line:#d9ddd6;--acc:#2f6f4f;--accbg:#e3f0e8;--warn:#b3541e;--warnbg:#fbeadf;--good:#2f6f4f;--mid:#8a7a1f;--bad:#a63d3d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161a17;--card:#1f2521;--ink:#e6ebe7;--mute:#98a39c;--line:#333c36;--acc:#6fc79a;--accbg:#22382c;--warn:#f0a070;--warnbg:#3a2a1f;--good:#6fc79a;--mid:#d8c65a;--bad:#e58a8a}}
+:root[data-theme="dark"]{--bg:#161a17;--card:#1f2521;--ink:#e6ebe7;--mute:#98a39c;--line:#333c36;--acc:#6fc79a;--accbg:#22382c;--warn:#f0a070;--warnbg:#3a2a1f;--good:#6fc79a;--mid:#d8c65a;--bad:#e58a8a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "微軟正黑體","Noto Sans TC",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:8px 12px}
+h1{font-size:16px;margin:0 0 6px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:8px;font:inherit;cursor:pointer}
+.tab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{padding:12px;max-width:760px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.card h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0}
+label{color:var(--mute);font-size:13px}
+input[type=number],input[type=text],input[type=date],select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+input[type=number]{width:90px}
+.side{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
+.res{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.badge{padding:1px 8px;border-radius:99px;font-size:13px;color:#fff}
+.b0{background:var(--good)}.b1{background:#5b9a76}.b2{background:var(--mid)}.b3{background:var(--bad)}.bz{background:#555}
+.score{font-weight:700}
+.warn{background:var(--warnbg);color:var(--warn);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px}
+.mut{color:var(--mute);font-size:13px}
+details{margin-top:4px}summary{color:var(--acc);cursor:pointer;font-size:13px}
+details ul{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--mute)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+th{background:var(--accbg)}td.l{text-align:left}
+.up{color:var(--good)}.dn{color:var(--bad)}
+button.act{font:inherit;border:1px solid var(--acc);color:var(--acc);background:transparent;border-radius:8px;padding:6px 12px;cursor:pointer}
+textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+.tot{font-size:16px;font-weight:700}
+.phs{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.ph{width:150px;font-size:12px}
+.ph img{width:150px;height:110px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
+.ph a{color:var(--acc)}
+.photobtns{display:grid;grid-template-columns:1fr;gap:8px}
+.photobtns label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);font-weight:600;font-size:15px;cursor:pointer;text-align:center}
+.photobtns input{position:absolute;opacity:0;width:1px;height:1px}
+.photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:#fff;border-style:solid}
+.nav{font-size:13px;float:right}.nav a{color:var(--acc)}button.sm{padding:2px 8px;font-size:12px;margin-top:2px}
+</style>
+</head>
+<body>
+<header>
+<span class="nav"><a href="./">現場紀錄</a>｜<a href="#" id="reloadBtn">↻</a></span>
+<h1>棲地評估算分（坡地5因子＋野溪10項）</h1>
+<div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_…" style="flex:1" autocomplete="off"><button class="act" id="tokSave">儲存並連線</button></div>
+<div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act" id="caseDel" style="border-color:var(--bad);color:var(--bad)">刪除</button></div>
+<div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act" id="caseSave">建立</button></div>
+<div id="caseMsg" class="warn" hidden></div>
+<div class="tabs" id="ptabs"></div>
+<div class="tabs" id="vtabs" style="margin-top:6px"></div>
+</header>
+<main id="app"></main>
+
+<script>
+'use strict';
+/* ===== 資料定義 ===== */
+const BAND=['佳','良好','普通','差'];
+const R20=[[16,20],[11,15],[6,10],[1,5]], R10=[[9,10],[6,8],[3,5],[1,2]];
+const S20=[18,13,8,3], S10=[9,7,4,2];
+const hb=(v,c)=>v>=c[0]?0:v>=c[1]?1:v>=c[2]?2:3;                 // 越高越好：下限含
+const lb=(v,c,inc)=>{const t=inc?((a,b)=>a<=b):((a,b)=>a<b);return t(v,c[0])?0:t(v,c[1])?1:t(v,c[2])?2:3;}; // 越低越好：上限不含
+const num=x=>(x===''||x==null||isNaN(+x))?null:+x;
+
+const ADJ={
+sub:{p:['粒徑≥3公尺巨石，或以大小漂石、圓石為主','生物可棲息空隙多','多倒木、漂流木、枯枝落葉與有機碎屑','完工後重新鋪石、拋石、棲地營造','基質上生長矽藻、苔蘚，或發現清潔水生昆蟲、蝦蟹魚類'],m:['底質主要為細顆粒（礫石、砂土、黏土）','溪床整平、漿砌、封底','移除大小漂石與>3公尺巨石','無生物利用']},
+embed:{p:['溪水充沛，預計可快速帶走臨時沉積土砂','設沉砂池、施工遠離流水區、土包袋過濾'],m:['溪水濁度高','深潭易嚴重淤積土砂']},
+flow:{p:['存在湍瀨或深潭','有粒徑≥3公尺大石巨石','瀨潭連續交錯','發現好高溶氧水生生物利用','完工後重新鋪石、拋石、棲地營造'],m:['缺乏連續湍瀨、深潭或岸邊緩流','形成漫流']},
+riffle:{p:['目視可見連續湍瀨，或有>3公尺巨石、漂石、礫石或樹幹激起湍瀨（加1~2分）'],m:['目視無連續湍瀨且無巨石等天然物','溪流渠道化']},
+depth:{p:['發現魚蝦蟹類利用','有水窪或深潭等避難所','水面覆蓋溪床比例超過75%'],m:['溪床整平、渠道化或混凝土封底，導致淺緩或漫流','上游有固定性引水設施（堰、混凝土設施）','與附近自然參考點比較水量明顯減少']},
+bank:{p:['濱溪植被帶具完整多層次原生植被（喬、灌、草）','植被茂密鬱閉、幾無人為破壞','雖有破壞擾動但逐漸演替恢復','林相：天然林>人工林>竹林、果園>草生地>道路建物'],m:['僅灌叢與草本、缺乏喬木','明顯人為擾動（整地、砍伐、除草）','大樹因治理工程移除','外來入侵種拓殖']},
+bw:{p:['多層次原生植被','茂密鬱閉、幾無人為破壞','濱溪植物帶與兩岸森林完整連接','雖有破壞但逐漸恢復','嚴格控制回填區裸露面小於3公尺'],m:['僅灌叢與草本','明顯人為擾動','大樹因治理工程移除','外來入侵種拓殖']},
+wchg:{p:['全段或部分自然溪段、濱溪植被被保留','經復育後坡岸植被向溪流生長、裸露面寬度降低','設置低水流路或深槽區，提供灘地復育植生空間'],m:['溪床整平、壓實、混凝土封底','移除坡岸植被']},
+long:{p:['橫向構造物材質具孔隙度與粗糙度','橫向構造物坡度低於45度','有改善縱向連結性之設計（如各型魚道）'],m:['視當地目標魚種上溯能力與構造物落差']},
+lat:{p:['護岸每40公尺設置動物通道','動物通道連結自然棲地','濱溪植被帶恢復、阻隔降低','邊坡粗糙度高或為自然坡面'],m:[]}
+};
+
+/* 選項值＝落在該級距內的代表值，計算邏輯不變；舊資料/匯入的原始數值仍可用 */
+const F=(k,label,opts)=>({k,label,opts});
+const ITEMS=[
+ {id:'sub',no:1,name:'溪床自然基質多樣性',max:20,fields:[F('v','理想基質占河道面積',[[80,'≥70%（佳）'],[55,'40~70%（良好）'],[30,'20~40%（普通）'],[10,'<20%（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:hb(v,[70,40,20])}}},
+ {id:'embed',no:2,name:'河床底質包埋度',max:20,fields:[F('v','石礫被砂土包圍的體積',[[10,'<25%（佳）'],[35,'25~50%（良好）'],[60,'50~75%（普通）'],[90,'≥75%（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:lb(v,[25,50,75])}}},
+ {id:'flow',no:3,name:'流速水深組合',max:20,dry:true,fields:[F('v','水型種數（淺瀨/淺流/深流/深潭/岸邊緩流）',[[5,'5種（佳）'],[4,'4種（佳）'],[3,'3種（良好）'],[2,'2種（普通）'],[1,'1種（差）'],[0,'0種（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:v>=4?0:v==3?1:v==2?2:3}}},
+ {id:'riffle',no:4,name:'湍瀨出現頻率',max:20,dry:true,fields:[F('v','湍瀨間距÷河寬',[[3,'<7倍（佳）'],[10,'7~16倍（良好）'],[20,'16~25倍（普通）'],[30,'≥25倍（差）'],['none','未見湍瀨（差，免量測）']])],calc:s=>{if(s.t==='none'||s.v==='none')return {b:3,note:'未見湍瀨且無巨石激流，依原表判為「差」；可依扣分原則在1~5分內酌降'};const v=num(s.v);return v==null?null:{b:lb(v,[7,16,25])}}},
+ {id:'depth',no:5,name:'河道水流狀態',max:20,dry:true,fields:[F('v','有效水深',[[40,'≥30 cm（佳）'],[20,'15~30 cm（良好）'],[10,'5~15 cm（普通）'],[2,'<5 cm（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:hb(v,[30,15,5])}}},
+ {id:'bank',no:6,name:'堤岸的植生保護',max:10,sides:true,fields:[F('v','植生覆蓋堤岸長度',[[95,'≥90%（佳）'],[80,'70~90%（良好）'],[60,'50~70%（普通）'],[30,'<50%（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:hb(v,[90,70,50])}}},
+ {id:'bw',no:7,name:'河岸植生帶寬度',max:10,sides:true,fields:[F('v','植生帶寬度',[[20,'≥18 m（佳）'],[15,'12~18 m（良好）'],[9,'6~12 m（普通）'],[3,'<6 m（差）']])],calc:s=>{const v=num(s.v);return v==null?null:{b:hb(v,[18,12,6])}}},
+ {id:'wchg',no:8,name:'溪床寬度變化',max:20,fields:[F('t','原溪床寬度',[['s','<10 m（坑溝/溪溝）'],['b','≥10 m（野溪/溪流）']]),F('v','施工後寬度÷原寬度',s=>s.t==='s'?[[1.1,'≤1.2倍（佳）'],[1.3,'1.2~1.5倍（良好）'],[1.7,'1.5~2倍（普通）'],[2.5,'>2倍（差）']]:s.t==='b'?[[1.0,'≤1.0倍（佳）'],[1.1,'1.0~1.2倍（良好）'],[1.3,'1.2~1.5倍（普通）'],[2,'>1.5倍（差）']]:null)],calc:s=>{const v=num(s.v);if(v==null||!s.t)return null;return {b:lb(v,s.t==='s'?[1.2,1.5,2]:[1.0,1.2,1.5],true),note:s.t==='b'?'野溪組級距為依4級結構推斷（原表印刷矛盾）':''}}},
+ {id:'long',no:9,name:'縱向連結性',max:20,dry:true,fields:[F('v','橫向構造物落差',[['none','無橫向構造物（佳）'],[10,'<25 cm（佳）'],[35,'25~50 cm（良好）'],[75,'50~100 cm（普通）'],[150,'100~200 cm（差）'],[250,'≥200 cm（0分）']])],calc:s=>{if(s.t==='none'||s.v==='none')return {b:0};const v=num(s.v);if(v==null)return null;if(v>=200)return {zero:true,note:'落差≥200 cm，0分'};return {b:lb(v,[25,50,100])}}},
+ {id:'lat',no:10,name:'橫向連結性',max:10,sides:true,fields:[
+  F('L','可通行長度比例',(s,p)=>p.high?[[30,'≥20%'],[15,'11~20%'],[8,'6~10%'],[3,'≤5%（差）']]:[[40,'≥30%'],[25,'21~30%'],[15,'11~20%'],[5,'≤10%（差）']]),
+  F('sl','邊坡坡度',(s,p)=>p.high?[[35,'≤40°'],[45,'41~50°'],[55,'51~60°'],[70,'>60°（差）']]:[[25,'≤30°'],[35,'31~40°'],[50,'41~60°'],[70,'>60°（差）']]),
+  F('d','最大落差',[[3,'≤5 cm'],[8,'6~10 cm'],[15,'11~20 cm'],[30,'>20 cm（差）']])],calc:(s,ctx)=>lateral(s,ctx.high)}
+];
+ITEMS.filter(i=>i.dry).forEach(i=>i.fields[0].opts.push(['dry','乾涸／斷流／伏流（0分）']));
+function lateral(s,high){
+ const L=num(s.L),sl=num(s.sl),d=num(s.d);
+ if(L==null&&sl==null&&d==null)return null;
+ if(L==null||sl==null||d==null){
+  const lv=L==null?0:(!high?(L>=30?0:L>=21?1:L>=11?2:3):(L>=20?0:L>=11?1:L>=6?2:3));
+  const s0=sl==null?0:(!high?(sl<=30?0:sl<=40?1:sl<=60?2:3):(sl<=40?0:sl<=50?1:sl<=60?2:3));
+  const d0=d==null?0:(d<=5?0:d<=10?1:d<=20?2:3);
+  const best=Math.min(3,lv+Math.max(s0,d0));
+  const miss=[L==null?'長度':'',sl==null?'坡度':'',d==null?'落差':''].filter(Boolean).join('、');
+  return {pending:true,note:`尚缺${miss}（原表需三項同時判定）。依已選項目，最好只能到「${BAND[best]}」，不計入總分`};
+ }
+ // 表10/11：長度、坡度、落差各分0~3級；原表組合＝長度級＋坡度落差級（坡度與落差同級）
+ // 坡度與落差不同級時取較差者（原表：優先考量坡度與最大落差），故級距＝長度級＋max(坡度級,落差級)
+ let Lv,sv;
+ if(!high){Lv=L>=30?0:L>=21?1:L>=11?2:3;sv=sl<=30?0:sl<=40?1:sl<=60?2:3;}
+ else{Lv=L>=20?0:L>=11?1:L>=6?2:3;sv=sl<=40?0:sl<=50?1:sl<=60?2:3;}
+ const dv=d<=5?0:d<=10?1:d<=20?2:3;
+ const b=Math.min(3,Lv+Math.max(sv,dv));
+ const why=Lv===3?'可通行長度不足':sv===3?'坡度>60°':dv===3?'落差>20 cm':'';
+ return {b,note:(sv!==dv?'坡度與落差不同級，取較差者計。':'')+(why?why+'，判為差。':'')};
+}
+
+/* ===== 狀態 ===== */
+const KEY='habitat_score_v1';
+function blank(name){return {name,date:'',dry:false,high:false,slope:{},creek:{},basis:{},todo:{}}}
+function fixP(p){p.basis=p.basis||{};p.todo=p.todo||{};return p}
+let S={cur:0,view:'creek',p:[blank('施工前'),blank('施工中'),blank('完工')]};
+try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.p&&o.p.length===3){S=o;S.p.forEach(fixP);}}}catch(e){}
+/* 案件：有db時每案一份 cases/<id> {name,createdAt,updatedAt,p:[三期]}；無db時退回本機單一份 */
+let assets=null,db=null,cases=[],curCase='',lastJson='',saveTimer=null,saveFn=null,delArm=null;
+const PREF='habitat_pref';
+try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function msg(t){const m=$('caseMsg');m.hidden=!t;m.textContent=t||''}
+function save(){
+ if(!db){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}return;}
+ lsSet(PREF,JSON.stringify({view:S.view,cur:S.cur,c:curCase}));
+ if(!curCase||!S.p)return;
+ const j=JSON.stringify(S.p);if(j===lastJson)return;
+ lastJson=j;const id=curCase;clearTimeout(saveTimer);
+ saveFn=async()=>{saveTimer=null;saveFn=null;try{await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});msg('')}catch(e){msg('儲存失敗（'+(e.code||e.message)+'），請有網路時再改一次')}};
+ saveTimer=setTimeout(saveFn,600);
+}
+async function flush(){if(saveTimer){clearTimeout(saveTimer);await saveFn()}}
+function loadCase(force){
+ const c=cases.find(x=>x.id===curCase);
+ if(!c){S.p=null;lastJson='';return}
+ if(saveTimer&&!force)return;
+ const src=c.p&&c.p.length===3?JSON.stringify(c.p):null;
+ if(force||(src&&src!==lastJson)||(!src&&!S.p)){S.p=src?JSON.parse(src).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')];lastJson=JSON.stringify(S.p)}
+}
+function renderCases(){
+ $('caseBar').hidden=!db;if(!db)return;
+ const sel=$('caseSel');
+ sel.innerHTML=cases.length?cases.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join(''):'<option value="">（尚無案件，請先新增）</option>';
+ sel.value=curCase;
+}
+/* ===== GitHub 儲存層（私人專案 eco-field-data，與現場紀錄共用金鑰）=====
+   habitat/<caseId>.json 案件（含三期評分）；files/<id> 照片。模擬原本 db/assets 介面 */
+const GH_API='https://api.github.com/repos/tw0428/eco-field-data/contents/';
+let ghToken=lsGet('gh-token')||'';
+async function gh(path,opt={}){
+ const r=await fetch(GH_API+path.split('/').map(encodeURIComponent).join('/'),{cache:'no-store',...opt,
+  headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opt.headers||{})}});
+ if(r.status===404)return null;
+ if(!r.ok){const e=new Error('GitHub '+r.status);e.code=r.status===401||r.status===403?'bad_token':r.status===409||r.status===422?'conflict':'http_'+r.status;throw e}
+ return r;
+}
+const b64e=s=>{const b=new TextEncoder().encode(s);let x='';for(let i=0;i<b.length;i+=0x8000)x+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(x)};
+const b64d=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g,'')),c=>c.charCodeAt(0)));
+const blobB64=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(',')[1]);f.onerror=rej;f.readAsDataURL(b)});
+const newId=()=>crypto.randomUUID().replace(/-/g,'');
+async function getJson(path){const r=await gh(path);if(!r)return {data:null,sha:null};const j=await r.json();return {data:JSON.parse(b64d(j.content)),sha:j.sha}}
+async function putB64(path,b64,sha,m){return gh(path,{method:'PUT',body:JSON.stringify({message:m||'update '+path,content:b64,...(sha?{sha}:{})})})}
+// 讀最新→套用修改→寫回；別台裝置同時改過（衝突）時重讀重做
+async function mutate(path,fn){
+ for(let i=0;;i++){
+  const {data,sha}=await getJson(path);const next=fn(data);
+  try{if(next==null){if(sha)await gh(path,{method:'DELETE',body:JSON.stringify({message:'delete '+path,sha})});return null}
+   await putB64(path,b64e(JSON.stringify(next,null,1)),sha);return next}
+  catch(e){if(e.code!=='conflict'||i>=3)throw e}
+ }
+}
+const hStore={},hSubs=[];let loadedAt=0;
+function hEmit(){const docs=Object.entries(hStore).map(([id,d])=>({id,data:()=>d})).sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));hSubs.forEach(f=>f({docs}))}
+async function hLoad(){
+ const r=await gh('habitat');const list=r?await r.json():[];const n={};
+ await Promise.all(list.filter(f=>f.name.endsWith('.json')).map(async f=>{const c=await getJson('habitat/'+f.name);if(c.data)n[f.name.slice(0,-5)]=c.data}));
+ Object.keys(hStore).forEach(k=>delete hStore[k]);Object.assign(hStore,n);loadedAt=Date.now();hEmit();
+}
+async function hWrite(id,kind,d){
+ const res=await mutate(`habitat/${id}.json`,old=>kind==='delete'?null:kind==='set'?d:{...(old||{}),...d});
+ if(res==null)delete hStore[id];else hStore[id]=res;hEmit();
+}
+const ghDb={
+ collection(){return {orderBy(){return this},onSnapshot(cb){hSubs.push(cb);return ()=>{}},doc(id){return ghDb.doc('cases/'+(id||newId()))}}},
+ doc(p){const id=p.split('/')[1];return {id,set:d=>hWrite(id,'set',d),update:d=>hWrite(id,'update',d),delete:()=>hWrite(id,'delete')}}
+};
+const ghAssets={
+ async upload(blob){const id=newId();await putB64('files/'+id,await blobB64(blob),null,'habitat photo '+id);return {id}},
+ async delete(id){const r=await gh('files/'+id);if(!r)return;const j=await r.json();await gh('files/'+id,{method:'DELETE',body:JSON.stringify({message:'delete file '+id,sha:j.sha})})}
+};
+// 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
+const blobCache=new Map();
+function blobUrl(id){if(!blobCache.has(id))blobCache.set(id,gh('files/'+id,{headers:{Accept:'application/vnd.github.raw+json'}}).then(r=>{if(!r)throw new Error('missing');return r.blob()}).then(b=>URL.createObjectURL(new Blob([b],{type:'image/jpeg'}))).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
+function hydrateImgs(){document.querySelectorAll('img[data-blob]').forEach(i=>{const id=i.dataset.blob;i.removeAttribute('data-blob');blobUrl(id).then(u=>{i.src=u;if(i.parentNode.tagName==='A')i.parentNode.href=u}).catch(()=>{i.alt='載入失敗'})})}
+/* 手機定位：獨立網頁可以用定位，工具內拍照自動帶入 */
+let geo=null,geoWatch=null,geoErr='';
+function geoStart(){
+ if(geoWatch!=null||!navigator.geolocation)return;
+ geoWatch=navigator.geolocation.watchPosition(
+  p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr='';geoShow()},
+  e=>{geoErr=e.code===1?'定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」':'定位訊號不足';if(e.code===1){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}geoShow()},
+  {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
+}
+const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
+async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoErr&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();e.textContent=g?`📍 定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?'📍 '+geoErr:geoWatch!=null?'📍 取得定位中…':''}
+async function connect(){
+ if(!ghToken){$('tokBox').hidden=false;msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
+ try{await hLoad();$('tokBox').hidden=true;msg('');geoStart()}
+ catch(e){if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或沒有 eco-field-data 的讀寫權限')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
+}
+async function initDb(){
+ db=ghDb;assets=ghAssets;
+ $('tokSave').onclick=()=>{const t=$('tokIn').value.trim();if(!t)return;ghToken=t;lsSet('gh-token',t);$('tokIn').value='';connect()};
+ $('reloadBtn').onclick=e=>{e.preventDefault();flush().then(connect)};
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ghToken&&!saveTimer&&Date.now()-loadedAt>60000)connect()});
+ let pf={};try{pf=JSON.parse(lsGet(PREF)||'{}')}catch(e){}
+ if(pf.view&&pf.view!=='imp')S.view=pf.view;if(pf.cur!=null)S.cur=pf.cur;
+ S.p=null;render();
+ db.collection('cases').orderBy('createdAt').onSnapshot(s=>{
+  cases=s.docs.map(d=>({id:d.id,...d.data()}));
+  if(!cases.find(c=>c.id===curCase)){curCase=(cases.find(c=>c.id===pf.c)||cases[0]||{}).id||'';loadCase(true)}else loadCase(false);
+  render();
+ });
+ connect();
+}
+
+/* ===== 計算 ===== */
+function evalItem(it,side,p){
+ const key=it.id+(side||'');const st=p.creek[key]||{};
+ const ctx={high:p.high};
+ let r=it.calc(st,ctx);
+ if(it.dry&&st.v==='dry')r={zero:true,note:'乾涸／斷流／伏流，0分'};
+ if(!r||r.pending)return {key,st,empty:true,max:it.max,hint:r&&r.note};
+ if(r.zero)return {key,st,zero:true,score:0,note:r.note,max:it.max};
+ const rng=(it.max===20?R20:R10)[r.b],sug=(it.max===20?S20:S10)[r.b];
+ let sc=st.ovr!=null&&st.ovrBand===r.b?Math.min(rng[1],Math.max(rng[0],st.ovr)):sug;
+ return {key,st,b:r.b,rng,sug,score:sc,note:r.note,max:it.max};
+}
+function creekAll(p){
+ const out=[];
+ ITEMS.forEach(it=>{(it.sides?['L','R']:['']).forEach(sd=>out.push({it,sd,r:evalItem(it,sd,p)}))});
+ return out;
+}
+function creekTotal(p){const a=creekAll(p);let t=0,n=0;a.forEach(x=>{if(x.r.score!=null){t+=x.r.score;n++}});return {t,n,all:a.length}}
+const SLOPE=[
+ {k:'w',name:'木本植物覆蓋度',opts:[[0,'0%（1分）'],[10,'<15%（2分）'],[30,'15~55%（3分）'],[70,'≥55%（4分）']],f:v=>v===0?1:v<15?2:v<55?3:4},
+ {k:'sp',name:'植生種數',opts:[[10,'<15種/100m²（1分）'],[17,'15~20種（2分）'],[25,'20~30種（3分）'],[35,'≥30種（4分）']],f:v=>v<15?1:v<20?2:v<30?3:4},
+ {k:'nat',name:'原生種覆蓋度',opts:[[5,'<10%（1分）'],[20,'10~30%（2分）'],[50,'30~65%（3分）'],[80,'≥65%（4分）']],f:v=>v<10?1:v<30?2:v<65?3:4},
+ {k:'ly',name:'植物社會層次',sel:[[1,'一層或裸露'],[2,'二層'],[3,'三層'],[4,'四層以上']]},
+ {k:'su',name:'演替階段',sel:[[1,'裸露或外來種優勢（拓殖期）'],[2,'初期草本優勢（初期）'],[3,'先驅樹種優勢（中期）'],[4,'中後期物種優勢（後期）']]}
+];
+function slopeEval(p){
+ let t=0,n=0;const rows=SLOPE.map(x=>{const raw=p.slope[x.k];let s=null;
+  if(x.sel){s=raw?+raw:null}else{const v=num(raw);s=v==null?null:x.f(v)}
+  if(s!=null){t+=s;n++}return {x,s}});
+ let g=null;if(n===5)g=t<=7?'不理想':t<=10?'尚可':t<=16.7?'次理想':'最理想';
+ return {rows,t,n,g};
+}
+
+/* ===== 介面 ===== */
+const $=id=>document.getElementById(id);
+function render(){
+ renderCases();
+ if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
+ $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
+ const v=[['creek','野溪治理工程生態回復追蹤評估指標'],['slope','坡地棲地評估指標'],['cmp','匯出'],['note','說明']];
+ $('vtabs').innerHTML=v.map(([k,n])=>`<button class="tab ${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('');
+ const m=$('app');
+ if(S.view==='creek')m.innerHTML=viewCreek();
+ else if(S.view==='slope')m.innerHTML=viewSlope();
+ else if(S.view==='cmp')m.innerHTML=viewCmp();
+ else m.innerHTML=viewNote();
+ hydrateImgs();geoShow();save();
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function head(p){return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(p.date)}"></div>`}
+/* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
+const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
+const KNAME={creek:'野溪',slope:'坡地'};
+function phList(p,kind){return p[PK[kind]]=p[PK[kind]]||[]} // 寫入用（會建空陣列）
+const phGet=(p,kind)=>p[PK[kind]]||[];                         // 讀取用（不改資料，避免一開案件就觸發存檔）
+function phItem(x,i,kind,cur){
+ let h=`<div class="ph"><a target="_blank"><img data-blob="${esc(x.id)}" alt="評估位置照片"></a>`;
+ if(x.taken)h+=`<div class="mut">${esc(fmtExifTime(x.taken))}</div>`;
+ const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
+ h+=x.lat!=null?`<div><a href="https://www.google.com/maps?q=${x.lat},${x.lng}" target="_blank">${x.lat}, ${x.lng}</a>${x.gps==='manual'?' <span class="mut">(手填)</span>':x.gps==='device'?` <span class="mut">(手機定位±${x.acc}m)</span>`:''}</div>${ns?`<div style="color:var(--acc)">${esc(stationText(ns))}</div>`:''}`
+  :`<div><span style="color:var(--bad)">照片無GPS</span><input type="text" data-gps="${i}" data-kind="${kind}" placeholder="補座標：緯度, 經度" style="width:150px;font-size:12px;padding:3px 6px"></div>`;
+ if(kind==='old')h+=`<button class="act sm" data-mv="${i}" data-to="${cur}">移到${KNAME[cur]}</button> `;
+ return h+`<button class="act sm" data-phdel="${i}" data-kind="${kind}">刪除</button></div>`;
+}
+function photosHtml(p,kind){
+ const ph=phGet(p,kind),old=p.photos||[];
+ let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns two2"><label class="cam">📷 拍${KNAME[kind]}照片<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label>🖼 相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
+ ph.forEach((x,i)=>{h+=phItem(x,i,kind)});
+ h+=`</div>`;
+ if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
+ return h+`</div>`;
+}/* 樁號推估：案件doc有 stakes:[{label,st,note,lat,lng}] 時，把GPS投影到設計中心線（同現場紀錄App） */
+function fmtSt(st){const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
+function nearestStation(lat,lng){
+ const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(!s||s.length<2||lat==null)return null;
+ const lat0=s[0].lat,kx=Math.cos(lat0*Math.PI/180)*111320,ky=110540;
+ const P=p=>[(p.lng-s[0].lng)*kx,(p.lat-lat0)*ky];const q=P({lat,lng});let best=null;
+ for(let i=0;i<s.length-1;i++){const a=P(s[i]),b=P(s[i+1]),dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
+  let t=((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));
+  const d=Math.hypot(q[0]-(a[0]+t*dx),q[1]-(a[1]+t*dy));
+  if(!best||d<best.off)best={st:s[i].st+t*(s[i+1].st-s[i].st),off:d}}
+ return best;
+}
+function stationText(r){return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st)}（距中心線${Math.round(r.off)}m）`}
+/* EXIF（JPEG）拍攝時間與GPS：同現場紀錄App */
+async function readExif(file){
+ try{const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
+  if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {};let off=2;
+  while(off+4<v.byteLength){const mk=v.getUint16(off);if((mk&0xFF00)!==0xFF00)break;const len=v.getUint16(off+2);
+   if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966)return parseTiff(v,off+10);off+=2+len;}
+ }catch(e){}return {};
+}
+function parseTiff(v,t){
+ const le=v.getUint16(t)===0x4949;const u16=o=>v.getUint16(t+o,le),u32=o=>v.getUint32(t+o,le);
+ const ifd=o=>{const n=u16(o),tags={};for(let i=0;i<n;i++){const e=o+2+i*12;tags[u16(e)]={count:u32(e+4),vo:e+8}}return tags};
+ const rat=tag=>{const o=u32(tag.vo),out=[];for(let i=0;i<tag.count;i++){const a=u32(o+i*8),b=u32(o+i*8+4);out.push(b?a/b:0)}return out};
+ const asc=tag=>{const o=tag.count>4?u32(tag.vo):tag.vo;let s="";for(let i=0;i<tag.count;i++){const c=v.getUint8(t+o+i);if(!c)break;s+=String.fromCharCode(c)}return s};
+ const out={};
+ try{const i0=ifd(u32(4));
+  if(i0[0x8769]){const ex=ifd(u32(i0[0x8769].vo));const d=ex[0x9003]||ex[0x9004];if(d)out.taken=asc(d)}
+  if(!out.taken&&i0[0x0132])out.taken=asc(i0[0x0132]);
+  if(i0[0x8825]){const g=ifd(u32(i0[0x8825].vo));
+   if(g[2]&&g[4]){const dms=a=>a[0]+a[1]/60+a[2]/3600;let lat=dms(rat(g[2])),lng=dms(rat(g[4]));
+    if(g[1]&&asc(g[1])==="S")lat=-lat;if(g[3]&&asc(g[3])==="W")lng=-lng;
+    if(lat||lng){out.lat=+lat.toFixed(6);out.lng=+lng.toFixed(6)}}}
+ }catch(e){}return out;
+}
+function fmtExifTime(s){const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(s||"");return m?`${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`:""}
+async function compress(file){
+ let src;try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}
+ catch(e){src=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
+ const w=src.width,h=src.height,s=Math.min(1,1920/Math.max(w,h));
+ const c=document.createElement("canvas");c.width=Math.round(w*s);c.height=Math.round(h*s);
+ c.getContext("2d").drawImage(src,0,0,c.width,c.height);
+ return await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
+}
+async function upPhotos(files,kind,fromCam){
+ const id=curCase,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0;
+ for(let i=0;i<files.length;i++){
+  pm(`上傳 ${i+1}/${files.length}…`);
+  const ex=await readExif(files[i]);
+  // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
+  if(ex.lat==null&&(fromCam||Date.now()-(files[i].lastModified||0)<300000)){pm('取得定位中…');const g=geoFresh()||await geoWait(10000);if(g){ex.lat=g.lat;ex.lng=g.lng;ex.acc=g.acc;ex.src='device'}}
+  let blob;try{blob=await compress(files[i])}catch(e){blob=files[i]}
+  try{const r=await assets.upload(blob,{type:blob.type||'image/jpeg'});
+   if(curCase!==id||!S.p)return;
+   phList(S.p[ci],kind).push({id:r.id,lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
+   if(ex.lat==null)noGps++;render();
+  }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
+ }
+ pm(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(geoErr?'（'+geoErr+'）':''):'完成');
+}
+function viewCreek(){
+ const p=S.p[S.cur];
+ let h=head(p)+`</div>`+photosHtml(p,'creek');
+ ITEMS.forEach(it=>{
+  h+=`<div class="card"><h3><span>${it.no}. ${it.name}</span><span class="mut">滿分${it.max}${it.sides?'（左右岸各'+it.max+'）':''}</span></h3>`;
+  if(it.id==='lat')h+=`<div class="row"><label>海拔</label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select><span class="mut">選一次三期都套用</span></div>`;
+  (it.sides?['L','R']:['']).forEach(sd=>{
+   const r=evalItem(it,sd,p),st=r.st;
+   h+=`<div class="${it.sides?'side':''}">`;
+   if(it.sides)h+=`<div class="mut">${sd==='L'?'左岸':'右岸'}</div>`;
+   h+=`<div class="row">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p)).join('')+`</div>`;
+   h+=resHtml(it,sd,r);
+   h+=noteHtml(p,it.id+sd);
+   h+=`</div>`;
+  });
+  const a=ADJ[it.id];
+  if(a)h+=`<details><summary>加分／扣分參考（原文件）</summary><ul>${a.p.map(x=>`<li>加：${esc(x)}</li>`).join('')}${a.m.map(x=>`<li>扣：${esc(x)}</li>`).join('')}</ul></details>`;
+  h+=`</div>`;
+ });
+ const T=creekTotal(p);
+ h+=`<div class="card"><span class="tot">野溪總分 ${T.t} / 200</span> <span class="mut">（已評 ${T.n}/${T.all} 格）</span></div>`;
+ return h;
+}
+function selHtml(attr,opts,val){
+ val=val==null?'':String(val);
+ const hit=val===''||opts.some(o=>String(o[0])===val);
+ return `<select ${attr}><option value="">—</option>${hit?'':`<option value="${esc(val)}" selected>實測 ${esc(val)}</option>`}${opts.map(o=>`<option value="${o[0]}" ${String(o[0])===val?'selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
+}
+function fieldHtml(key,f,st,p){
+ const opts=typeof f.opts==='function'?f.opts(st,p):f.opts;
+ if(!opts)return `<label>${esc(f.label)}</label><span class="mut">先選原溪床寬度</span>`;
+ return `<label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"`,opts,st[f.k]);
+}
+function noteHtml(p,key){
+ let h='';
+ if(p.basis[key])h+=`<div class="mut">照片依據：${esc(p.basis[key])}</div>`;
+ if(p.todo[key])h+=`<div class="warn">待現場量測／確認：${esc(p.todo[key])}</div>`;
+ return h;
+}
+function resHtml(it,sd,r){
+ if(r.empty)return r.hint?`<div class="warn">${esc(r.hint)}</div>`:`<div class="mut">選完後顯示級距</div>`;
+ if(r.zero)return `<div class="res"><span class="badge bz">0分</span><span class="score">0</span><span class="mut">${esc(r.note||'')}</span></div>`;
+ return `<div class="res"><span class="badge b${r.b}">${BAND[r.b]}</span><span class="mut">級距 ${r.rng[0]}~${r.rng[1]} 分</span><label>採用</label><select data-o="${r.key}" data-min="${r.rng[0]}" data-max="${r.rng[1]}">${Array.from({length:r.rng[1]-r.rng[0]+1},(_,i)=>r.rng[1]-i).map(n=>`<option value="${n}" ${n===r.score?'selected':''}>${n} 分</option>`).join('')}</select><span class="mut">（建議 ${r.sug}）</span></div>${r.note?`<div class="warn">${esc(r.note)}</div>`:''}`;
+}
+function viewSlope(){
+ const p=S.p[S.cur];const e=slopeEval(p);
+ let h=head(p)+`</div>`+photosHtml(p,'slope');
+ h+=`<div class="card"><h3><span>坡地快速評估</span><span class="mut">每因子1~4分</span></h3>`;
+ e.rows.forEach(({x,s})=>{
+  const val=p.slope[x.k]==null?'':p.slope[x.k];
+  h+=`<div class="row"><label style="min-width:110px">${x.name}</label>`;
+  h+=selHtml(`data-sl="${x.k}"`,x.sel||x.opts,val);
+  h+=`<span class="score">${s==null?'':s+' 分'}</span></div>`+noteHtml(p,'slope_'+x.k);
+ });
+ h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項填完才判定）</span>'}</div>`;
+ h+=`<div class="mut">≤7不理想、7~10尚可、10~16.7次理想、>16.7最理想。樣區原則為10 m×10 m。</div></div>`;
+ return h;
+}
+/* ===== 匯出（表9項次2）：只列有評分的期別；表格可直接貼Word成表格；前言依語料庫不列數值、不報評級 ===== */
+function fmtDate(d){const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(d||'');return m?`${+m[1]-1911}.${+m[2]}.${+m[3]}`:''}
+function colName(p){const d=fmtDate(p.date);return p.name+(d?`（${d}）`:'')}
+function sideName(c,long){return c.it.name+(c.sd?(c.sd==='L'?(long?'（左岸）':'（左）'):(long?'（右岸）':'（右）')):'')}
+function exportData(){
+ const cA=S.p.map(creekAll),sE=S.p.map(slopeEval);
+ // 設計階段：只列施工前，欄名標「設計階段」；施工階段：施工前、施工中、完工三期全列
+ const design=S.exp==='design';
+ const idx=design?[0]:[0,1,2];
+ const cn=i=>design?'設計階段'+(fmtDate(S.p[i].date)?`（${fmtDate(S.p[i].date)}）`:''):colName(S.p[i]);
+ const cIdx=idx,sIdx=idx;
+ const creek={head:['評估項目',...cIdx.map(cn)],rows:cA[0].map((a,k)=>[sideName(a),...cIdx.map(i=>{const s=cA[i][k].r.score;return s==null?'':`${s}/${a.it.max}`})])};
+ const slope={head:['評估因子',...sIdx.map(cn)],rows:SLOPE.map((x,k)=>[x.name,...sIdx.map(i=>{const s=sE[i].rows[k].s;if(s==null)return '';
+  const raw=String(S.p[i].slope[x.k]),o=(x.sel||x.opts).find(o=>String(o[0])===raw);
+  return `${o?o[1].replace(/（\d分）$/,''):raw}（${s}）`})]),foot:['評級',...sIdx.map(i=>sE[i].n===5?sE[i].g:'')]};
+ return {cA,sE,cIdx,sIdx,creek,slope,cn};
+}
+function tblHtml(t,word){
+ const td=word?'style="border:1px solid #000;padding:2px 6px;text-align:center"':'';
+ const r=(cells,tag)=>`<tr>${cells.map(c=>`<${tag} ${td}>${esc(c)}</${tag}>`).join('')}</tr>`;
+ return `<table ${word?'style="border-collapse:collapse"':''}>${r(t.head,'th')}${t.rows.map(x=>r(x,'td')).join('')}${t.foot?r(t.foot,'th'):''}</table>`;
+}
+function tblTsv(t){return [t.head,...t.rows,...(t.foot?[t.foot]:[])].map(r=>r.join('\t')).join('\n')}
+function locText(i,kind){
+ const ph=[...phGet(S.p[i],kind),...(S.p[i].photos||[])].find(x=>x.lat!=null);if(!ph)return '＿＿＿';
+ const ns=nearestStation(ph.lat,ph.lng);return ns&&ns.off<=60?fmtSt(ns.st)+'附近':`（${ph.lat}, ${ph.lng}）`;
+}
+function draftCreek(D){
+ const out=[],ix=D.cIdx.filter(i=>creekTotal(S.p[i]).n>0);
+ ix.forEach((j,n)=>{
+  const p=S.p[j],c=D.cA[j],L=[];
+  const dry=c.filter(x=>x.r.zero&&x.r.st.v==='dry').map(x=>x.it.name);
+  if(n===0)L.push(`河溪棲地評估位置位於${locText(j,'creek')}。`);
+  if(dry.length)L.push(`因評估溪段為無流水（乾涸／斷流／伏流），故${dry.join('、')}分數為0。`);
+  if(n>0){const q=D.cA[ix[n-1]];const up=[],dn=[];
+   c.forEach((x,k)=>{const a=q[k].r.score,b=x.r.score;if(a==null||b==null||a===b||(x.r.zero&&x.r.st.v==='dry'))return;(b<a?dn:up).push(sideName(x,true))});
+   if(!up.length&&!dn.length&&!dry.length)L.push('現地無明顯變化，分數維持相同。');
+   if(dn.length)L.push(`因＿＿＿，${dn.join('、')}分數下降。`);
+   if(up.length)L.push(`因＿＿＿，${up.join('、')}分數上升。`);
+  }
+  out.push(`【${D.cn(j)}】`+L.join(''));
+ });
+ return out.join('\n')||'尚無野溪評分。';
+}
+function draftSlope(D){
+ const out=[],ix=D.sIdx.filter(i=>D.sE[i].n>0);
+ ix.forEach((j,n)=>{
+  const p=S.p[j],e=D.sE[j],L=[];
+  if(n===0){const ly=e.rows.find(r=>r.x.k==='ly').s;L.push(`坡地棲地評估位置位於${locText(j,'slope')}。`+(ly?`植物社會層次為${['','1','2','3','4以上'][ly]}層結構，以＿＿＿為主。`:''))}
+  else{const q=D.sE[ix[n-1]];const up=[],dn=[];
+   e.rows.forEach((r,k)=>{const a=q.rows[k].s,b=r.s;if(a==null||b==null||a===b)return;(b<a?dn:up).push(r.x.name)});
+   if(!up.length&&!dn.length)L.push('現地無明顯變化，分數維持相同。');
+   if(dn.length)L.push(`因＿＿＿，${dn.join('、')}分數下降。`);
+   if(up.length)L.push(`因＿＿＿，${up.join('、')}分數上升。`);
+  }
+  out.push(`【${D.cn(j)}】`+L.join(''));
+ });
+ return out.join('\n')||'尚無坡地評分。';
+}
+function viewCmp(){
+ const D=exportData();
+ const ex=S.exp==='design'?'design':'build';
+ let h=`<div class="card"><h3><span>匯出用途</span></h3><div class="tabs">
+ <button class="tab ${ex==='design'?'on':''}" data-exp="design">設計階段（僅施工前）</button>
+ <button class="tab ${ex==='build'?'on':''}" data-exp="build">施工階段（施工前／施工中／完工）</button></div></div>`;
+ h+=`<div class="card"><h3><span>坡地棲地評估</span></h3>`;
+ h+=tblHtml(D.slope,false);
+ h+=`<div class="mut" style="margin-top:8px">前言草稿（＿＿＿處請補原因；依表9寫法不列分數、不報評級）</div><textarea id="dS">${esc(draftSlope(D))}</textarea>
+ <div class="row"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="sD">複製前言</button></div></div>`;
+ h+=`<div class="card"><h3><span>野溪治理工程生態回復追蹤評估</span><span class="mut">僅野溪案件使用</span></h3>`;
+ h+=tblHtml(D.creek,false);
+ h+=`<div class="mut" style="margin-top:8px">前言草稿</div><textarea id="dC">${esc(draftCreek(D))}</textarea>
+ <div class="row"><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-copy="cD">複製前言</button></div>
+ <div class="mut">表格貼到Word會是真正的表格；前言可直接在框內修改後再複製。</div></div>`;
+ return h;
+}
+async function copyRich(html,txt,btn){
+ const done=()=>{const o=btn.textContent;btn.textContent='已複製';setTimeout(()=>btn.textContent=o,1200)};
+ try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})})]);done()}
+ catch(_){cp(txt,btn)}
+}
+function viewNote(){
+ return `<div class="card"><h3><span>使用方式</span></h3><ol style="margin:0;padding-left:18px">
+ <li>上方選案件（或按「新增」建立）。每個案件分施工前／施工中／完工三期，期別名稱可改。</li>
+ <li>每期的野溪、坡地照片分開存（各在自己的頁籤上傳），自動讀取照片GPS與拍攝時間。要有GPS請先用手機相機拍、再從相簿選（在選單裡直接拍的照片不帶GPS）；照片沒有GPS時可在照片下手填座標。案件有設計樁號資料時，照片下方會顯示推估樁號。</li>
+ <li>各項目用下拉選單選級距，程式給建議分數；「採用」可在該級距範圍內依加分／扣分參考調整。改選另一級距時，採用分數會重設為建議值。</li>
+ <li>第3、4、5、9項選單最後有「乾涸／斷流／伏流」，選了該項計0分。</li>
+ <li>「匯出」可選設計階段（只列施工前，欄名標「設計階段」）或施工階段（施工前／施工中／完工三期），整理坡地、野溪兩張表，可複製成Word表格；並自動產生前言草稿（評估位置、乾涸項目、分數升降項目），＿＿＿處補原因即可。</li>
+ <li>資料依案件存在雲端，手機、電腦開同一連結都看得到。</li></ol></div>
+ <div class="card"><h3><span>特殊判定</span></h3><ul style="margin:0;padding-left:18px" class="mut">
+ <li><b>橫向連結性</b>：先選海拔（800 m 上下用不同切點）。長度、坡度、落差三項都選才計分；長度、坡度、落差各分4級，級距＝長度級＋（坡度級與落差級取較差者）。原表列出的組合結果一致，原表沒列的搭配為依此規則推斷。</li>
+ <li><b>溪床寬度變化</b>：原溪床≥10 m 的級距原表印刷矛盾，為依4級結構推斷。</li>
+ <li><b>湍瀨出現頻率</b>：未見湍瀨直接判差；<b>縱向連結性</b>：無橫向構造物直接判佳，落差≥200 cm 為0分。</li></ul></div>
+ <div class="card"><h3><span>級距分數</span></h3><div class="mut">20分項：佳16~20、良好11~15、普通6~10、差1~5（建議值18/13/8/3）。<br>10分項（左右岸各算）：佳9~10、良好6~8、普通3~5、差1~2（建議值9/7/4/2）。<br>坡地5因子各1~4分，總分≤7不理想、7~10尚可、10~16.7次理想、&gt;16.7最理想。</div></div>
+ <div class="card"><h3><span>來源</span></h3><div class="mut">坡地棲地評估指標操作方法、野溪治理工程生態回復追蹤評估指標。級距若與最新官方版本不同，以官方為準。</div></div>`;
+}
+
+/* ===== 事件 ===== */
+document.addEventListener('click',e=>{
+ const t=e.target;
+ if(t.dataset.p!=null){S.cur=+t.dataset.p;if(S.view==='cmp'||S.view==='note')S.view='creek';render();}
+ else if(t.dataset.v){S.view=t.dataset.v;render();}
+ else if(t.dataset.exp){S.exp=t.dataset.exp;lsSet('habitat_exp',S.exp);render()}
+ else if(t.dataset.copy){const D=exportData(),k=t.dataset.copy;
+  if(k==='sT')copyRich(tblHtml(D.slope,true),tblTsv(D.slope),t);
+  else if(k==='cT')copyRich(tblHtml(D.creek,true),tblTsv(D.creek),t);
+  else cp($(k==='sD'?'dS':'dC').value,t)}
+ else if(t.id==='caseAdd'){const r=$('caseAddRow');r.hidden=!r.hidden;if(!r.hidden)$('caseName').focus()}
+ else if(t.id==='caseSave'){addCase()}
+ else if(t.id==='caseDel'){delCase(t)}
+ else if(t.dataset.phdel!=null){
+  if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='確認刪除';setTimeout(()=>{t.dataset.armed='';t.textContent='刪除'},5000);return}
+  const p=S.p[S.cur],x=phList(p,t.dataset.kind).splice(+t.dataset.phdel,1)[0];render();
+  if(x&&assets)assets.delete(x.id).catch(()=>{});
+ }
+ else if(t.dataset.mv!=null){const p=S.p[S.cur],x=p.photos.splice(+t.dataset.mv,1)[0];if(x)phList(p,t.dataset.to).push(x);if(!p.photos.length)delete p.photos;render()}});
+async function addCase(){
+ const name=$('caseName').value.trim();if(!name||!db)return;
+ try{await flush();const ref=db.collection('cases').doc();const p=[blank('施工前'),blank('施工中'),blank('完工')];
+  await ref.set({name,createdAt:Date.now(),p});
+  curCase=ref.id;S.cur=0;S.view='creek';loadCase(true);$('caseName').value='';$('caseAddRow').hidden=true;render();
+ }catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}
+}
+async function delCase(b){
+ const c=cases.find(x=>x.id===curCase);if(!c||!db)return;
+ if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${c.name}」的三期評分會一起刪掉，無法復原。確定請再按「確認刪除」。`);
+  delArm=setTimeout(()=>{b.dataset.armed='';b.textContent='刪除';msg('')},6000);return}
+ clearTimeout(delArm);b.dataset.armed='';b.textContent='刪除';msg('');
+ clearTimeout(saveTimer);saveTimer=null;saveFn=null;
+ try{await db.doc('cases/'+c.id).delete();curCase='';
+  if(assets)for(const q of (c.p||[]))for(const x of [...(q.photos||[]),...(q.photosCreek||[]),...(q.photosSlope||[])]){try{await assets.delete(x.id)}catch(e){}}
+ }catch(e){msg('刪除失敗（'+(e.code||e.message)+'）')}
+}
+function cp(txt,btn){const done=()=>{const o=btn.textContent;btn.textContent='已複製';setTimeout(()=>btn.textContent=o,1200)};
+ try{navigator.clipboard.writeText(txt).then(done,()=>fallback(txt,done))}catch(_){fallback(txt,done)}}
+function fallback(txt,done){const a=document.createElement('textarea');a.value=txt;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(_){}a.remove()}
+document.addEventListener('change',e=>{
+ const t=e.target;
+ if(t.id==='caseSel'){(async()=>{await flush();curCase=t.value;S.cur=0;loadCase(true);render()})();return}
+ if(!S.p)return;
+ const p=S.p[S.cur];
+ if(t.dataset.ph){const fs=[...t.files];t.value='';if(fs.length)upPhotos(fs,t.dataset.ph,!!t.dataset.cam);return}
+ if(t.dataset.gps!=null){const m=t.value.match(/(-?\d+(?:\.\d+)?)\s*[,，\s]\s*(-?\d+(?:\.\d+)?)/);
+  if(!m){t.style.borderColor='var(--bad)';return}
+  const x=phList(p,t.dataset.kind)[+t.dataset.gps];x.lat=+(+m[1]).toFixed(6);x.lng=+(+m[2]).toFixed(6);x.gps='manual';render();return}
+ if(t.dataset.hi){const h=t.value==='1';S.p.forEach(q=>{q.high=h;Object.keys(q.creek).forEach(k=>{if(k.startsWith('lat'))q.creek[k].ovr=null})});render();return;}
+ if(t.dataset.f){const f=t.dataset.f;p[f]=t.type==='checkbox'?t.checked:t.value;render();return;}
+ if(t.dataset.c){const k=t.dataset.c;const st=p.creek[k]=p.creek[k]||{};st[t.dataset.k]=t.value;st.ovr=null;
+  if(k==='wchg'&&t.dataset.k==='t')delete st.v;
+  if((k.startsWith('riffle')||k.startsWith('long'))&&t.dataset.k==='v')delete st.t;
+  render();return;}
+ if(t.dataset.o){const k=t.dataset.o;const st=p.creek[k]=p.creek[k]||{};
+  const mn=+t.dataset.min,mx=+t.dataset.max;let v=Math.round(+t.value);if(isNaN(v))v=mn;v=Math.min(mx,Math.max(mn,v));
+  const it=ITEMS.find(x=>k.startsWith(x.id)&&(k===x.id||k===x.id+'L'||k===x.id+'R'));
+  const sd=k.slice(it.id.length);const r=evalItem(it,sd,p);st.ovr=v;st.ovrBand=r.b;render();return;}
+ if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
+});
+render();
+initDb();
+</script>
+</body>
+</html>
