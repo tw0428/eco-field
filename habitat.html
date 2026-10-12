@@ -8,6 +8,9 @@
 <link rel="apple-touch-icon" href="icon-habitat.png">
 <title>棲地評估算分</title>
 <script>
+// 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
+window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
+
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
 if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.href)}
 // 同事分享連結 #k=金鑰：存進這支手機後從網址拿掉（#後面的內容不會送到任何伺服器）
