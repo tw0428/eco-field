@@ -311,7 +311,10 @@ function render(){
  hydrateImgs();geoShow();save();
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function head(p){return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(p.date)}"></div>`}
+const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`};
+// 打開某一期時日期空白且尚無資料 → 預設今天（已有評分/照片的舊期別不動，免得誤填）
+function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
+function head(p){if(isBlankP(p))p.date=todayStr();return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(p.date)}"></div>`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
