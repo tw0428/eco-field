@@ -1156,14 +1156,16 @@ async function openMap(focusMe){
   const c=cases.find(x=>x.id===curCase);if(!c)return;
   $("mapView").hidden=false;document.body.style.overflow="hidden";$("mapTitle").textContent=c.name;geoStart();
   try{await loadLeaflet()}catch(e){$("mapBox").innerHTML='<div class="vmsg">'+e.message+'</div>';return}
-  if(!map){map=L.map("mapBox",{zoomControl:true});baseLayer=nlsc(baseOn).addTo(map)}
+  if(!map){map=L.map("mapBox",{zoomControl:true});baseLayer=nlsc(baseOn).addTo(map);map.on("zoomend",relabel)}
+  mapLabels=[];
   map.invalidateSize();if(mapLayers)mapLayers.remove();mapLayers=L.layerGroup().addTo(map);
   const pts=[];
   const s=Array.isArray(c.stakes)?c.stakes.filter(p=>p.lat!=null):[];
   if(s.length>1){
     L.polyline(s.map(p=>[p.lat,p.lng]),{color:"#e0a020",weight:4,opacity:.9}).addTo(mapLayers);
-    s.forEach((p,i)=>{const m=L.circleMarker([p.lat,p.lng],{radius:3,color:"#e0a020",weight:2,fillOpacity:1}).addTo(mapLayers);
-      m.bindTooltip(fmtSt(p.st)+(p.note?" "+p.note:""),{permanent:i===0||i===s.length-1||!!p.note,direction:"right",className:"stk"});pts.push([p.lat,p.lng])});
+    s.forEach(p=>{const m=L.circleMarker([p.lat,p.lng],{radius:3,color:"#e0a020",weight:2,fillOpacity:1}).addTo(mapLayers);
+      m.bindTooltip(fmtSt(p.st)+(p.note?" "+p.note:""),{direction:"right"});pts.push([p.lat,p.lng])});
+    mapLabels=s.filter((p,i)=>i===0||i===s.length-1||p.note);
   }
   (Array.isArray(c.sites)?c.sites:[]).forEach(p=>{if(p.lat==null)return;L.marker([p.lat,p.lng]).addTo(mapLayers).bindTooltip(p.label,{permanent:true,direction:"right"});pts.push([p.lat,p.lng])});
   records.filter(r=>r.caseId===curCase&&r.lat!=null).forEach(r=>{
@@ -1183,6 +1185,20 @@ async function openMap(focusMe){
   else if(pts.length)map.fitBounds(pts,{padding:[30,30],maxZoom:19});
   else if(g)map.setView([g.lat,g.lng],17);
   else map.setView([23.9,120.9],8);
+  relabel();
+}
+// 常駐樁號標籤：在目前縮放下會互相壓到的（約40px內）合併成一個多行標籤，放大分得開時自動拆回
+let mapLabels=[],labelLayer=null;
+function relabel(){
+  if(!map)return;if(labelLayer)labelLayer.remove();labelLayer=L.layerGroup().addTo(map);
+  const items=mapLabels.map(p=>({p,xy:map.latLngToLayerPoint([p.lat,p.lng])})),used=new Set();
+  items.forEach((a,i)=>{
+    if(used.has(i))return;const grp=[a];used.add(i);
+    items.forEach((b,j)=>{if(!used.has(j)&&grp.some(g=>Math.abs(g.xy.y-b.xy.y)<24&&Math.abs(g.xy.x-b.xy.x)<160)){grp.push(b);used.add(j)}});
+    grp.sort((x,y)=>x.p.st-y.p.st);
+    const d=document.createElement("div");grp.forEach(g=>{const l=document.createElement("div");l.textContent=fmtSt(g.p.st)+(g.p.note?" "+g.p.note:"");d.appendChild(l)});
+    L.tooltip({permanent:true,direction:"right",interactive:false}).setLatLng([grp[0].p.lat,grp[0].p.lng]).setContent(d).addTo(labelLayer);
+  });
 }
 function closeMap(){$("mapView").hidden=true;document.body.style.overflow="";clearInterval(mapTimer)}
 $("mapBtn").onclick=()=>openMap(false);
