@@ -257,7 +257,7 @@ const store={cases:{},records:{},checkres:{}},subs={cases:[],records:[],checkres
 function emit(col){const docs=Object.entries(store[col]).map(([id,d])=>({id,data:()=>d}));
   if(col==="cases")docs.sort((a,b)=>(a.data().createdAt||0)-(b.data().createdAt||0));
   subs[col].forEach(f=>f({docs}))}
-let loadedAt=0;
+let loadedAt=0,loadMode="";
 const CACHE_KEY="eco-cache-field";
 function applyStore(nc,nr,nk){store.cases=nc;store.records=nr;store.checkres=nk;emit("cases");emit("records");emit("checkres");
   lsSet(CACHE_KEY,JSON.stringify({cases:nc,records:nr,checkres:nk}))}
@@ -278,7 +278,8 @@ async function loadAll(){
     repo=j.data&&j.data.repository;
     if(!repo&&(j.errors||[]).some(x=>x.type==="NOT_FOUND")){const e=new Error("no repo");e.code="no_repo";throw e}
   }catch(e){if(e.code==="bad_token"||e.code==="no_repo")throw e;repo=null}
-  if(!repo)return loadAllRest(); // GraphQL不能用時退回逐檔讀
+  if(!repo){loadMode="（逐檔）";return loadAllRest()} // GraphQL不能用時退回逐檔讀
+  loadMode="";
   const nc={},nr={},nk={};
   treeFiles(repo.c).forEach(([id,d])=>{nc[id]=d});
   treeFiles(repo.r).forEach(([,m])=>Object.assign(nr,m||{}));
@@ -863,7 +864,8 @@ async function repoCheck(){
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
   $("conn").textContent=Object.keys(store.cases).length?"更新中…":"讀取中…";
-  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent="已連線";geoStart()}
+  const t0=performance.now();
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
