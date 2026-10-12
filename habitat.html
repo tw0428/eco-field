@@ -7,6 +7,14 @@
 <script>
 // LINE內建瀏覽器跟Safari分開存金鑰與定位權限 → 自動改用外部瀏覽器開（LINE支援 openExternalBrowser=1）
 if(/\bLine\//i.test(navigator.userAgent)&&!/openExternalBrowser=1/.test(location.search)){const u=new URL(location.href);u.searchParams.set('openExternalBrowser','1');location.replace(u.href)}
+// 網頁存手機（sw.js）：有新版時顯示提示條，點了才換新版
+if('serviceWorker' in navigator&&location.protocol==='https:'){
+ navigator.serviceWorker.onmessage=e=>{if(!e.data||e.data.type!=='update'||document.getElementById('updBar'))return;
+  const b=document.createElement('button');b.id='updBar';b.type='button';b.textContent='有新版本，點這裡更新';
+  b.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99;padding:14px;border-radius:10px;border:0;background:#2f6b4f;color:#fff;font:inherit;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+  b.onclick=()=>{flush().finally(()=>location.reload())};document.body.appendChild(b)};
+ navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 </script>
 <style>
 /* 配色、字型、按鈕與現場紀錄(index.html)一致：數值同其 --bg/--surface/--fg/--muted/--line/--accent/--soft/--warn/--danger */
@@ -141,7 +149,7 @@ function fixP(p){p.basis=p.basis||{};p.todo=p.todo||{};return p}
 let S={cur:0,view:'creek',p:[blank('施工前'),blank('施工中'),blank('完工')]};
 try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.p&&o.p.length===3){S=o;S.p.forEach(fixP);}}}catch(e){}
 /* 案件：有db時每案一份 cases/<id> {name,createdAt,updatedAt,p:[三期]}；無db時退回本機單一份 */
-let assets=null,db=null,cases=[],curCase='',lastJson='',saveTimer=null,saveFn=null,delArm=null;
+let assets=null,db=null,cases=[],curCase='',lastJson='',saveTimer=null,saveFn=null,delArm=null,unsaved=false;
 const PREF='habitat_pref';
 try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
@@ -153,14 +161,15 @@ function save(){
  if(!curCase||!S.p)return;
  const j=JSON.stringify(S.p);if(j===lastJson)return;
  lastJson=j;const id=curCase;clearTimeout(saveTimer);
- saveFn=async()=>{saveTimer=null;saveFn=null;try{await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});msg('')}catch(e){msg('儲存失敗（'+(e.code||e.message)+'），請有網路時再改一次')}};
+ // 存失敗時清掉lastJson，下次render或恢復訊號（online事件）會重送，不用手動再改一次
+ saveFn=async()=>{saveTimer=null;saveFn=null;try{await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分還沒存到雲端；有訊號時會自動補存，這頁先不要關':'儲存失敗（'+(e.code||e.message)+'），請有網路時再改一次')}};
  saveTimer=setTimeout(saveFn,600);
 }
 async function flush(){if(saveTimer){clearTimeout(saveTimer);await saveFn()}}
 function loadCase(force){
  const c=cases.find(x=>x.id===curCase);
  if(!c){S.p=null;lastJson='';return}
- if(saveTimer&&!force)return;
+ if((saveTimer||unsaved)&&!force)return; // 有還沒存上去的評分時，不讓背景更新蓋掉
  const src=c.p&&c.p.length===3?JSON.stringify(c.p):null;
  if(force||(src&&src!==lastJson)||(!src&&!S.p)){S.p=src?JSON.parse(src).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')];lastJson=JSON.stringify(S.p)}
 }
@@ -292,6 +301,7 @@ async function initDb(){
  });
  if(ghToken)hLoadCache();
  connect();
+ window.addEventListener('online',()=>{if(S.p&&curCase){lastJson='';save()}});
 }
 
 /* ===== 計算 ===== */
