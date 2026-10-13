@@ -894,7 +894,7 @@ function renderStage(){
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
-let checkRes={},linkCheck=null;
+let checkRes={},linkCheck=null,chkEditId=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
@@ -946,6 +946,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       const h=document.createElement("div");h.className="chkgroup";h.textContent=`${lastG||"其他"}（${gi.filter(i=>st[i.id]).length}/${gi.length}）`;
       dest=document.createElement("div");dest.className="chkgrp";dest.appendChild(h);list.appendChild(dest)}
     const el=document.createElement("div");el.className="chk"+(st[it.id]?" done":"");
+    if(chkEditId===it.id){el.appendChild(chkEditForm(c,it));dest.appendChild(el);return}
     const tx=document.createElement("div");tx.className="txt";
     const p=document.createElement("span");p.className="pill";p.textContent=it.abcd||"—";
     tx.append(p," "+it.text);el.appendChild(tx);
@@ -970,6 +971,9 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     rb.onclick=()=>{cancelEdit();clearForm();cat=it.phase==="improve"?"改善":"生態友善措施";abcd=it.abcd||"";renderChips();
       if(it.stake)$("stakeIn").value=it.stake;setLink(it.id);$("recForm").scrollIntoView({behavior:"smooth"})};
     bs.appendChild(rb);
+    // 預計提出意見、改善意見、現場新增的項目可修改內容
+    if(it.added||it.phase==="propose"||it.phase==="improve"){const eb=document.createElement("button");eb.type="button";eb.textContent="✎ 編輯";
+      eb.onclick=()=>{chkEditId=it.id;renderChecks()};bs.appendChild(eb)}
     if(it.added){const dx=document.createElement("button");dx.type="button";dx.className="del";dx.textContent="刪除此項";
       dx.onclick=()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
         saveChecks(((c.checks)||[]).filter(i=>i.id!==it.id))};bs.appendChild(dx)}
@@ -1012,6 +1016,21 @@ function chkAddForm(c,phase,label){
   };
   sk.className="";row.append(stakeField(sk,c),ok);
   const row2=document.createElement("div");row2.className="row";row2.style.justifyContent="flex-end";row2.appendChild(okc);f.append(h,ab,tx,row,row2);return f;
+}
+function chkEditForm(c,it){
+  const f=document.createElement("div");f.style.cssText="display:flex;flex-direction:column;gap:6px";
+  let ab_=it.abcd||"";
+  const ab=document.createElement("div");ab.className="chips";
+  chips(ab,ABCD.map(([k,l])=>[k,k+" "+l]),()=>ab_,v=>{ab_=ab_===v?"":v;[...ab.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(ABCD[i][0]===ab_)))});
+  const tx=document.createElement("textarea");tx.rows=3;tx.value=it.text||"";tx.dataset.chk="edit";
+  const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.value=it.stake||"";sk.dataset.chk="edit";
+  const row=document.createElement("div");row.className="row";
+  const cn=document.createElement("button");cn.type="button";cn.textContent="取消";cn.onclick=()=>{chkEditId=null;tx.blur();sk.blur();renderChecks()};
+  const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="儲存";
+  ok.onclick=async()=>{const text=tx.value.trim();if(!text){tx.focus();return}ok.disabled=true;tx.blur();sk.blur();
+    const checks=(c.checks||[]).map(i=>i.id===it.id?{...i,text,abcd:ab_,stake:sk.value.trim()}:i);
+    if(await saveChecks(checks))chkEditId=null;else ok.disabled=false;renderChecks()};
+  row.append(stakeField(sk,c),cn,ok);f.append(ab,tx,row);return f;
 }
 async function saveChecks(checks){
   const c=cases.find(x=>x.id===curCase);if(!c||!db)return false;
