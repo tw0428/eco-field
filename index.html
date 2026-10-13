@@ -177,8 +177,9 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 .rec.compact .head{font-size:12px;gap:2px 8px}
 .rec.compact .title{font-size:14px}
 .rec.compact .note{font-size:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.rec.compact .acts{justify-content:flex-start;margin-top:4px}
-.rec.compact .acts button{padding:2px 10px;font-size:13px}
+.rec.compact .acts{margin-left:auto;gap:4px}
+.rec.compact .acts button{padding:1px 8px;font-size:12px}
+.rec.compact .meta2{flex-direction:column}
 .rec .meta2{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 10px}
 .thumb .old{position:absolute;left:2px;bottom:2px;font-size:11px;padding:0 5px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff}
 /* 新增核對事項 */
@@ -1064,12 +1065,11 @@ function recCard(r,c,onEdit){
     }
     // 次要資訊（紀錄者、核對項、定位）縮成一行小字
     const m2=document.createElement("div");m2.className="meta2";
-    if(r.by){const s=document.createElement("span");s.textContent="👤"+r.by;m2.appendChild(s)}
+    if(r.by){const s=document.createElement("span");s.textContent="👤"+r.by;time.after(s)}
     if(r.checkId){const ck=((c.checks||[]).find(i=>i.id===r.checkId));if(ck){const s=document.createElement("span");s.textContent="核對："+ck.text.slice(0,14)+(ck.text.length>14?"…":"");m2.appendChild(s)}}
     if(r.lat!=null){
       const ns=nearestStation(r.lat,r.lng);
-      const a=document.createElement("span");a.className="mono";a.textContent=`📍${r.lat}, ${r.lng}`+(r.gpsSource==="device"?`（±${r.gpsAcc}m）`:"");m2.appendChild(a);
-      if(ns){const e=document.createElement("span");e.textContent="GPS "+stationText(ns);m2.appendChild(e)}
+      const a=document.createElement("span");a.textContent=`📍${r.lat}, ${r.lng}`+(r.gpsSource==="device"?` ±${r.gpsAcc}m`:"")+(ns?"・"+stationText(ns):"");m2.appendChild(a);
     }else if(r.photos&&r.photos.length){const n=document.createElement("span");n.textContent="照片無GPS";m2.appendChild(n)}
     if(m2.childNodes.length)el.appendChild(m2);
     const acts=document.createElement("div");acts.className="acts";
@@ -1090,7 +1090,8 @@ function recCard(r,c,onEdit){
     el.classList.add("compact");
     const body=document.createElement("div");body.className="body";
     [...el.children].filter(x=>!x.classList.contains("imgs")).forEach(x=>body.appendChild(x));
-    const st=head.querySelector("span:nth-child(3)");
+    const st=[...head.children].find(x=>x.textContent===r.stake);
+    acts.remove();head.appendChild(acts);
     if(st&&r.stake){st.remove();const ti=body.querySelector(".title");const s=document.createElement("b");s.textContent=r.stake;
       if(ti)ti.prepend(s,"　");else{const t2=document.createElement("div");t2.className="title";t2.appendChild(s);head.after(t2)}}
     el.innerHTML="";
