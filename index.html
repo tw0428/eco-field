@@ -185,6 +185,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 /* 新增核對事項 */
 .chkadd{display:flex;flex-direction:column;gap:6px;border:1.5px dashed var(--accent);border-radius:10px;padding:10px}
 .chkadd .row button{white-space:nowrap}
+.chkph{display:flex;gap:4px;overflow-x:auto}
+.chkph img{width:56px;height:56px;object-fit:cover;border-radius:5px;display:block;background:var(--soft)}
 .chk .del{margin-left:auto;font-size:12px;padding:2px 8px;color:var(--danger);border-color:var(--danger)}
 /* 照片牆點開：紀錄詳細 */
 #recView .rvbody{flex:1;overflow:auto;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px))}
@@ -763,12 +765,22 @@ function renderCases(){
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
   renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;
-  const vals=[...(c&&Array.isArray(c.stakes)?c.stakes:[]).map(s=>s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st)),
-    ...(c&&Array.isArray(c.sites)?c.sites:[]).flatMap(s=>s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label])];
-  const ss=$("stakeSel");ss.innerHTML="";
-  const o0=document.createElement("option");o0.value="";o0.textContent="（選樁號）";ss.appendChild(o0);
-  vals.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;ss.appendChild(o)});
+  const vals=stakeVals(c),ss=$("stakeSel");fillStakeSel(ss,vals);
   ss.hidden=$("stakeArrow").hidden=!vals.length;
+}
+function stakeVals(c){return [...(c&&Array.isArray(c.stakes)?c.stakes:[]).map(s=>s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st)),
+    ...(c&&Array.isArray(c.sites)?c.sites:[]).flatMap(s=>s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label])]}
+function fillStakeSel(ss,vals){ss.innerHTML="";
+  const o0=document.createElement("option");o0.value="";o0.textContent="（選樁號）";ss.appendChild(o0);
+  vals.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;ss.appendChild(o)})}
+// 任一文字欄加上樁號▾選單（同新增紀錄的樁號欄）
+function stakeField(inp,c){
+  const w=document.createElement("div");w.className="stkwrap grow";w.appendChild(inp);
+  const vals=stakeVals(c);if(!vals.length)return w;
+  const a=document.createElement("span");a.className="stkbtn";a.textContent="▾";
+  const s=document.createElement("select");s.setAttribute("aria-label","從樁號清單選");fillStakeSel(s,vals);s.dataset.chk="new";
+  s.onchange=()=>{if(s.value)inp.value=s.value;s.value=""};
+  w.append(a,s);return w;
 }
 $("stakeSel").onchange=e=>{if(e.target.value){$("stakeIn").value=e.target.value;$("stakeHint").hidden=true}e.target.value=""};
 $("caseSel").onchange=e=>{curCase=e.target.value;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()};
@@ -942,6 +954,12 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
     if(it.fig){const f=document.createElement("div");f.className="meta";f.textContent="圖："+it.fig;el.appendChild(f)}
     el.appendChild(m);
+    // 已連結紀錄的照片（點開看該筆紀錄）
+    const lr=records.filter(r=>r.caseId===curCase&&r.checkId===it.id&&r.photos&&r.photos.length);
+    if(lr.length){const g=document.createElement("div");g.className="chkph";
+      lr.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
+        const i=document.createElement("img");i.alt="連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
+      el.appendChild(g)}
     const bs=document.createElement("div");bs.className="btns";
     labels.forEach(([k,label])=>{
       const b=document.createElement("button");b.type="button";b.textContent=label;if(k==="ng")b.className="ng";
@@ -968,7 +986,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   if(canAdd)list.appendChild(chkAddForm(c,addPhase,addLabel));
 }
 /* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start；預計提出意見→propose） */
-const chkAddAbcdBy={};
+const chkAddAbcdBy={};let chkAddAbcdLast="",skLast="";
 function chkAddForm(c,phase,label){
   const f=document.createElement("div");f.className="chkadd";
   const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent=label;
@@ -978,15 +996,22 @@ function chkAddForm(c,phase,label){
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
+  // 加入並拍照：存好後直接帶到新增紀錄（連結這一項），按拍照即可
+  const okc=document.createElement("button");okc.type="button";okc.textContent="加入並拍照";
+  okc.onclick=async()=>{const id=await ok.onclick();if(!id)return;
+    cancelEdit();clearForm();cat=phase==="improve"?"改善":(CATS_BY[curStage()]||[]).includes("生態友善措施")?"生態友善措施":cat;
+    abcd=chkAddAbcdLast||"";renderChips();if(skLast)$("stakeIn").value=skLast;setLink(id);$("recForm").scrollIntoView({behavior:"smooth"})};
   ok.onclick=async()=>{
     const text=tx.value.trim();if(!text){tx.focus();return}
     const d=new Date(),by=who();
     const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
       src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase,added:true};
-    ok.disabled=true;tx.blur();sk.blur();
-    if(await saveChecks([...(c.checks||[]),item]))chkAddAbcdBy[phase]="";else ok.disabled=false;
+    ok.disabled=okc.disabled=true;tx.blur();sk.blur();chkAddAbcdLast=item.abcd;skLast=item.stake;
+    if(await saveChecks([...(c.checks||[]),item])){chkAddAbcdBy[phase]="";return item.id}
+    ok.disabled=okc.disabled=false;return null;
   };
-  row.append(sk,ok);f.append(h,ab,tx,row);return f;
+  sk.className="";row.append(stakeField(sk,c),ok);
+  const row2=document.createElement("div");row2.className="row";row2.style.justifyContent="flex-end";row2.appendChild(okc);f.append(h,ab,tx,row,row2);return f;
 }
 async function saveChecks(checks){
   const c=cases.find(x=>x.id===curCase);if(!c||!db)return false;
@@ -1368,6 +1393,9 @@ function renderOverlayCtl(c){
         catch(e){st.textContent=" 載入失敗";cb.checked=false}
       };
       lb.append(cb," "+(o.title||"設計圖"),st);d.appendChild(lb);
+      // 預設打開；使用者關掉過才記住關閉
+      cb.addEventListener("change",()=>{const off=new Set(lsGet("eco-ovoff").split(",").filter(Boolean));cb.checked?off.delete(o.id):off.add(o.id);lsSet("eco-ovoff",[...off].join(","))});
+      if(!lsGet("eco-ovoff").split(",").includes(o.id)){cb.checked=true;setTimeout(()=>cb.onchange(),0)}
     });
     const r=document.createElement("input");r.type="range";r.min="0.2";r.max="1";r.step="0.05";r.value=String(ovOpacity);r.setAttribute("aria-label","設計圖透明度");
     r.oninput=()=>{ovOpacity=+r.value;Object.values(ovLayers).forEach(l=>l.setOpacity(ovOpacity))};
