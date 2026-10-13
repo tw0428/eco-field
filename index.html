@@ -768,8 +768,10 @@ function renderCases(){
   const vals=stakeVals(c),ss=$("stakeSel");fillStakeSel(ss,vals);
   ss.hidden=$("stakeArrow").hidden=!vals.length;
 }
-function stakeVals(c){return [...(c&&Array.isArray(c.stakes)?c.stakes:[]).map(s=>s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st)),
-    ...(c&&Array.isArray(c.sites)?c.sites:[]).flatMap(s=>s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label])]}
+// 有設計樁號就只列樁號；沒有樁號的案子（管線、水塔等）才列工區與構造物
+function stakeVals(c){const st=(c&&Array.isArray(c.stakes)?c.stakes:[]).filter(s=>s&&s.st!=null);
+  if(st.length)return st.map(s=>s.note?`${fmtSt(s.st)} ${s.note}`:fmtSt(s.st));
+  return (c&&Array.isArray(c.sites)?c.sites:[]).flatMap(s=>s.parts&&s.parts.length?s.parts.map(p=>s.label+" "+p):[s.label])}
 function fillStakeSel(ss,vals){ss.innerHTML="";
   const o0=document.createElement("option");o0.value="";o0.textContent="（選樁號）";ss.appendChild(o0);
   vals.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;ss.appendChild(o)})}
