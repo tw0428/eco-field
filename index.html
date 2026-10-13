@@ -277,8 +277,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   </details>
 
   <details class="panel checks" id="propBox" hidden>
-    <summary><span style="flex:1">預計提出意見（現場確認能否採納）</span><span class="status" id="propCount"></span></summary>
-    <div class="hint">本團隊準備提給設計單位的意見，現場討論後記錄採納情形。</div>
+    <summary><span style="flex:1" id="propTitle">預計提出意見（現場確認能否採納）</span><span class="status" id="propCount"></span></summary>
+    <div class="hint" id="propHint"></div>
     <div id="propList" class="chklist"></div>
   </details>
 
@@ -894,18 +894,24 @@ function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.g
 function resId(){return curCase+"_"+today()}
 // 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄設計單位能否採納
 const CHK_PROP=[["ok","✓ 可採納"],["adj","△ 部分採納"],["ng","✗ 不採納"]];
+const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
 function renderChecks(){
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
   renderChkPanel({box:$("chkBox"),list:$("chkList"),title:$("chkTitle"),count:$("chkCount"),c,stage,
-    items:stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report")),
+    items:stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&i.phase!=="improve"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report")),
     canAdd:!!c&&stage!=="提報",labels:stLabels(stage),
     titleText:stage==="設計"?"提審意見納入確認":stage==="開工前"?"設計意見落實確認":"現場核對清單",
     addPhase:stage==="設計"?"report":stage==="開工前"?"design":"start",addLabel:"＋ 新增核對事項（會議、現場討論的新意見）"});
-  renderChkPanel({box:$("propBox"),list:$("propList"),title:null,count:$("propCount"),c,stage,
-    items:stage==="設計"?all.filter(i=>i.phase==="propose"):[],canAdd:!!c&&stage==="設計",labels:CHK_PROP,
-    addPhase:"propose",addLabel:"＋ 新增預計提出的意見"});
+  // 第二區：設計＝預計提出意見；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
+  const imp=stage==="施工中"||stage==="完工";
+  $("propHint").textContent=imp?"施工中發現的問題與改善意見，之後每次現勘追蹤改善情形。":"本團隊準備提給設計單位的意見，現場討論後記錄採納情形。";
+  renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
+    items:stage==="設計"?all.filter(i=>i.phase==="propose"):imp?all.filter(i=>i.phase==="improve"):[],
+    canAdd:!!c&&(stage==="設計"||imp),labels:imp?CHK_IMP:CHK_PROP,
+    titleText:imp?"改善意見（追蹤改善情形）":"預計提出意見（現場確認能否採納）",
+    addPhase:imp?"improve":"propose",addLabel:imp?"＋ 新增改善意見":"＋ 新增預計提出的意見"});
 }
 function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleText,addPhase,addLabel}){
   items=[...items];
@@ -915,7 +921,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   const st=(checkRes[resId()]&&checkRes[resId()].st)||{},notes=(checkRes[resId()]&&checkRes[resId()].notes)||{};
   const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
   const lastOf=it=>{const d=past.find(d=>d.st&&d.st[it.id]);if(!d)return "";const k=d.st[it.id];
-    const lb=it.phase==="propose"?((CHK_PROP.find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
+    const lb=it.phase==="propose"||it.phase==="improve"?(((it.phase==="propose"?CHK_PROP:CHK_IMP).find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
     return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`};
   count.textContent=items.length?`今天已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
   // 有 group（工區）時依群組首次出現順序分組並加標題
@@ -943,7 +949,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       b.onclick=()=>setCheck(it.id,st[it.id]===k?"":k);bs.appendChild(b);
     });
     const rb=document.createElement("button");rb.type="button";rb.textContent="📷 記錄";
-    rb.onclick=()=>{cancelEdit();clearForm();cat="生態友善措施";abcd=it.abcd||"";renderChips();
+    rb.onclick=()=>{cancelEdit();clearForm();cat=it.phase==="improve"?"改善":"生態友善措施";abcd=it.abcd||"";renderChips();
       if(it.stake)$("stakeIn").value=it.stake;setLink(it.id);$("recForm").scrollIntoView({behavior:"smooth"})};
     bs.appendChild(rb);
     if(it.added){const dx=document.createElement("button");dx.type="button";dx.className="del";dx.textContent="刪除此項";
@@ -952,7 +958,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="propose"?(st[it.id]==="adj"?"設計單位的調整方式":"不採納原因（例：經費不足、水理安全）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"設計單位的調整方式":"不採納原因（例：經費不足、水理安全）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
@@ -968,7 +974,7 @@ function chkAddForm(c,phase,label){
   const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent=label;
   const ab=document.createElement("div");ab.className="chips";
   chips(ab,ABCD.map(([k,l])=>[k,k+" "+l]),()=>chkAddAbcdBy[phase]||"",v=>{chkAddAbcdBy[phase]=chkAddAbcdBy[phase]===v?"":v;[...ab.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(ABCD[i][0]===chkAddAbcdBy[phase])))});
-  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder=phase==="propose"?"意見內容（例：0K+030保留右岸茄苳，護岸改退縮）":"事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
+  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder=phase==="improve"?"問題與改善意見（例：0K+040左岸棄土堆置溪床，請移至堆置區）":phase==="propose"?"意見內容（例：0K+030保留右岸茄苳，護岸改退縮）":"事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
