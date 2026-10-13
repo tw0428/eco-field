@@ -894,7 +894,7 @@ function renderStage(){
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
-let checkRes={},linkCheck=null,chkEditId=null;
+let checkRes={},linkCheck=null,chkEditId=null,chkCase=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
@@ -908,7 +908,9 @@ function resId(){return curCase+"_"+today()}
 const CHK_PROP=[["ok","✓ 可採納"],["adj","△ 部分採納"],["ng","✗ 不採納"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
 function renderChecks(){
-  const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
+  // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
+  const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk&&ae.tagName!=="SELECT"&&chkCase===curCase)return;
+  if(chkCase!==curCase){chkCase=curCase;chkEditId=null}
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
   renderChkPanel({box:$("chkBox"),list:$("chkList"),title:$("chkTitle"),count:$("chkCount"),c,stage,
