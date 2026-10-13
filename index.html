@@ -1058,8 +1058,8 @@ function recCard(r,c,onEdit){
     if(r.checkId){const ck=((c.checks||[]).find(i=>i.id===r.checkId));if(ck){const s=document.createElement("span");s.textContent="核對："+ck.text.slice(0,14)+(ck.text.length>14?"…":"");m2.appendChild(s)}}
     if(r.lat!=null){
       const ns=nearestStation(r.lat,r.lng);
-      const a=document.createElement("a");a.target="_blank";a.rel="noopener";
-      a.href=`https://www.google.com/maps?q=${r.lat},${r.lng}`;a.textContent="📍"+(ns&&!ns.site&&ns.off<=60?`GPS約${fmtSt(ns.st)}`:ns?stationText(ns):"地圖")+(r.gpsSource==="device"?`（±${r.gpsAcc}m）`:"");m2.appendChild(a);
+      const a=document.createElement("span");a.className="mono";a.textContent=`📍${r.lat}, ${r.lng}`+(r.gpsSource==="device"?`（±${r.gpsAcc}m）`:"");m2.appendChild(a);
+      if(ns){const e=document.createElement("span");e.textContent="GPS "+stationText(ns);m2.appendChild(e)}
     }else if(r.photos&&r.photos.length){const n=document.createElement("span");n.textContent="照片無GPS";m2.appendChild(n)}
     if(m2.childNodes.length)el.appendChild(m2);
     const acts=document.createElement("div");acts.className="acts";
