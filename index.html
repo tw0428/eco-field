@@ -276,6 +276,12 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div id="chkList" class="chklist"></div>
   </details>
 
+  <details class="panel checks" id="propBox" hidden>
+    <summary><span style="flex:1">預計提出意見（現場確認能否採納）</span><span class="status" id="propCount"></span></summary>
+    <div class="hint">本團隊準備提給設計單位的意見，現場討論後記錄採納情形。</div>
+    <div id="propList" class="chklist"></div>
+  </details>
+
   <form class="panel" id="recForm" aria-label="新增紀錄">
     <div class="sectionhead"><h2 id="formTitle">新增紀錄</h2><button type="button" id="cancelEdit" hidden>取消編輯</button></div>
 
@@ -886,20 +892,32 @@ const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_S
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
 function resId(){return curCase+"_"+today()}
+// 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄設計單位能否採納
+const CHK_PROP=[["ok","✓ 可採納"],["adj","△ 部分採納"],["ng","✗ 不採納"]];
 function renderChecks(){
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk)return; // 正在打字時不重繪
-  const c=cases.find(x=>x.id===curCase),box=$("chkBox"),list=$("chkList");
-  const stage=curStage();
-  const items=stage==="提報"?[]:((c&&c.checks)||[]).filter(i=>stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report");
-  const canAdd=!!c&&stage!=="提報";
+  const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
+  if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
+  renderChkPanel({box:$("chkBox"),list:$("chkList"),title:$("chkTitle"),count:$("chkCount"),c,stage,
+    items:stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report")),
+    canAdd:!!c&&stage!=="提報",labels:stLabels(stage),
+    titleText:stage==="設計"?"提審意見納入確認":stage==="開工前"?"設計意見落實確認":"現場核對清單",
+    addPhase:stage==="設計"?"report":stage==="開工前"?"design":"start",addLabel:"＋ 新增核對事項（會議、現場討論的新意見）"});
+  renderChkPanel({box:$("propBox"),list:$("propList"),title:null,count:$("propCount"),c,stage,
+    items:stage==="設計"?all.filter(i=>i.phase==="propose"):[],canAdd:!!c&&stage==="設計",labels:CHK_PROP,
+    addPhase:"propose",addLabel:"＋ 新增預計提出的意見"});
+}
+function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleText,addPhase,addLabel}){
+  items=[...items];
   box.hidden=!items.length&&!canAdd;list.innerHTML="";
-  if(linkCheck&&!((c&&c.checks)||[]).find(i=>i.id===linkCheck))setLink(null);
   if(box.hidden)return;
-  $("chkTitle").textContent=stage==="設計"?"提審意見納入確認":stage==="開工前"?"設計意見落實確認":"現場核對清單";
+  if(title)title.textContent=titleText;
   const st=(checkRes[resId()]&&checkRes[resId()].st)||{},notes=(checkRes[resId()]&&checkRes[resId()].notes)||{};
   const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
-  const lastOf=id=>{const d=past.find(d=>d.st&&d.st[id]);return d?`上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${stLabel(d.stage,d.st[id])}`:""};
-  $("chkCount").textContent=items.length?`今天已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
+  const lastOf=it=>{const d=past.find(d=>d.st&&d.st[it.id]);if(!d)return "";const k=d.st[it.id];
+    const lb=it.phase==="propose"?((CHK_PROP.find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
+    return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`};
+  count.textContent=items.length?`今天已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
   // 有 group（工區）時依群組首次出現順序分組並加標題
   const gOrder=[...new Set(items.map(i=>i.group||""))];
   if(gOrder.some(Boolean))items.sort((a,b)=>gOrder.indexOf(a.group||"")-gOrder.indexOf(b.group||""));
@@ -915,11 +933,11 @@ function renderChecks(){
     tx.append(p," "+it.text);el.appendChild(tx);
     const n=records.filter(r=>r.caseId===curCase&&r.checkId===it.id).length;
     const m=document.createElement("div");m.className="meta";
-    [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it.id)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
+    [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
     if(it.fig){const f=document.createElement("div");f.className="meta";f.textContent="圖："+it.fig;el.appendChild(f)}
     el.appendChild(m);
     const bs=document.createElement("div");bs.className="btns";
-    stLabels(stage).forEach(([k,label])=>{
+    labels.forEach(([k,label])=>{
       const b=document.createElement("button");b.type="button";b.textContent=label;if(k==="ng")b.className="ng";
       b.setAttribute("aria-pressed",String(st[it.id]===k));
       b.onclick=()=>setCheck(it.id,st[it.id]===k?"":k);bs.appendChild(b);
@@ -934,33 +952,33 @@ function renderChecks(){
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="propose"?(st[it.id]==="adj"?"設計單位的調整方式":"不採納原因（例：經費不足、水理安全）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
     }
     dest.appendChild(el);
   });
-  if(canAdd)list.appendChild(chkAddForm(c,stage));
+  if(canAdd)list.appendChild(chkAddForm(c,addPhase,addLabel));
 }
-/* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start） */
-let chkAddAbcd="";
-function chkAddForm(c,stage){
+/* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start；預計提出意見→propose） */
+const chkAddAbcdBy={};
+function chkAddForm(c,phase,label){
   const f=document.createElement("div");f.className="chkadd";
-  const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent="＋ 新增核對事項（會議、現場討論的新意見）";
+  const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent=label;
   const ab=document.createElement("div");ab.className="chips";
-  chips(ab,ABCD.map(([k,l])=>[k,k+" "+l]),()=>chkAddAbcd,v=>{chkAddAbcd=chkAddAbcd===v?"":v;[...ab.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(ABCD[i][0]===chkAddAbcd)))});
-  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder="事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
+  chips(ab,ABCD.map(([k,l])=>[k,k+" "+l]),()=>chkAddAbcdBy[phase]||"",v=>{chkAddAbcdBy[phase]=chkAddAbcdBy[phase]===v?"":v;[...ab.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(ABCD[i][0]===chkAddAbcdBy[phase])))});
+  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder=phase==="propose"?"意見內容（例：0K+030保留右岸茄苳，護岸改退縮）":"事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
   ok.onclick=async()=>{
     const text=tx.value.trim();if(!text){tx.focus();return}
     const d=new Date(),by=who();
-    const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcd,text,stake:sk.value.trim(),
-      src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase:stage==="設計"?"report":stage==="開工前"?"design":"start",added:true};
+    const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
+      src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase,added:true};
     ok.disabled=true;tx.blur();sk.blur();
-    if(await saveChecks([...(c.checks||[]),item]))chkAddAbcd="";else ok.disabled=false;
+    if(await saveChecks([...(c.checks||[]),item]))chkAddAbcdBy[phase]="";else ok.disabled=false;
   };
   row.append(sk,ok);f.append(h,ab,tx,row);return f;
 }
