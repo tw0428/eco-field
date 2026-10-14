@@ -23,6 +23,17 @@ if("serviceWorker" in navigator&&location.protocol==="https:"){
     b.onclick=()=>location.reload();document.body.appendChild(b)};
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
+// ↻ 時順便檢查工具本身：網路上的版本（內嵌程式與樣式）和現在跑的不同，就換進手機副本並重新載入
+const appSig=d=>[...d.querySelectorAll("script:not([src]),style")].map(e=>e.textContent).join("\n");
+let appSigNow=null;document.addEventListener("DOMContentLoaded",()=>{appSigNow=appSig(document)});
+async function appUpd(){
+  try{const p=location.pathname.split("/").pop()||"index.html";
+    const r=await fetch(p+"?swbypass="+Date.now(),{cache:"no-store"});if(!r.ok||appSigNow==null)return false;
+    const t=await r.text();if(appSig(new DOMParser().parseFromString(t,"text/html"))===appSigNow)return false;
+    const c=await caches.open("eco-pages-v2"); // 與 sw.js 的 CACHE 同名
+    await c.put(p,new Response(t,{headers:{"Content-Type":"text/html; charset=utf-8"}}));return true
+  }catch(e){return false}
+}
 </script>
 <style>
 body{margin:0}
@@ -169,6 +180,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .ovctl .ovr{display:flex;align-items:center;gap:4px;margin-top:4px;color:#666}.ovctl input[type=range]{flex:1;min-width:0}
 .stklbl{background:#fff;color:#222;border:1px solid #bbb;border-radius:4px;padding:3px 6px;font-size:12px;line-height:16px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25);box-sizing:border-box}
 /* 捲動定位（按「記錄」「編輯」跳到表單）時，扣掉頂端固定標題列的高度，拍照鈕才不會被蓋住 */
+.caseinfo:not(:has(>:not([hidden]))){display:none}
 html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 /* 樁號欄：右側▾按鈕（透明select蓋在上面，點了直接開手機原生選單） */
 .stkwrap{position:relative}
@@ -244,6 +256,17 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   <div class="pagehead" id="pagehead">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="shareBtn" style="margin-left:auto">分享給同事</a></div>
+  <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
+  <div class="row">
+    <select id="caseSel" class="grow" aria-label="案件"><option value="">（尚無案件，請先新增）</option></select>
+    <button id="caseAddBtn" type="button">新增</button>
+    <button id="caseDelBtn" type="button" class="danger">刪除</button>
+  </div>
+  <div id="caseDelMsg" class="msg err" hidden></div>
+  <div id="caseAddRow" class="row" hidden>
+    <input type="text" id="caseNameIn" class="grow" placeholder="輸入案件名稱">
+    <button class="primary" id="caseSaveBtn" type="button">建立</button>
+  </div>
   </div>
 
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
@@ -254,16 +277,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div id="tokMsg" class="msg err" hidden></div>
   </section>
 
-  <section class="panel" aria-label="案件">
-    <div>
-      <label class="lbl" for="caseSel">案件</label>
-      <div class="row">
-        <select id="caseSel" class="grow"><option value="">（尚無案件，請先新增）</option></select>
-        <button id="caseAddBtn" type="button">新增</button>
-        <button id="caseDelBtn" type="button" class="danger">刪除</button>
-      </div>
-      <div id="caseDelMsg" class="msg err" hidden></div>
-    </div>
+  <section class="panel caseinfo" aria-label="案件資訊">
     <div id="stageBox" hidden>
       <span class="lbl">本次階段（之後新增的紀錄都會標上）</span>
       <div class="chips" id="stageChips"></div>
@@ -273,10 +287,6 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div id="planBox" class="plans" hidden>
       <span class="lbl">平面圖／圖說（點開可放大）</span>
       <div id="planList" class="planlist"></div>
-    </div>
-    <div id="caseAddRow" class="row" hidden>
-      <input type="text" id="caseNameIn" class="grow" placeholder="輸入案件名稱">
-      <button class="primary" id="caseSaveBtn" type="button">建立</button>
     </div>
   </section>
 
@@ -1279,7 +1289,7 @@ async function connect(){
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
 $("tokSave").onclick=()=>{let t=$("tokIn").value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]);if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
-$("reloadBtn").onclick=e=>{e.preventDefault();if(!saving)connect()};
+$("reloadBtn").onclick=async e=>{e.preventDefault();if(saving)return;if(await appUpd()){location.reload();return}connect()};
 // 從別的App切回來時，超過1分鐘就重新讀取（取代原本的即時同步）
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"||!ghToken)return;flushOutbox();if(!saving&&Date.now()-loadedAt>60000)connect()});
 $("obFlush").onclick=()=>flushOutbox();
