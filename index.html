@@ -313,6 +313,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div><label class="lbl" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="例 臺灣白魚、胸徑60cm榕樹"></div>
     <div id="chkLinkBox" hidden><label class="lbl" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
     <div><label class="lbl" for="noteIn">說明</label><textarea id="noteIn" placeholder="現況、建議、待確認事項"></textarea></div>
+    <label id="impBox" class="hint" style="display:flex;gap:6px;align-items:center;font-size:14px" hidden><input type="checkbox" id="impChk" checked>列入改善追蹤（說明會成為「改善意見」清單的一條，之後現勘追蹤）</label>
 
     <div id="formMsg" class="msg" hidden></div>
     <button class="primary" type="submit" id="saveBtn">儲存紀錄</button>
@@ -593,7 +594,10 @@ function renderChips(){
   chips($("catChips"),catList().map(c=>[c,c]),()=>cat,v=>{cat=v});
   $("abcdBox").hidden=!isFM(cat);
   chips($("abcdChips"),ABCD.map(([k,n])=>[k,k+" "+n]),()=>abcd,v=>{abcd=v});
+  impUpd();
 }
+// 異常狀況／改善的新紀錄：可勾「列入改善追蹤」，存檔時自動在改善意見清單加一條並連結（已連結核對項目、編輯舊紀錄時不顯示）
+function impUpd(){const b=$("impBox");if(b)b.hidden=!!editing||!!linkCheck||!(cat==="異常狀況"||cat==="改善")}
 
 /* ---------- EXIF (JPEG) : 拍攝時間與GPS ---------- */
 async function readExif(file){
@@ -1005,28 +1009,17 @@ function chkAddForm(c,phase,label){
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
-  // 加入並拍照：做成「拍照」標籤，點下去手機直接開相機（瀏覽器只允許在點擊當下開相機，不能等存檔完再開）；
-  // 同時存這一項、把新增紀錄表單連到它，拍完照片就帶進表單
-  const okc=document.createElement("label");okc.htmlFor="camIn";okc.className="btnlike";okc.textContent="📷 加入並拍照";
-  okc.onclick=ev=>{
-    if(ok.disabled){ev.preventDefault();return}
-    if(!tx.value.trim()){ev.preventDefault();tx.focus();return}
-    const id="u"+Date.now().toString(36),ab0=chkAddAbcdBy[phase]||"",sk0=sk.value.trim();
-    cancelEdit();clearForm();cat=phase==="improve"?"改善":(CATS_BY[curStage()]||[]).includes("生態友善措施")?"生態友善措施":cat;
-    abcd=ab0;renderChips();if(sk0)$("stakeIn").value=sk0;linkCheck=id;
-    ok.onclick(id).then(r=>{if(r)setLink(id)});
-  };
-  ok.onclick=async(preId)=>{
+  ok.onclick=async()=>{
     const text=tx.value.trim();if(!text){tx.focus();return}
     const d=new Date(),by=who();
-    const item={id:typeof preId==="string"?preId:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
+    const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
       src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase,added:true};
     ok.disabled=true;tx.blur();sk.blur();
     if(await saveChecks([...(c.checks||[]),item])){chkAddAbcdBy[phase]="";return item.id}
     ok.disabled=false;return null;
   };
   sk.className="";row.append(stakeField(sk,c),ok);
-  const row2=document.createElement("div");row2.className="row";row2.style.justifyContent="flex-end";row2.appendChild(okc);f.append(h,ab,tx,row,row2);return f;
+  f.append(h,ab,tx,row);return f;
 }
 function chkEditForm(c,it){
   const f=document.createElement("div");f.style.cssText="display:flex;flex-direction:column;gap:6px";
@@ -1073,7 +1066,7 @@ function renderLinkSel(){
   });
   sel.value=linkCheck&&items.find(i=>i.id===linkCheck)?linkCheck:"";
 }
-function setLink(id){linkCheck=id||null;renderLinkSel()}
+function setLink(id){linkCheck=id||null;renderLinkSel();impUpd()}
 $("chkLinkSel").onchange=e=>{linkCheck=e.target.value||null;
   const c=cases.find(x=>x.id===curCase),it=linkCheck&&c&&(c.checks||[]).find(i=>i.id===linkCheck);
   if(it&&!editing){if(!isFM(cat)&&(CATS_BY[curStage()]||[]).includes("生態友善措施")){cat="生態友善措施"}if(isFM(cat)&&!abcd)abcd=it.abcd||"";renderChips();if(it.stake&&!$("stakeIn").value.trim())$("stakeIn").value=it.stake}};
@@ -1199,7 +1192,7 @@ function startEdit(r){
   renderChips();renderPending();showMsg("");$("recForm").scrollIntoView({behavior:"smooth"});
 }
 function cancelEdit(){
-  editing=null;editKeep=[];$("formTitle").textContent="新增紀錄";$("cancelEdit").hidden=true;$("saveBtn").textContent="儲存紀錄";renderPending();
+  editing=null;editKeep=[];$("formTitle").textContent="新增紀錄";$("cancelEdit").hidden=true;$("saveBtn").textContent="儲存紀錄";renderPending();impUpd();
 }
 $("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
 function clearForm(){
@@ -1223,6 +1216,14 @@ $("recForm").onsubmit=async e=>{
     const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
     if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
     if(!editing){body.stage=curStage();const by=whoAsk();if(by)body.by=by}
+    // 列入改善追蹤：先在改善意見清單加一條，這筆紀錄連到它
+    let impFail=false,impAdded=false;
+    if(!editing&&!linkCheck&&!$("impBox").hidden&&$("impChk").checked){
+      const c=cases.find(x=>x.id===curCase),d=new Date(),by=who();
+      const item={id:"u"+Date.now().toString(36),abcd:"",text:f.note||f.species||"（待補說明）",stake:f.stake,
+        src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase:"improve",added:true};
+      if(c&&await saveChecks([...(c.checks||[]),item])){body.checkId=item.id;impAdded=true}else impFail=true;
+    }
     let queued=false;
     if(editing){ // 編輯既有紀錄需要網路（不進待上傳）
       const ids=[];
@@ -1241,7 +1242,7 @@ $("recForm").onsubmit=async e=>{
       queued=(await saveNew(doc,blobs))==="queued";
     }
     clearForm();
-    showMsg(queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。",queued||(!gp&&blobs.length>0));
+    showMsg((queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。")+(impFail?"（改善追蹤項目沒加成功，有訊號時到「改善意見」手動新增）":impAdded?"已列入改善意見清單。":""),queued||impFail||(!gp&&blobs.length>0));
   }catch(err){
     const c=err&&err.code;
     showMsg(editing&&isNetErr(err)?"編輯既有紀錄需要網路，資料還在表單上，有訊號時再按一次。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
