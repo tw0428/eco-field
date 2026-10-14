@@ -23,6 +23,17 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
   b.onclick=()=>{flush().finally(()=>location.reload())};document.body.appendChild(b)};
  navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+// ↻ 時順便檢查工具本身：網路上的版本（內嵌程式與樣式）和現在跑的不同，就換進手機副本並重新載入
+const appSig=d=>[...d.querySelectorAll('script:not([src]),style')].map(e=>e.textContent).join('\n');
+let appSigNow=null;document.addEventListener('DOMContentLoaded',()=>{appSigNow=appSig(document)});
+async function appUpd(){
+ try{const p=location.pathname.split('/').pop()||'index.html';
+  const r=await fetch(p+'?swbypass='+Date.now(),{cache:'no-store'});if(!r.ok||appSigNow==null)return false;
+  const t=await r.text();if(appSig(new DOMParser().parseFromString(t,'text/html'))===appSigNow)return false;
+  const c=await caches.open('eco-pages-v2'); // 與 sw.js 的 CACHE 同名
+  await c.put(p,new Response(t,{headers:{'Content-Type':'text/html; charset=utf-8'}}));return true
+ }catch(e){return false}
+}
 </script>
 <style>
 /* 配色、字型、按鈕與現場紀錄(index.html)一致：數值同其 --bg/--surface/--fg/--muted/--line/--accent/--soft/--warn/--danger */
@@ -344,7 +355,7 @@ async function connect(){
 async function initDb(){
  db=ghDb;assets=ghAssets;
  $('tokSave').onclick=()=>{let t=$('tokIn').value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]);if(!t)return;ghToken=t;lsSet('gh-token',t);$('tokIn').value='';connect()};
- $('reloadBtn').onclick=e=>{e.preventDefault();flush().then(connect)};
+ $('reloadBtn').onclick=e=>{e.preventDefault();flush().then(async()=>{if(await appUpd())location.reload();else connect()})};
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ghToken&&!saveTimer&&Date.now()-loadedAt>60000)connect()});
  let pf={};try{pf=JSON.parse(lsGet(PREF)||'{}')}catch(e){}
  if(pf.view&&pf.view!=='imp')S.view=pf.view;if(pf.cur!=null)S.cur=pf.cur;
