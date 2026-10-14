@@ -427,13 +427,17 @@ let wq=Promise.resolve();
 function serial(fn){const p=wq.then(fn,fn);wq=p.catch(()=>{});return p}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // 讀最新→套用修改→寫回；別台裝置同時改過（衝突）時重讀重做
+// 上次寫入後記住內容與sha：同一檔連續修改時直接寫（省一次讀取）；別台改過會衝突，再改回先讀最新
+const shaC={};
 function mutate(path,fn){return serial(async()=>{
   for(let i=0;;i++){
-    const {data,sha}=await getJson(path);const next=fn(data);
+    const k=i===0&&shaC[path];const {data,sha}=k?k:await getJson(path);const next=fn(data);
     try{
-      if(next==null){if(sha)await gh(path,{method:"DELETE",body:JSON.stringify({message:"delete "+path,sha})});return null}
-      await putB64(path,b64e(JSON.stringify(next,null,1)),sha);return next;
-    }catch(e){if(e.code!=="conflict"||i>=4)throw e;await sleep(800*(i+1))}
+      if(next==null){delete shaC[path];if(sha)await gh(path,{method:"DELETE",body:JSON.stringify({message:"delete "+path,sha})});return null}
+      const r=await putB64(path,b64e(JSON.stringify(next,null,1)),sha);
+      try{shaC[path]={sha:(await r.json()).content.sha,data:next}}catch(e){delete shaC[path]}
+      return next;
+    }catch(e){delete shaC[path];if(e.code!=="conflict"||i>=4)throw e;if(!k)await sleep(800*(i+1))}
   }
 })}
 function putNew(path,b64,m){return serial(async()=>{
@@ -1089,8 +1093,11 @@ function chkEditForm(c,it,groups=[]){
 }
 async function saveChecks(checks){
   const c=cases.find(x=>x.id===curCase);if(!c||!db)return false;
-  try{await db.doc("cases/"+c.id).update({checks});c.checks=checks;renderChecks();renderLinkSel();return true}
-  catch(e){showMsg("核對事項儲存失敗（"+(isNetErr(e)?"需要網路":e.code||e.message)+"），有訊號時再試。",true);return false}
+  // 先改畫面（不用等上傳），背景存回；失敗才還原並提示
+  const prev=c.checks;c.checks=checks;renderChecks();renderLinkSel();
+  db.doc("cases/"+c.id).update({checks}).catch(e=>{if(c.checks===checks){c.checks=prev;renderChecks();renderLinkSel()}
+    showMsg("核對事項儲存失敗（"+(isNetErr(e)?"需要網路":e.code||e.message)+"），剛才的修改已還原，有訊號時再做一次。",true)});
+  return true
 }
 async function setCheck(id,v,note){
   if(!db)return;const rid=resId(),cur=checkRes[rid]||{st:{}};const st={...cur.st},nt={...(cur.notes||{})};
