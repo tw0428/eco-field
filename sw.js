@@ -28,6 +28,7 @@ function pageOf(url) {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
+  if (new URL(req.url).searchParams.has("swbypass")) return; // ↻ 檢查新版時直接抓網路
   const page = pageOf(req.url);
   if (!page) return; // GitHub API、照片、外部元件都不經過這裡
 
