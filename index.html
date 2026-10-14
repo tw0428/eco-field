@@ -112,15 +112,22 @@ a{color:var(--accent)}
 .checks summary #chkTitle{flex:1}
 .checks[open] summary::before{content:"▾"}
 .chklist{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-.chkgrp{display:flex;flex-direction:column;gap:8px;background:var(--soft);border:2px solid var(--accent);border-radius:12px;padding:0 8px 8px}
-.chkgroup{font-weight:700;font-size:15px;margin:0 -8px;padding:8px 12px;background:var(--accent);color:#fff;border-radius:9px 9px 0 0}
+.chkgrp{display:flex;flex-direction:column;gap:6px;background:var(--soft);border:1px solid var(--accent);border-radius:10px;padding:0 6px 6px}
+.chkgroup{font-weight:700;font-size:14px;margin:0 -6px;padding:6px 10px;background:var(--accent);color:#fff;border-radius:9px 9px 0 0}
 .chkgrp .chk{background:var(--surface)}
-.chk{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.chk{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:5px}
 .chk.done{opacity:.75}
 .chk .txt{font-size:15px;line-height:1.45}
-.chk .meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
-.chk .btns{display:flex;flex-wrap:wrap;gap:6px}
+.chk .meta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 10px}
+.chk .btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .chk .btns button{padding:6px 10px;font-size:13px}
+.chk .seg{display:flex;flex:1 1 200px;min-width:0}
+.chk .seg button{flex:1;padding:7px 2px;border-radius:0;margin-left:-1px;white-space:nowrap;position:relative}
+.chk .seg button:first-child{border-radius:8px 0 0 8px;margin-left:0}
+.chk .seg button:last-child{border-radius:0 8px 8px 0}
+.chk .seg button[aria-pressed="true"]{z-index:1}
+.chk .btns .cam{padding:7px 10px;white-space:nowrap}
+.chk .btns .mini{font-size:12px;padding:4px 8px}
 .chk .btns button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 .chk .btns button.ng[aria-pressed="true"]{background:#c0392b;border-color:#c0392b}
 .chkbanner{display:flex;gap:8px;align-items:center;font-size:13px;background:var(--soft);border-radius:8px;padding:8px 10px}
@@ -971,19 +978,20 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
         const i=document.createElement("img");i.alt="連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
       el.appendChild(g)}
     const bs=document.createElement("div");bs.className="btns";
+    const sg=document.createElement("div");sg.className="seg";bs.appendChild(sg);
     labels.forEach(([k,label])=>{
       const b=document.createElement("button");b.type="button";b.textContent=label;if(k==="ng")b.className="ng";
       b.setAttribute("aria-pressed",String(st[it.id]===k));
-      b.onclick=()=>setCheck(it.id,st[it.id]===k?"":k);bs.appendChild(b);
+      b.onclick=()=>setCheck(it.id,st[it.id]===k?"":k);sg.appendChild(b);
     });
-    const rb=document.createElement("button");rb.type="button";rb.textContent="📷 記錄";
+    const rb=document.createElement("button");rb.type="button";rb.className="cam";rb.textContent="📷 記錄";
     rb.onclick=()=>{cancelEdit();clearForm();cat=it.phase==="improve"?"改善":"生態友善措施";abcd=it.abcd||"";renderChips();
       if(it.stake)$("stakeIn").value=it.stake;setLink(it.id);$("recForm").scrollIntoView({behavior:"smooth"})};
     bs.appendChild(rb);
     // 預計提出意見、改善意見、現場新增的項目可修改內容
-    if(it.added||it.phase==="propose"||it.phase==="improve"){const eb=document.createElement("button");eb.type="button";eb.textContent="✎ 編輯";
+    if(it.added||it.phase==="propose"||it.phase==="improve"){const eb=document.createElement("button");eb.type="button";eb.className="mini";eb.textContent="✎ 編輯";
       eb.onclick=()=>{chkEditId=it.id;renderChecks()};bs.appendChild(eb)}
-    if(it.added){const dx=document.createElement("button");dx.type="button";dx.className="del";dx.textContent="刪除此項";
+    if(it.added){const dx=document.createElement("button");dx.type="button";dx.className="mini del";dx.textContent="刪除此項";
       dx.onclick=()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
         saveChecks(((c.checks)||[]).filter(i=>i.id!==it.id))};bs.appendChild(dx)}
     el.appendChild(bs);
