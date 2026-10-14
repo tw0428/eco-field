@@ -948,9 +948,10 @@ function renderChecks(){
   if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null}
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
+  const repItems=stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&i.phase!=="improve"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report"));
   renderChkPanel({box:$("chkBox"),list:$("chkList"),title:$("chkTitle"),count:$("chkCount"),c,stage,
-    items:stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&i.phase!=="improve"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report")),
-    canAdd:!!c&&stage!=="提報",labels:stLabels(stage),
+    items:repItems,
+    canAdd:!!c&&stage!=="提報"&&!(stage==="設計"&&!repItems.length),labels:stLabels(stage),
     titleText:stage==="設計"?"提審意見納入確認":stage==="開工前"?"設計意見落實確認":"現場核對清單",
     addPhase:stage==="設計"?"report":stage==="開工前"?"design":"start",addLabel:"＋ 新增核對事項（會議、現場討論的新意見）"});
   // 第二區：設計＝預計提出意見；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
