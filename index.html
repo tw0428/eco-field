@@ -124,7 +124,7 @@ a{color:var(--accent)}
 .checks[open] summary::before{content:"▾"}
 .chklist{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .chkgrp{display:flex;flex-direction:column;gap:6px;background:var(--soft);border:1px solid var(--accent);border-radius:10px;padding:0 6px 6px}
-.chkgroup{font-weight:700;font-size:14px;margin:0 -6px;padding:6px 10px;background:var(--accent);color:#fff;border-radius:9px 9px 0 0}
+.chkgroup{font-weight:700;font-size:14px;margin:0 -6px;padding:6px 10px;background:var(--accent);color:var(--accent-fg);border-radius:9px 9px 0 0}
 .chkgrp .chk{background:var(--surface)}
 .chk{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;gap:5px}
 .chk.done{opacity:.75}
@@ -140,13 +140,11 @@ a{color:var(--accent)}
 .chk .btns .cam{padding:7px 10px;white-space:nowrap}
 .sortbar{display:flex;gap:8px;align-items:center}
 .sortbar .mini{font-size:13px;padding:5px 10px}
-.chk.sorting{flex-direction:row;align-items:center;gap:8px;opacity:1}
-.chk.sorting .txt{flex:1;min-width:0;font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mv{display:flex;gap:4px;flex:none}
-.mv button{padding:6px 12px;font-size:14px}
+.chk .btns .mv button{padding:6px 16px;font-size:13px}
 .mv button:disabled{opacity:.3}
 .chkgroup:has(.mv){display:flex;align-items:center;justify-content:space-between}
-.chkgroup .mv button{padding:2px 10px;background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+.chkgroup .mv button{padding:2px 12px;font-size:12px;background:transparent;color:inherit;border-color:currentColor}
 .chk .btns .mini{font-size:12px;padding:4px 8px}
 .chk .btns button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 .chk .btns button.ng[aria-pressed="true"]{background:#c0392b;border-color:#c0392b}
@@ -982,7 +980,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   const mvBtns=(up,dn,f)=>{const w=document.createElement("span");w.className="mv";
     [["▲",up,-1],["▼",dn,1]].forEach(([s,en,d])=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.disabled=!en;b.setAttribute("aria-label",d<0?"往上移":"往下移");b.onclick=()=>f(d);w.appendChild(b)});return w};
   if(c&&items.length>1){const tb=document.createElement("div");tb.className="sortbar";
-    const sb=document.createElement("button");sb.type="button";sb.className=sorting?"primary":"mini";sb.textContent=sorting?"✓ 完成排序":"⇅ 調整順序";
+    const sb=document.createElement("button");sb.type="button";sb.className=sorting?"mini primary":"mini";sb.textContent=sorting?"✓ 完成排序":"⇅ 調整順序";
     sb.onclick=async()=>{if(sorting){sb.disabled=true;chkSort=null;if(!await saveChecks(c.checks))renderChecks()}else{chkSort=box.id;chkEditId=null;renderChecks()}};
     tb.appendChild(sb);if(sorting){const h=document.createElement("span");h.className="hint";h.textContent="按 ▲▼ 移動；分類整組一起移";tb.appendChild(h)}
     list.appendChild(tb)}
@@ -994,9 +992,6 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       if(sorting){const g=lastG,gi_=gOrder.indexOf(g);h.appendChild(mvBtns(gi_>0,gi_<gOrder.length-1,d=>mvGrp(g,d)))}
       dest=document.createElement("div");dest.className="chkgrp";dest.appendChild(h);list.appendChild(dest)}
     const el=document.createElement("div");el.className="chk"+(st[it.id]?" done":"");
-    if(sorting){const ix=items.indexOf(it),sameG=j=>items[j]&&(items[j].group||"")===(it.group||"");
-      el.classList.add("sorting");const tx=document.createElement("div");tx.className="txt";tx.textContent=(it.abcd?it.abcd+" ":"")+it.text;
-      el.append(tx,mvBtns(sameG(ix-1),sameG(ix+1),d=>mvItem(it,d)));dest.appendChild(el);return}
     if(chkEditId===it.id){el.appendChild(chkEditForm(c,it,gOrder.filter(Boolean)));dest.appendChild(el);return}
     const tx=document.createElement("div");tx.className="txt";
     const p=document.createElement("span");p.className="pill";p.textContent=it.abcd||"—";
@@ -1012,6 +1007,10 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       lr.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
         const i=document.createElement("img");i.alt="連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
       el.appendChild(g)}
+    // 排序模式：卡片內容照常顯示，只把按鈕列換成 ▲▼
+    if(sorting){const ix=items.indexOf(it),sameG=j=>items[j]&&(items[j].group||"")===(it.group||"");
+      const bs=document.createElement("div");bs.className="btns";const mv=mvBtns(sameG(ix-1),sameG(ix+1),d=>mvItem(it,d));mv.style.marginLeft="auto";
+      bs.appendChild(mv);el.appendChild(bs);dest.appendChild(el);return}
     const bs=document.createElement("div");bs.className="btns";
     const sg=document.createElement("div");sg.className="seg";bs.appendChild(sg);
     labels.forEach(([k,label])=>{
