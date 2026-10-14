@@ -138,6 +138,15 @@ a{color:var(--accent)}
 .chk .seg button:last-child{border-radius:0 8px 8px 0}
 .chk .seg button[aria-pressed="true"]{z-index:1}
 .chk .btns .cam{padding:7px 10px;white-space:nowrap}
+.sortbar{display:flex;gap:8px;align-items:center}
+.sortbar .mini{font-size:13px;padding:5px 10px}
+.chk.sorting{flex-direction:row;align-items:center;gap:8px;opacity:1}
+.chk.sorting .txt{flex:1;min-width:0;font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mv{display:flex;gap:4px;flex:none}
+.mv button{padding:6px 12px;font-size:14px}
+.mv button:disabled{opacity:.3}
+.chkgroup:has(.mv){display:flex;align-items:center;justify-content:space-between}
+.chkgroup .mv button{padding:2px 10px;background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
 .chk .btns .mini{font-size:12px;padding:4px 8px}
 .chk .btns button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 .chk .btns button.ng[aria-pressed="true"]{background:#c0392b;border-color:#c0392b}
@@ -918,7 +927,7 @@ function renderStage(){
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
-let checkRes={},linkCheck=null,chkEditId=null,chkCase=null;
+let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
@@ -934,7 +943,7 @@ const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改�
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk&&ae.tagName!=="SELECT"&&chkCase===curCase)return;
-  if(chkCase!==curCase){chkCase=curCase;chkEditId=null}
+  if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null}
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
   renderChkPanel({box:$("chkBox"),list:$("chkList"),title:$("chkTitle"),count:$("chkCount"),c,stage,
@@ -965,13 +974,29 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   // 有 group（工區）時依群組首次出現順序分組並加標題
   const gOrder=[...new Set(items.map(i=>i.group||""))];
   if(gOrder.some(Boolean))items.sort((a,b)=>gOrder.indexOf(a.group||"")-gOrder.indexOf(b.group||""));
+  // 調整順序：在手機上先改本機順序，按「完成排序」才一次存回（避免每按一下就上傳一次）
+  const sorting=chkSort===box.id;
+  const apply=arr=>{const ids=new Set(arr.map(i=>i.id));let k=0;c.checks=c.checks.map(i=>ids.has(i.id)?arr[k++]:i);renderChecks()};
+  const mvItem=(it,d)=>{const arr=[...items],i=arr.indexOf(it),j=i+d;if(j<0||j>=arr.length||(arr[j].group||"")!==(it.group||""))return;[arr[i],arr[j]]=[arr[j],arr[i]];apply(arr)};
+  const mvGrp=(g,d)=>{const o=[...gOrder],i=o.indexOf(g),j=i+d;if(j<0||j>=o.length)return;[o[i],o[j]]=[o[j],o[i]];apply([...items].sort((a,b)=>o.indexOf(a.group||"")-o.indexOf(b.group||"")))};
+  const mvBtns=(up,dn,f)=>{const w=document.createElement("span");w.className="mv";
+    [["▲",up,-1],["▼",dn,1]].forEach(([s,en,d])=>{const b=document.createElement("button");b.type="button";b.textContent=s;b.disabled=!en;b.setAttribute("aria-label",d<0?"往上移":"往下移");b.onclick=()=>f(d);w.appendChild(b)});return w};
+  if(c&&items.length>1){const tb=document.createElement("div");tb.className="sortbar";
+    const sb=document.createElement("button");sb.type="button";sb.className=sorting?"primary":"mini";sb.textContent=sorting?"✓ 完成排序":"⇅ 調整順序";
+    sb.onclick=async()=>{if(sorting){sb.disabled=true;chkSort=null;if(!await saveChecks(c.checks))renderChecks()}else{chkSort=box.id;chkEditId=null;renderChecks()}};
+    tb.appendChild(sb);if(sorting){const h=document.createElement("span");h.className="hint";h.textContent="按 ▲▼ 移動；分類整組一起移";tb.appendChild(h)}
+    list.appendChild(tb)}
   let lastG=null,dest=list;
   items.forEach(it=>{
     if(gOrder.some(Boolean)&&(it.group||"")!==lastG){lastG=it.group||"";
       const gi=items.filter(i=>(i.group||"")===lastG);
       const h=document.createElement("div");h.className="chkgroup";h.textContent=`${lastG||"其他"}（${gi.filter(i=>st[i.id]).length}/${gi.length}）`;
+      if(sorting){const g=lastG,gi_=gOrder.indexOf(g);h.appendChild(mvBtns(gi_>0,gi_<gOrder.length-1,d=>mvGrp(g,d)))}
       dest=document.createElement("div");dest.className="chkgrp";dest.appendChild(h);list.appendChild(dest)}
     const el=document.createElement("div");el.className="chk"+(st[it.id]?" done":"");
+    if(sorting){const ix=items.indexOf(it),sameG=j=>items[j]&&(items[j].group||"")===(it.group||"");
+      el.classList.add("sorting");const tx=document.createElement("div");tx.className="txt";tx.textContent=(it.abcd?it.abcd+" ":"")+it.text;
+      el.append(tx,mvBtns(sameG(ix-1),sameG(ix+1),d=>mvItem(it,d)));dest.appendChild(el);return}
     if(chkEditId===it.id){el.appendChild(chkEditForm(c,it,gOrder.filter(Boolean)));dest.appendChild(el);return}
     const tx=document.createElement("div");tx.className="txt";
     const p=document.createElement("span");p.className="pill";p.textContent=it.abcd||"—";
@@ -1014,7 +1039,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     }
     dest.appendChild(el);
   });
-  if(canAdd)list.appendChild(chkAddForm(c,addPhase,addLabel,gOrder.filter(Boolean)));
+  if(canAdd&&!sorting)list.appendChild(chkAddForm(c,addPhase,addLabel,gOrder.filter(Boolean)));
 }
 /* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start；預計提出意見→propose） */
 const chkAddAbcdBy={},chkAddGrpBy={};
