@@ -185,6 +185,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 /* 新增核對事項 */
 .chkadd{display:flex;flex-direction:column;gap:6px;border:1.5px dashed var(--accent);border-radius:10px;padding:10px}
 .chkadd .row button{white-space:nowrap}
+.btnlike{display:inline-block;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:8px 12px;background:var(--surface);cursor:pointer;font-weight:600}
 .chkph{display:flex;gap:4px;overflow-x:auto}
 .chkph img{width:56px;height:56px;object-fit:cover;border-radius:5px;display:block;background:var(--soft)}
 .chk .del{margin-left:auto;font-size:12px;padding:2px 8px;color:var(--danger);border-color:var(--danger)}
@@ -994,7 +995,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   if(canAdd)list.appendChild(chkAddForm(c,addPhase,addLabel));
 }
 /* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start；預計提出意見→propose） */
-const chkAddAbcdBy={};let chkAddAbcdLast="",skLast="";
+const chkAddAbcdBy={};
 function chkAddForm(c,phase,label){
   const f=document.createElement("div");f.className="chkadd";
   const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent=label;
@@ -1004,19 +1005,25 @@ function chkAddForm(c,phase,label){
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
-  // 加入並拍照：存好後直接帶到新增紀錄（連結這一項），按拍照即可
-  const okc=document.createElement("button");okc.type="button";okc.textContent="加入並拍照";
-  okc.onclick=async()=>{const id=await ok.onclick();if(!id)return;
+  // 加入並拍照：做成「拍照」標籤，點下去手機直接開相機（瀏覽器只允許在點擊當下開相機，不能等存檔完再開）；
+  // 同時存這一項、把新增紀錄表單連到它，拍完照片就帶進表單
+  const okc=document.createElement("label");okc.htmlFor="camIn";okc.className="btnlike";okc.textContent="📷 加入並拍照";
+  okc.onclick=ev=>{
+    if(ok.disabled){ev.preventDefault();return}
+    if(!tx.value.trim()){ev.preventDefault();tx.focus();return}
+    const id="u"+Date.now().toString(36),ab0=chkAddAbcdBy[phase]||"",sk0=sk.value.trim();
     cancelEdit();clearForm();cat=phase==="improve"?"改善":(CATS_BY[curStage()]||[]).includes("生態友善措施")?"生態友善措施":cat;
-    abcd=chkAddAbcdLast||"";renderChips();if(skLast)$("stakeIn").value=skLast;setLink(id);$("recForm").scrollIntoView({behavior:"smooth"})};
-  ok.onclick=async()=>{
+    abcd=ab0;renderChips();if(sk0)$("stakeIn").value=sk0;linkCheck=id;
+    ok.onclick(id).then(r=>{if(r)setLink(id)});
+  };
+  ok.onclick=async(preId)=>{
     const text=tx.value.trim();if(!text){tx.focus();return}
     const d=new Date(),by=who();
-    const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
+    const item={id:typeof preId==="string"?preId:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
       src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase,added:true};
-    ok.disabled=okc.disabled=true;tx.blur();sk.blur();chkAddAbcdLast=item.abcd;skLast=item.stake;
+    ok.disabled=true;tx.blur();sk.blur();
     if(await saveChecks([...(c.checks||[]),item])){chkAddAbcdBy[phase]="";return item.id}
-    ok.disabled=okc.disabled=false;return null;
+    ok.disabled=false;return null;
   };
   sk.className="";row.append(stakeField(sk,c),ok);
   const row2=document.createElement("div");row2.className="row";row2.style.justifyContent="flex-end";row2.appendChild(okc);f.append(h,ab,tx,row,row2);return f;
