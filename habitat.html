@@ -84,13 +84,20 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .qh .score{color:var(--acc);white-space:nowrap}
 .qrow select{width:100%}
 .card .tot{margin-top:8px}
-.phs{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.ph{width:150px;font-size:12px}
-.ph img{width:150px;height:110px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
+.phs{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.ph{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding-top:8px;border-top:1px solid var(--line)}
+.ph img{width:120px;height:90px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
+.phi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.phi .act.sm{align-self:flex-start;margin-top:4px}
+.phi input[data-gps]{width:100%!important}
 .ph a{color:var(--acc)}
 .photobtns{display:grid;grid-template-columns:1fr;gap:8px}
 .photobtns label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);font-weight:600;cursor:pointer;text-align:center}
 .photobtns input{position:absolute;opacity:0;width:1px;height:1px}
-.photobtns.two2{grid-template-columns:1fr 1fr}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
+.photobtns.two2{grid-template-columns:1fr 1fr}
+.photobtns.three{grid-template-columns:1fr 1fr 1fr}
+.photobtns button{display:flex;align-items:center;justify-content:center;padding:10px 4px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);background:transparent;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.photobtns label{white-space:nowrap;padding:10px 4px}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sub a{color:var(--acc)}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 /* 野溪頁主色＝水藍、坡地頁＝土黃（評分顏色--good等不受影響） */
@@ -438,24 +445,24 @@ const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${
 // 已有評分/照片但沒日期的舊期別不動，免得誤填
 function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
 const exifDay=s=>{const m=/^(\d{4}):(\d\d):(\d\d)/.exec(s||'');return m?`${m[1]}-${m[2]}-${m[3]}`:''};
-function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別名稱</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:110px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
+function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:84px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}" style="flex:1;min-width:0">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
 function phList(p,kind){return p[PK[kind]]=p[PK[kind]]||[]} // 寫入用（會建空陣列）
 const phGet=(p,kind)=>p[PK[kind]]||[];                         // 讀取用（不改資料，避免一開案件就觸發存檔）
 function phItem(x,i,kind,cur){
- let h=`<div class="ph"><a target="_blank"><img data-blob="${esc(x.id)}" alt="評估位置照片"></a>`;
+ let h=`<div class="ph"><a target="_blank"><img data-blob="${esc(x.id)}" alt="評估位置照片"></a><div class="phi">`;
  if(x.taken)h+=`<div class="mut">${esc(fmtExifTime(x.taken))}</div>`;
  const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
  h+=x.lat!=null?`<div><a href="https://www.google.com/maps?q=${x.lat},${x.lng}" target="_blank">${x.lat}, ${x.lng}</a>${x.gps==='manual'?' <span class="mut">(手填)</span>':x.gps==='device'?` <span class="mut">(手機定位±${x.acc}m)</span>`:''}</div>${ns?`<div style="color:var(--acc)">${esc(stationText(ns))}</div>`:''}`
   :`<div><span style="color:var(--bad)">照片無GPS</span><input type="text" data-gps="${i}" data-kind="${kind}" placeholder="補座標：緯度, 經度" style="width:150px;font-size:12px;padding:3px 6px"></div>`;
  if(kind==='old')h+=`<button class="act sm" data-mv="${i}" data-to="${cur}">移到${KNAME[cur]}</button> `;
- return h+`<button class="act sm" data-phdel="${i}" data-kind="${kind}">刪除</button></div>`;
+ return h+`<button class="act sm" data-phdel="${i}" data-kind="${kind}">刪除</button></div></div>`;
 }
 function photosHtml(p,kind){
  const ph=phGet(p,kind),old=p.photos||[];
- let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns two2"><label class="cam">📷 拍${KNAME[kind]}照片<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label>🖼 相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label></div><button class="act" data-recpick="${kind}" style="width:100%;margin-top:8px">📋 從現場紀錄選照片（位置、時間一起帶入）</button>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
+ let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns three"><label class="cam">📷 拍照<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label>🖼 相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label><button type="button" data-recpick="${kind}">📋 現場紀錄</button></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
  ph.forEach((x,i)=>{h+=phItem(x,i,kind)});
  h+=`</div>`;
  if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
