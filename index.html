@@ -1493,6 +1493,7 @@ function renderExp(){
   info.textContent=`紀錄 ${R1.length} 筆`+(expDay?`、核對結果 ${R2.length} 項`:"（核對結果要選單一日期）")+"。複製後貼到Word或Excel會是表格；照片檔名對應「下載本案照片」的檔案。";
   const bs=document.createElement("div");bs.className="row";
   const mk=(t,f)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>f(b);bs.appendChild(b);return b};
+  mk("📄 下載Word（含照片）",b=>makeDocx(expDay,b)).disabled=!R1.length;
   mk("複製紀錄表格",b=>copyTable(H1,R1,b)).disabled=!R1.length;
   if(expDay)mk("複製核對結果",b=>copyTable(H2,R2,b)).disabled=!R2.length;
   mk("下載CSV",()=>{const csv=v=>`"${String(v).replace(/"/g,'""')}"`;
@@ -1500,6 +1501,54 @@ function renderExp(){
     if(expDay&&R2.length)parts.push("",[H2,...R2].map(r=>r.map(csv).join(",")).join("\r\n"));
     downloads.save({filename:safeName(c.name||"案件")+"_現場紀錄"+(expDay?"_"+expDay.replace(/\//g,""):"")+".csv",data:new Blob(["﻿"+parts.join("\r\n")],{type:"text/csv"})})}).disabled=!R1.length;
   box.append(row,info,bs);
+}
+/* Word（.docx，瀏覽器內用JSZip組OpenXML）：標題→核對結果表→照片表（每列2張，照片下附說明）→無照片紀錄表 */
+async function makeDocx(day,btn){
+  const o=btn.textContent;btn.disabled=true;
+  try{
+    await loadZip();
+    const {c,H2,R2}=expData(day);
+    const recs=records.filter(r=>r.caseId===curCase&&(!day||recDay(r)===day)).sort((a,b)=>a.createdAt-b.createdAt);
+    const X=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const RPR=(b,sz)=>`<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="標楷體"/>${b?"<w:b/>":""}<w:sz w:val="${sz||24}"/><w:szCs w:val="${sz||24}"/></w:rPr>`;
+    const P=(t,{b,sz,jc}={})=>`<w:p><w:pPr><w:spacing w:before="0" w:after="60"/>${jc?`<w:jc w:val="${jc}"/>`:""}</w:pPr>${String(t==null?"":t).split("\n").map((s,i)=>`<w:r>${RPR(b,sz)}${i?"<w:br/>":""}<w:t xml:space="preserve">${X(s)}</w:t></w:r>`).join("")}</w:p>`;
+    const BD=`<w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`).join("")}</w:tblBorders>`;
+    const TW=9638;
+    const tbl=(ws,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${TW}" w:type="dxa"/>${BD}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${ws.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>`+
+      rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${ws[i]}" w:type="dxa"/></w:tcPr>${cell||P("")}</w:tc>`).join("")}</w:tr>`).join("")+`</w:tbl>`;
+    const hdr=H=>H.map(h=>P(h,{b:true,sz:20,jc:"center"}));
+    const zip=new JSZip(),rels=[];let n=0,body="";
+    body+=P((c.name||"")+"　現場紀錄",{b:true,sz:32,jc:"center"});
+    body+=P((day?"日期："+day:"全部日期")+"　　共 "+recs.length+" 筆紀錄",{sz:22,jc:"center"});
+    if(day&&R2.length){body+=P("一、核對結果",{b:true,sz:26});
+      body+=tbl([1300,600,3838,1300,1100,1500],[hdr(H2),...R2.map(r=>r.map(v=>P(v,{sz:20})))])+P("")}
+    // 照片：每格寬約8.2cm，直式照片限高，避免一格太長跨頁
+    const cells=[],total=recs.reduce((s,r)=>s+(r.photos||[]).length,0);
+    for(const r of recs)for(const id of (r.photos||[])){
+      btn.textContent=`準備照片 ${n+1}/${total}…`;
+      const blob=await withExif(await fileBlob(id),r.lat,r.lng,exifDt(r));let w=4,h=3;
+      try{const bm=await createImageBitmap(blob);w=bm.width;h=bm.height;bm.close&&bm.close()}catch(e){}
+      n++;const rid="rIdImg"+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
+      let cx=4650*635,cy=Math.round(cx*h/w);const maxH=4200*635;if(cy>maxH){cx=Math.round(cx*maxH/cy);cy=maxH}
+      const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="40"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+      const cap=[`照片${n}　${r.takenAt||fmtMs(r.createdAt)}`,[r.stake,(r.category||"")+(r.abcd?" "+r.abcd:""),r.species,r.count].filter(Boolean).join("｜"),r.note||""].filter(Boolean).join("\n");
+      cells.push(img+P(cap,{sz:20}));
+    }
+    if(cells.length){body+=P((day&&R2.length?"二、":"一、")+"現場照片",{b:true,sz:26});
+      const rows=[];for(let i=0;i<cells.length;i+=2)rows.push([cells[i],cells[i+1]]);body+=tbl([TW/2,TW/2],rows)+P("")}
+    const np=recs.filter(r=>!(r.photos&&r.photos.length));
+    if(np.length){body+=P("無照片紀錄",{b:true,sz:26});
+      body+=tbl([1700,1400,1400,5138],[hdr(["時間","樁號","類別","說明"]),...np.map(r=>[r.takenAt||fmtMs(r.createdAt),r.stake,(r.category||"")+(r.abcd?" "+r.abcd:""),[r.species,r.note].filter(Boolean).join("：")].map(v=>P(v,{sz:20})))])}
+    btn.textContent="組成Word中…";
+    zip.file("[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+    zip.file("_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+    zip.file("word/_rels/document.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`);
+    zip.file("word/document.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`);
+    const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+    await downloads.save({filename:safeName(c.name||"案件")+"_現場紀錄"+(day?"_"+day.replace(/\//g,""):"")+".docx",data:out});
+    btn.textContent="已下載";
+  }catch(e){btn.textContent="失敗（"+(e.message||"網路")+"）"}
+  finally{btn.disabled=false;setTimeout(()=>btn.textContent=o,2500)}
 }
 $("expBtn").onclick=()=>{const b=$("expBox");b.hidden=!b.hidden;if(!b.hidden)renderExp()};
 
