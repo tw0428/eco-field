@@ -77,6 +77,13 @@ button.act.danger{color:var(--bad);border-color:var(--bad)}
 .status{font-size:13px;color:var(--mute)}.status a{color:var(--acc)}
 textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 .tot{font-size:16px;font-weight:700}
+.sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheetbody{background:var(--bg);width:100%;max-width:640px;max-height:85vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.sheethead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.expbox{display:flex;flex-direction:column;gap:10px}
+.expbtns{display:flex;flex-direction:column;gap:8px}
+.expbtns>.act.primary{padding:12px;font-size:16px}
+.expbtns a{color:var(--acc);font-size:14px}
 .qrow{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
 .qrow:first-of-type{border-top:0}
 .qh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -133,6 +140,7 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 <div class="tabs" id="vtabs" style="margin-top:6px"></div>
 </header>
 <main id="app"></main>
+<div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button class="act" id="expClose">關閉</button></div><div id="expBody" class="expbox"></div></div></div>
 
 <script>
 'use strict';
@@ -695,6 +703,60 @@ function viewCmp(){
  <div class="mut">表格貼到Word會是真正的表格；前言可直接在框內修改後再複製。</div></div>`;
  return h;
 }
+/* ===== 匯出面板（與現場紀錄相同操作）：選範圍 → 下載Word（含照片）／複製表格／下載CSV ===== */
+let zipReady=null;
+function loadZip(){if(window.JSZip)return Promise.resolve();
+ if(!zipReady)zipReady=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=()=>{zipReady=null;rej(new Error('壓縮元件載入失敗'))};document.head.appendChild(s)});return zipReady}
+const saveFile=(name,blob)=>{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)};
+const safeName=s=>String(s||'').replace(/[\\/:*?"<>|\s]+/g,'_').replace(/^_+|_+$/g,'');
+const hasCreek=D=>D.cIdx.some(i=>creekTotal(S.p[i]).n>0),hasSlope=D=>D.sIdx.some(i=>D.sE[i].n>0);
+function renderExpSheet(){
+ const box=$('expBody');if(!box||!S.p)return;const D=exportData(),ex=S.exp==='design'?'design':'build';
+ const nPh=D.cIdx.reduce((s,i)=>s+phGet(S.p[i],'creek').length+phGet(S.p[i],'slope').length,0);
+ box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（三期）</button></div></div>
+ <div class="mut">坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
+ <div class="expbtns"><button class="act primary" data-xw="1">📄 下載Word（含照片）</button>
+ <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
+ <a href="#" data-xcmp="1">修改前言草稿 →</a></div>`;
+}
+function openExpSheet(){if(!S.p)return;$('expSheet').hidden=false;renderExpSheet()}
+async function habDocx(btn){
+ const o=btn.textContent;btn.disabled=true;
+ try{await loadZip();const D=exportData(),c=cases.find(x=>x.id===curCase)||{};
+  const X=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const RPR=(b,sz)=>`<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="標楷體"/>${b?'<w:b/>':''}<w:sz w:val="${sz||24}"/><w:szCs w:val="${sz||24}"/></w:rPr>`;
+  const P=(t,{b,sz,jc}={})=>`<w:p><w:pPr><w:spacing w:before="0" w:after="60"/>${jc?`<w:jc w:val="${jc}"/>`:''}</w:pPr>${String(t==null?'':t).split('\n').map((s,i)=>`<w:r>${RPR(b,sz)}${i?'<w:br/>':''}<w:t xml:space="preserve">${X(s)}</w:t></w:r>`).join('')}</w:p>`;
+  const BD=`<w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`).join('')}</w:tblBorders>`,TW=9638;
+  const tbl=(ws,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${TW}" w:type="dxa"/>${BD}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${ws.map(w=>`<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`+rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${ws[i]}" w:type="dxa"/></w:tcPr>${cell||P('')}</w:tc>`).join('')}</w:tr>`).join('')+`</w:tbl>`;
+  const T=t=>{const n=t.head.length,w0=2600,wr=Math.floor((TW-w0)/(n-1)),ws=[w0,...Array(n-1).fill(wr)];ws[n-1]+=TW-ws.reduce((a,b)=>a+b,0);
+   return tbl(ws,[t.head.map(x=>P(x,{b:true,sz:20,jc:'center'})),...t.rows.map(r=>r.map((x,i)=>P(x,{sz:20,jc:i?'center':''}))),...(t.foot?[t.foot.map(x=>P(x,{b:true,sz:20,jc:'center'}))]:[])])};
+  const zip=new JSZip(),rels=[];let n=0,sec=0,body=P((c.name||'')+'　棲地評估',{b:true,sz:32,jc:'center'});
+  const NUM='一二三四五';
+  if(hasSlope(D)){body+=P(NUM[sec++]+'、坡地棲地評估',{b:true,sz:26})+P(($('dS')||{}).value||draftSlope(D))+T(D.slope)+P('')}
+  if(hasCreek(D)){body+=P(NUM[sec++]+'、野溪治理工程生態回復追蹤評估',{b:true,sz:26})+P(($('dC')||{}).value||draftCreek(D))+T(D.creek)+P('')}
+  const list=[];D.cIdx.forEach(i=>['slope','creek'].forEach(k=>phGet(S.p[i],k).forEach(x=>list.push({i,k,x}))));
+  const cells=[];
+  for(const {i,k,x} of list){btn.textContent=`準備照片 ${n+1}/${list.length}…`;
+   const blob=await fileBlob(x.id);let w=4,hh=3;try{const bm=await createImageBitmap(blob);w=bm.width;hh=bm.height;bm.close&&bm.close()}catch(e){}
+   n++;const rid='rIdImg'+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
+   let cx=4650*635,cy=Math.round(cx*hh/w);const mh=4200*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
+   const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="40"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+   const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
+   cells.push(img+P([`照片${n}　${D.cn(i)}｜${KNAME[k]}評估位置`,fmtExifTime(x.taken),ns&&ns.off<=60?'約'+fmtSt(ns.st):x.lat!=null?`${x.lat}, ${x.lng}`:''].filter(Boolean).join('\n'),{sz:20}))}
+  if(cells.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const rows=[];for(let j=0;j<cells.length;j+=2)rows.push([cells[j],cells[j+1]]);body+=tbl([TW/2,TW/2],rows)}
+  btn.textContent='組成Word中…';
+  zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+  zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  zip.file('word/_rels/document.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
+  zip.file('word/document.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`);
+  saveFile(safeName(c.name||'案件')+'_棲地評估'+(S.exp==='design'?'_設計階段':'_施工階段')+'.docx',await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
+  btn.textContent='已下載'}
+ catch(e){btn.textContent='失敗（'+(e.message||'網路')+'）'}
+ finally{btn.disabled=false;setTimeout(()=>btn.textContent=o,2500)}
+}
+function habCsv(){const D=exportData(),c=cases.find(x=>x.id===curCase)||{},q=v=>`"${String(v).replace(/"/g,'""')}"`,t2=t=>[t.head,...t.rows,...(t.foot?[t.foot]:[])].map(r=>r.map(q).join(',')).join('\r\n');
+ const parts=[];if(hasSlope(D))parts.push('"坡地棲地評估"',t2(D.slope),'');if(hasCreek(D))parts.push('"野溪治理工程生態回復追蹤評估"',t2(D.creek));
+ saveFile(safeName(c.name||'案件')+'_棲地評估.csv',new Blob(['\ufeff'+parts.join('\r\n')],{type:'text/csv'}))}
 async function copyRich(html,txt,btn){
  const done=()=>{const o=btn.textContent;btn.textContent='已複製';setTimeout(()=>btn.textContent=o,1200)};
  try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})})]);done()}
@@ -721,7 +783,12 @@ document.addEventListener('click',e=>{
  const t=e.target;
  if(t.dataset.p!=null){S.cur=+t.dataset.p;if(S.view==='cmp'||S.view==='note')S.view='creek';render();}
  else if(t.dataset.v){S.view=t.dataset.v;render();}
- else if(t.id==='expLink'){e.preventDefault();S.view='cmp';render();scrollTo(0,0)}
+ else if(t.id==='expLink'){e.preventDefault();openExpSheet()}
+ else if(t.id==='expClose'||t.id==='expSheet'){expSheet.hidden=true}
+ else if(t.dataset.sexp){S.exp=t.dataset.sexp;lsSet('habitat_exp',S.exp);renderExpSheet();if(S.view==='cmp')render()}
+ else if(t.dataset.xw){habDocx(t)}
+ else if(t.dataset.xc){habCsv()}
+ else if(t.dataset.xcmp){e.preventDefault();expSheet.hidden=true;S.view='cmp';render();scrollTo(0,0)}
  else if(t.dataset.exp){S.exp=t.dataset.exp;lsSet('habitat_exp',S.exp);render()}
  else if(t.dataset.copy){const D=exportData(),k=t.dataset.copy;
   if(k==='sT')copyRich(tblHtml(D.slope,true),tblTsv(D.slope),t);
