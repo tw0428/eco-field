@@ -521,7 +521,9 @@ async function fileBlob(id,type){
     try{const c=await caches.open(FILE_CACHE);await c.put(fileKey(id),new Response(b))}catch(e){}}
   return type?new Blob([b],{type}):b;
 }
-function blobUrl(id,type){if(!blobCache.has(id))blobCache.set(id,fileBlob(id,type).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
+// 顯示用的照片也寫回紀錄的GPS與拍攝時間：長按存到手機的照片才有定位
+const photoRec=new Map();
+function blobUrl(id,type){if(!blobCache.has(id))blobCache.set(id,fileBlob(id,type).then(async b=>{const r=photoRec.get(id);if(r)b=await withExif(b,r.lat,r.lng,exifDt(r));return URL.createObjectURL(b)}).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
 function setImg(img,id){blobUrl(id,"image/jpeg").then(u=>{img.src=u}).catch(()=>{img.alt="載入失敗"})}
 
 /* ---------- 離線待上傳（IndexedDB）：沒訊號時新紀錄、核對結果先存手機，有訊號自動補傳 ----------
@@ -1172,6 +1174,7 @@ $("caseSaveBtn").onclick=async()=>{
 
 /* ---------- 紀錄列表 ---------- */
 function renderRecords(){
+  records.forEach(r=>(r.photos||[]).forEach(id=>photoRec.set(id,r)));
   if(!$("expBox").hidden&&document.activeElement?.closest?.("#expBox")==null)renderExp();
   const box=$("recList");box.innerHTML="";
   const c=cases.find(x=>x.id===curCase);
