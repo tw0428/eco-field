@@ -720,7 +720,9 @@ async function addFiles(list,fromCam){
   for(const f of list){
     const ex=await readExif(f);
     // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
-    ex.fresh=ex.lat==null&&(fromCam||Date.now()-(f.lastModified||0)<300000);
+    // 不用檔案修改時間判斷：從工具下載的照片再選回來，修改時間是下載當下，會誤用現在位置；改看照片內的拍攝時間
+    const tk=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(ex.taken||""),tkMs=tk?new Date(+tk[1],tk[2]-1,+tk[3],+tk[4],+tk[5]).getTime():0;
+    ex.fresh=ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000));
     const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f)}
   }
   renderPending();renderAlbum();
