@@ -168,9 +168,14 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .seg button{border:0;border-radius:0;padding:6px 12px;font-size:14px}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
 #zipBtn{padding:6px 10px;font-size:14px}
-.expbox{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:var(--soft)}
-.expbox .row{flex-wrap:wrap}
-.expbox button{padding:6px 10px;font-size:14px}
+.sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheetbody{background:var(--bg);width:100%;max-width:640px;max-height:85vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.sheethead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.expbox{display:flex;flex-direction:column;gap:10px}
+.expbox .row{flex-wrap:wrap;gap:8px}
+.expbtns{display:flex;flex-direction:column;gap:8px}
+.expbtns>button.primary{padding:12px;font-size:16px}
+.expbtns .row button{padding:6px 10px;font-size:14px}
 .wall{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 .wall a{position:relative;display:block;aspect-ratio:1;background:var(--soft);border-radius:6px;overflow:hidden;border-bottom:3px solid var(--stg-c)}
 .wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
@@ -357,7 +362,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
     <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px">📋 匯出</button><button type="button" id="zipBtn">⬇ 下載本案照片</button></div>
-    <div id="expBox" class="expbox" hidden></div>
+    <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
   </section>
 </div>
@@ -1175,7 +1180,7 @@ $("caseSaveBtn").onclick=async()=>{
 /* ---------- 紀錄列表 ---------- */
 function renderRecords(){
   records.forEach(r=>(r.photos||[]).forEach(id=>photoRec.set(id,r)));
-  if(!$("expBox").hidden&&document.activeElement?.closest?.("#expBox")==null)renderExp();
+  if(!$("expSheet").hidden&&document.activeElement?.closest?.("#expBox")==null)renderExp();
   const box=$("recList");box.innerHTML="";
   const c=cases.find(x=>x.id===curCase);
   $("listTitle").textContent=c?c.name+" 的紀錄":"本案紀錄";
@@ -1497,23 +1502,23 @@ function renderExp(){
   const days=[...new Set([...records.filter(r=>r.caseId===curCase).map(recDay),...Object.values(checkRes).filter(d=>d.caseId===curCase).map(d=>ymd2day(d.date))])].sort().reverse();
   if(expDay==null||(expDay&&!days.includes(expDay)))expDay=days[0]||"";
   const row=document.createElement("div");row.className="row";
-  const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="日期";
+  const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="範圍";
   const sel=document.createElement("select");sel.className="grow";
   [["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===expDay;sel.appendChild(o)});
   sel.onchange=()=>{expDay=sel.value;renderExp()};row.append(lb,sel);
   const {c,H1,R1,H2,R2}=expData(expDay);
   const info=document.createElement("div");info.className="hint";
   info.textContent=`紀錄 ${R1.length} 筆`+(expDay?`、核對結果 ${R2.length} 項`:"（核對結果要選單一日期）")+"。複製後貼到Word或Excel會是表格；照片檔名對應「下載本案照片」的檔案。";
-  const bs=document.createElement("div");bs.className="row";
-  const mk=(t,f)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>f(b);bs.appendChild(b);return b};
-  mk("📄 下載Word（含照片）",b=>makeDocx(expDay,b)).disabled=!R1.length;
+  const bw=document.createElement("div");bw.className="expbtns";const bs=document.createElement("div");bs.className="row";bs.style.margin="0";
+  const mk=(t,f,to)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>f(b);(to||bs).appendChild(b);return b};
+  const wb=mk("📄 下載Word（含照片）",b=>makeDocx(expDay,b),bw);wb.className="primary";wb.disabled=!R1.length;bw.appendChild(bs);
   mk("複製紀錄表格",b=>copyTable(H1,R1,b)).disabled=!R1.length;
   if(expDay)mk("複製核對結果",b=>copyTable(H2,R2,b)).disabled=!R2.length;
   mk("下載CSV",()=>{const csv=v=>`"${String(v).replace(/"/g,'""')}"`;
     const parts=[[H1,...R1].map(r=>r.map(csv).join(",")).join("\r\n")];
     if(expDay&&R2.length)parts.push("",[H2,...R2].map(r=>r.map(csv).join(",")).join("\r\n"));
     downloads.save({filename:safeName(c.name||"案件")+"_現場紀錄"+(expDay?"_"+expDay.replace(/\//g,""):"")+".csv",data:new Blob(["﻿"+parts.join("\r\n")],{type:"text/csv"})})}).disabled=!R1.length;
-  box.append(row,info,bs);
+  box.append(row,info,bw);
 }
 /* Word（.docx，瀏覽器內用JSZip組OpenXML）：標題→核對結果表→照片表（每列2張，照片下附說明）→無照片紀錄表 */
 async function makeDocx(day,btn){
@@ -1564,8 +1569,11 @@ async function makeDocx(day,btn){
   finally{btn.disabled=false;setTimeout(()=>btn.textContent=o,2500)}
 }
 // 頂端「匯出」：和棲地評估同一位置，打開本案紀錄下的匯出框並捲過去
-$("expLink").onclick=e=>{e.preventDefault();if(!curCase)return;const b=$("expBox");b.hidden=false;renderExp();b.scrollIntoView({block:"center"})};
-$("expBtn").onclick=()=>{const b=$("expBox");b.hidden=!b.hidden;if(!b.hidden)renderExp()};
+function openExp(){if(!curCase)return;$("expSheet").hidden=false;renderExp()}
+$("expLink").onclick=e=>{e.preventDefault();openExp()};
+$("expBtn").onclick=openExp;
+$("expClose").onclick=()=>{$("expSheet").hidden=true};
+$("expSheet").onclick=e=>{if(e.target.id==="expSheet")$("expSheet").hidden=true};
 
 /* ---------- 地圖：中心線、樁號、紀錄點位、我的位置（國土測繪中心圖磚，按鈕開啟才載入元件） ---------- */
 let lfReady=null,map=null,mapLayers=null,meLayer=null,baseOn="EMAP",baseLayer=null,mapTimer=null;
