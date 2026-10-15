@@ -588,9 +588,17 @@ function viewCreek(){
   h+=`</div>`;
  });
  const T=creekTotal(p);
- h+=`<div class="card"><span class="tot">野溪總分 ${T.t} / 200</span> <span class="mut">（已評 ${T.n}/${T.all} 格）</span></div>`;
+ h+=`<div class="card"><span class="tot">野溪總分 ${T.t} / 200</span> <span class="mut">（已評 ${T.n}/${T.all} 格）</span></div>`+introCard(p,'creek');
  return h;
 }
+/* 評估說明（匯出前言）：每期在評分頁下方直接寫，存在 p.intro.{slope,creek}；沒寫的期別匯出時用自動草稿 */
+function draftOne(kind,i){const D=exportData(),all=kind==='slope'?draftSlope(D):draftCreek(D),pre=`【${D.cn(i)}】`;const ln=all.split('\n').find(l=>l.startsWith(pre));return ln?ln.slice(pre.length):''}
+function introText(D,kind){const ix=kind==='slope'?D.sIdx.filter(i=>D.sE[i].n>0):D.cIdx.filter(i=>creekTotal(S.p[i]).n>0);
+ const all=kind==='slope'?draftSlope(D):draftCreek(D);
+ return ix.map(i=>{const pre=`【${D.cn(i)}】`,own=((S.p[i].intro||{})[kind]||'').trim();return own?pre+own:(all.split('\n').find(l=>l.startsWith(pre))||'')}).filter(Boolean).join('\n')||all}
+function introCard(p,kind){const dr=draftOne(kind,S.cur),v=(p.intro||{})[kind]||'';
+ return `<div class="card"><h3><span>評估說明（匯出時的前言）</span></h3><textarea data-intro="${kind}" rows="4" style="min-height:96px;font-size:15px" placeholder="${esc(dr||'評估位置、現地狀況、分數變化原因')}">${esc(v)}</textarea>`+
+  `<div class="row" style="margin:6px 0 0">${dr&&!v?`<button class="act sm" data-introdraft="${kind}">帶入自動草稿再修改</button>`:''}<span class="mut">沒填就用灰字的自動草稿匯出；＿＿＿處請補原因。</span></div></div>`}
 function selHtml(attr,opts,val){
  val=val==null?'':String(val);
  const hit=val===''||opts.some(o=>String(o[0])===val);
@@ -624,7 +632,7 @@ function viewSlope(){
   h+=`</div>`+noteHtml(p,'slope_'+x.k);
  });
  h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項填完才判定）</span>'}</div>`;
- h+=`<div class="mut">≤7不理想、7~10尚可、10~16.7次理想、>16.7最理想。樣區原則為10 m×10 m。</div></div>`;
+ h+=`<div class="mut">≤7不理想、7~10尚可、10~16.7次理想、>16.7最理想。樣區原則為10 m×10 m。</div></div>`+introCard(p,'slope');
  return h;
 }
 /* ===== 匯出（表9項次2）：只列有評分的期別；表格可直接貼Word成表格；前言依語料庫不列數值、不報評級 ===== */
@@ -694,11 +702,11 @@ function viewCmp(){
  <button class="tab ${ex==='build'?'on':''}" data-exp="build">施工階段（施工前／施工中／完工）</button></div></div>`;
  h+=`<div class="card"><h3><span>坡地棲地評估</span></h3>`;
  h+=tblHtml(D.slope,false);
- h+=`<div class="mut" style="margin-top:8px">前言草稿（＿＿＿處請補原因；依表9寫法不列分數、不報評級）</div><textarea id="dS">${esc(draftSlope(D))}</textarea>
+ h+=`<div class="mut" style="margin-top:8px">前言草稿（＿＿＿處請補原因；依表9寫法不列分數、不報評級）</div><textarea id="dS">${esc(introText(D,'slope'))}</textarea>
  <div class="row"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="sD">複製前言</button></div></div>`;
  h+=`<div class="card"><h3><span>野溪治理工程生態回復追蹤評估</span><span class="mut">僅野溪案件使用</span></h3>`;
  h+=tblHtml(D.creek,false);
- h+=`<div class="mut" style="margin-top:8px">前言草稿</div><textarea id="dC">${esc(draftCreek(D))}</textarea>
+ h+=`<div class="mut" style="margin-top:8px">前言草稿</div><textarea id="dC">${esc(introText(D,'creek'))}</textarea>
  <div class="row"><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-copy="cD">複製前言</button></div>
  <div class="mut">表格貼到Word會是真正的表格；前言可直接在框內修改後再複製。</div></div>`;
  return h;
@@ -717,7 +725,7 @@ function renderExpSheet(){
  <div class="mut">坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
  <div class="expbtns"><button class="act primary" data-xw="1">📄 下載Word（含照片）</button>
  <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
- <a href="#" data-xcmp="1">修改前言草稿 →</a></div>`;
+ <div class="mut">前言：各期在評分頁最下方「評估說明」填寫，沒填就用自動草稿。</div></div>`;
 }
 function openExpSheet(){if(!S.p)return;$('expSheet').hidden=false;renderExpSheet()}
 async function habDocx(btn){
@@ -732,8 +740,8 @@ async function habDocx(btn){
    return tbl(ws,[t.head.map(x=>P(x,{b:true,sz:20,jc:'center'})),...t.rows.map(r=>r.map((x,i)=>P(x,{sz:20,jc:i?'center':''}))),...(t.foot?[t.foot.map(x=>P(x,{b:true,sz:20,jc:'center'}))]:[])])};
   const zip=new JSZip(),rels=[];let n=0,sec=0,body=P((c.name||'')+'　棲地評估',{b:true,sz:32,jc:'center'});
   const NUM='一二三四五';
-  if(hasSlope(D)){body+=P(NUM[sec++]+'、坡地棲地評估',{b:true,sz:26})+P(($('dS')||{}).value||draftSlope(D))+T(D.slope)+P('')}
-  if(hasCreek(D)){body+=P(NUM[sec++]+'、野溪治理工程生態回復追蹤評估',{b:true,sz:26})+P(($('dC')||{}).value||draftCreek(D))+T(D.creek)+P('')}
+  if(hasSlope(D)){body+=P(NUM[sec++]+'、坡地棲地評估',{b:true,sz:26})+P(introText(D,'slope'))+T(D.slope)+P('')}
+  if(hasCreek(D)){body+=P(NUM[sec++]+'、野溪治理工程生態回復追蹤評估',{b:true,sz:26})+P(introText(D,'creek'))+T(D.creek)+P('')}
   const list=[];D.cIdx.forEach(i=>['slope','creek'].forEach(k=>phGet(S.p[i],k).forEach(x=>list.push({i,k,x}))));
   const cells=[];
   for(const {i,k,x} of list){btn.textContent=`準備照片 ${n+1}/${list.length}…`;
@@ -787,6 +795,7 @@ document.addEventListener('click',e=>{
  else if(t.id==='expClose'||t.id==='expSheet'){expSheet.hidden=true}
  else if(t.dataset.sexp){S.exp=t.dataset.sexp;lsSet('habitat_exp',S.exp);renderExpSheet();if(S.view==='cmp')render()}
  else if(t.dataset.xw){habDocx(t)}
+ else if(t.dataset.introdraft){const p=S.p[S.cur];p.intro=p.intro||{};p.intro[t.dataset.introdraft]=draftOne(t.dataset.introdraft,S.cur);render()}
  else if(t.dataset.xc){habCsv()}
  else if(t.dataset.xcmp){e.preventDefault();expSheet.hidden=true;S.view='cmp';render();scrollTo(0,0)}
  else if(t.dataset.exp){S.exp=t.dataset.exp;lsSet('habitat_exp',S.exp);render()}
@@ -835,6 +844,7 @@ document.addEventListener('change',e=>{
   if(!m){t.style.borderColor='var(--bad)';return}
   const x=phList(p,t.dataset.kind)[+t.dataset.gps];x.lat=+(+m[1]).toFixed(6);x.lng=+(+m[2]).toFixed(6);x.gps='manual';render();return}
  if(t.dataset.hi){const h=t.value==='1';S.p.forEach(q=>{q.high=h;Object.keys(q.creek).forEach(k=>{if(k.startsWith('lat'))q.creek[k].ovr=null})});render();return;}
+ if(t.dataset.intro){const k=t.dataset.intro,v=t.value.trim();p.intro=p.intro||{};if(v)p.intro[k]=v;else delete p.intro[k];if(!Object.keys(p.intro).length)delete p.intro;addBy(p);save();return}
  if(t.dataset.f){const f=t.dataset.f;p[f]=t.type==='checkbox'?t.checked:t.value;render();return;}
  if((t.dataset.c||t.dataset.o||t.dataset.sl)&&isBlankP(p))p.date=todayStr(); // 第一筆評分：存入當天日期
  if(t.dataset.c){const k=t.dataset.c;const st=p.creek[k]=p.creek[k]||{};st[t.dataset.k]=t.value;st.ovr=null;
