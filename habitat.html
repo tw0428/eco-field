@@ -77,6 +77,13 @@ button.act.danger{color:var(--bad);border-color:var(--bad)}
 .status{font-size:13px;color:var(--mute)}.status a{color:var(--acc)}
 textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 .tot{font-size:16px;font-weight:700}
+.qrow{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
+.qrow:first-of-type{border-top:0}
+.qh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.qh label{font-size:14px;color:var(--ink)}
+.qh .score{color:var(--acc);white-space:nowrap}
+.qrow select{width:100%}
+.card .tot{margin-top:8px}
 .phs{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.ph{width:150px;font-size:12px}
 .ph img{width:150px;height:110px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
 .ph a{color:var(--acc)}
@@ -560,9 +567,10 @@ function viewSlope(){
  h+=`<div class="card"><h3><span>坡地快速評估</span><span class="mut">每因子1~4分</span></h3>`;
  e.rows.forEach(({x,s})=>{
   const val=p.slope[x.k]==null?'':p.slope[x.k];
-  h+=`<div class="row"><label style="min-width:110px">${x.name}</label>`;
+  // 一項兩行：名稱＋分數一行、選單整行寬（選項文字長短不一，放同一行會參差、分數被擠到下一行）
+  h+=`<div class="qrow"><div class="qh"><label>${x.name}</label><span class="score">${s==null?'—':s+' 分'}</span></div>`;
   h+=selHtml(`data-sl="${x.k}"`,x.sel||x.opts,val);
-  h+=`<span class="score">${s==null?'':s+' 分'}</span></div>`+noteHtml(p,'slope_'+x.k);
+  h+=`</div>`+noteHtml(p,'slope_'+x.k);
  });
  h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項填完才判定）</span>'}</div>`;
  h+=`<div class="mut">≤7不理想、7~10尚可、10~16.7次理想、>16.7最理想。樣區原則為10 m×10 m。</div></div>`;
