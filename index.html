@@ -317,6 +317,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <label for="galIn">🖼 相簿<input type="file" id="galIn" accept="image/*" multiple></label>
     </div>
     <button type="button" id="albumBtn" hidden></button>
+    <button type="button" id="albumClr" class="mini" hidden style="align-self:flex-end;font-size:12px;padding:3px 8px">不存相簿了，刪掉這些原檔</button>
     <div class="hint" id="geoState" hidden></div>
     <a href="#" class="hint near" id="nearBox" hidden></a>
     <div class="thumbs" id="pendThumbs"></div>
@@ -716,7 +717,7 @@ async function addFiles(list,fromCam){
     const ex=await readExif(f);
     // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
     ex.fresh=ex.lat==null&&(fromCam||Date.now()-(f.lastModified||0)<300000);
-    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam)camFiles.push(f);
+    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f)}
   }
   renderPending();renderAlbum();
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
@@ -1339,14 +1340,31 @@ const stgCls=s=>s==="提報"?"stg-a":s==="設計"?"stg-b":s?"stg-c":"";
 
 /* ---------- 工具內拍的原檔存到手機相簿（網頁不能直接寫相簿，透過分享選單「儲存影像」） ---------- */
 let camFiles=[];
+// 原檔另存一份在手機資料庫（eco-cam）：iPhone把背景網頁關掉、重開後還在，存進相簿或按刪除才清掉
+let camP=null;
+function camDb(){if(camP)return camP;camP=new Promise((res,rej)=>{const tm=setTimeout(()=>rej(new Error("idb_timeout")),3000);
+  try{const r=indexedDB.open("eco-cam",1);r.onupgradeneeded=()=>r.result.createObjectStore("f",{keyPath:"k"});
+    r.onsuccess=()=>{clearTimeout(tm);res(r.result)};r.onerror=r.onblocked=()=>{clearTimeout(tm);rej(r.error||new Error("idb_blocked"))}}catch(e){clearTimeout(tm);rej(e)}});
+  camP.catch(()=>{camP=null});return camP}
+async function camTx(mode,fn){const d=await camDb();return new Promise((res,rej)=>{const t=d.transaction("f",mode);const out=fn(t.objectStore("f"));t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)})}
+async function camKeep(f){const k=Date.now()+"_"+Math.random().toString(36).slice(2,7);f._k=k;
+  try{const buf=await f.arrayBuffer();await camTx("readwrite",s=>s.put({k,name:f.name,type:f.type||"image/jpeg",lm:f.lastModified,buf}))}catch(e){}}
+async function camLoad(){try{const all=(await camTx("readonly",s=>s.getAll()))||[];const have=new Set(camFiles.map(f=>f._k));
+  all.filter(x=>!have.has(x.k)).forEach(x=>{const f=new File([x.buf],x.name||"photo.jpg",{type:x.type,lastModified:x.lm||Date.now()});f._k=x.k;camFiles.push(f)});renderAlbum()}catch(e){}}
+function camDrop(list){const ks=list.map(f=>f._k).filter(Boolean);camFiles=camFiles.filter(f=>!list.includes(f));renderAlbum();
+  if(ks.length)camTx("readwrite",s=>ks.forEach(k=>s.delete(k))).catch(()=>{})}
 function renderAlbum(){
   const b=$("albumBtn"),ok=camFiles.length&&navigator.canShare&&navigator.canShare({files:camFiles});
-  b.hidden=!ok;if(ok)b.textContent=`💾 剛拍的 ${camFiles.length} 張存到手機相簿（原檔）`;
+  b.hidden=!ok;$("albumClr").hidden=!camFiles.length;if(ok)b.textContent=`💾 拍的 ${camFiles.length} 張原檔還沒存到手機相簿，點這裡存`;
 }
 $("albumBtn").onclick=async()=>{
-  try{await navigator.share({files:camFiles});camFiles=[];renderAlbum()}
+  const sent=[...camFiles];
+  try{await navigator.share({files:sent});camDrop(sent)}
   catch(e){if(e.name!=="AbortError")showMsg("無法開啟分享選單："+(e.message||e.name),true)}
 };
+$("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪了就救不回來，再按一次";setTimeout(()=>{b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔"},4000);return}
+  b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔";camDrop([...camFiles])};
+camLoad();
 
 /* ---------- 列表／照片牆 ---------- */
 const listMode=()=>lsGet("eco-listmode")||"list";
@@ -1594,7 +1612,7 @@ $("shareBtn").onclick=e=>{e.preventDefault();share()};
   // 待上傳的核對結果蓋在雲端資料上面，重新讀取時不會被舊資料覆蓋
   db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});outbox.filter(x=>x.kind==="check").forEach(x=>{checkRes[x.rid]=x.doc});renderChecks()},()=>{});
   if(ghToken)loadCache();
-  obLoad().then(renderOutbox); // 不等待：手機資料庫卡住也不影響連線
+  camLoad();obLoad().then(renderOutbox); // 不等待：手機資料庫卡住也不影響連線
   await connect();flushOutbox();
   window.addEventListener("online",()=>{renderOutbox();flushOutbox()});
   window.addEventListener("offline",renderOutbox);
