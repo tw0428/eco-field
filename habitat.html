@@ -713,7 +713,7 @@ const hasCreek=D=>D.cIdx.some(i=>creekTotal(S.p[i]).n>0),hasSlope=D=>D.sIdx.some
 function renderExpSheet(){
  const box=$('expBody');if(!box||!S.p)return;const D=exportData(),ex=S.exp==='design'?'design':'build';
  const nPh=D.cIdx.reduce((s,i)=>s+phGet(S.p[i],'creek').length+phGet(S.p[i],'slope').length,0);
- box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（三期）</button></div></div>
+ box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（前中後）</button></div></div>
  <div class="mut">坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
  <div class="expbtns"><button class="act primary" data-xw="1">📄 下載Word（含照片）</button>
  <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
