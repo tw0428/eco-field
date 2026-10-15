@@ -312,7 +312,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   </details>
 
   <details class="panel checks" id="propBox" hidden>
-    <summary><span style="flex:1" id="propTitle">預計提出意見（現場確認；無法當場決定選待回覆）</span><span class="status" id="propCount"></span></summary>
+    <summary><span style="flex:1" id="propTitle">預計提出意見</span><span class="status" id="propCount"></span></summary>
     <div class="hint" id="propHint"></div>
     <div id="propList" class="chklist"></div>
   </details>
@@ -974,7 +974,7 @@ function renderChecks(){
   renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
     items:stage==="設計"?all.filter(i=>i.phase==="propose"):imp?all.filter(i=>i.phase==="improve"):[],
     canAdd:!!c&&(stage==="設計"||imp),labels:imp?CHK_IMP:CHK_PROP,
-    titleText:imp?"改善意見（追蹤改善情形）":"預計提出意見（現場確認；無法當場決定選待回覆）",
+    titleText:imp?"改善意見（追蹤改善情形）":"預計提出意見",
     addPhase:imp?"improve":"propose",addLabel:imp?"＋ 新增改善意見":"＋ 新增預計提出的意見"});
 }
 function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleText,addPhase,addLabel}){
