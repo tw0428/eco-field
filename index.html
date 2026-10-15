@@ -1397,6 +1397,33 @@ function loadZip(){
   return zipReady;
 }
 const safeName=s=>String(s||"").replace(/[\\/:*?"<>|\s]+/g,"_").replace(/^_+|_+$/g,"");
+// 上傳前壓縮會清掉原本的EXIF → 下載時把紀錄的GPS與拍攝時間寫回照片（最小EXIF：DateTimeOriginal＋GPS）
+function exifApp1(lat,lng,dt){
+  const hasLL=lat!=null&&lng!=null&&isFinite(lat)&&isFinite(lng),hasDt=/^\d{4}:\d\d:\d\d \d\d:\d\d:\d\d$/.test(dt||"");if(!hasLL&&!hasDt)return null;
+  const b=new Uint8Array(400),v=new DataView(b.buffer),L=true;
+  const e=(pos,tag,type,cnt,val)=>{v.setUint16(pos,tag,L);v.setUint16(pos+2,type,L);v.setUint32(pos+4,cnt,L);v.setUint32(pos+8,val,L)};
+  b.set([0x49,0x49]);v.setUint16(2,42,L);v.setUint32(4,8,L);
+  const n0=(hasDt?1:0)+(hasLL?1:0);v.setUint16(8,n0,L);let ep=10,q=10+n0*12+4;
+  if(hasDt){e(ep,0x8769,4,1,q);ep+=12;v.setUint16(q,1,L);const s=q+18;e(q+2,0x9003,2,20,s);
+    for(let i=0;i<19;i++)b[s+i]=dt.charCodeAt(i);q=s+20}
+  if(hasLL){e(ep,0x8825,4,1,q);const d=q+2+60+4;v.setUint16(q,5,L);let k=q+2;
+    e(k,0,1,4,0);b.set([2,3,0,0],k+8);k+=12;
+    e(k,1,2,2,0);b[k+8]=lat<0?83:78;k+=12;
+    e(k,2,5,3,d);k+=12;
+    e(k,3,2,2,0);b[k+8]=lng<0?87:69;k+=12;
+    e(k,4,5,3,d+24);
+    const rat=(pos,x)=>{x=Math.abs(x);const D=Math.floor(x),mf=(x-D)*60,M=Math.floor(mf),S=Math.round((mf-M)*600000);
+      [[D,1],[M,1],[S,10000]].forEach(([n,dn],i)=>{v.setUint32(pos+i*8,n,L);v.setUint32(pos+i*8+4,dn,L)})};
+    rat(d,lat);rat(d+24,lng);q=d+48}
+  const len=2+6+q,seg=new Uint8Array(2+len);seg.set([0xFF,0xE1,len>>8,len&255,0x45,0x78,0x69,0x66,0,0]);seg.set(b.subarray(0,q),10);return seg;
+}
+async function withExif(blob,lat,lng,dt){
+  try{const seg=exifApp1(lat,lng,dt);if(!seg)return blob;const a=new Uint8Array(await blob.arrayBuffer());if(a[0]!==0xFF||a[1]!==0xD8)return blob;
+    let at=2; // 插在JFIF(APP0)之後；已有EXIF就不動
+    while(a[at]===0xFF&&(a[at+1]===0xE0||a[at+1]===0xE1)){if(a[at+1]===0xE1&&a[at+4]===0x45&&a[at+5]===0x78)return blob;at+=2+(a[at+2]<<8|a[at+3])}
+    return new Blob([a.subarray(0,at),seg,a.subarray(at)],{type:"image/jpeg"})}catch(e){return blob}
+}
+const exifDt=r=>{const s=r.takenAt||fmtMs(r.createdAt);return /^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(s)?s.replace(/\//g,":")+":00":""};
 $("zipBtn").onclick=async()=>{
   const b=$("zipBtn"),old=b.textContent,c=cases.find(x=>x.id===curCase);if(!c)return;
   const list=records.filter(r=>r.caseId===curCase&&r.photos&&r.photos.length).sort((a,b)=>a.createdAt-b.createdAt);
@@ -1410,7 +1437,7 @@ $("zipBtn").onclick=async()=>{
         b.textContent=`準備中 ${++n}/${total}…`;
         let name=[day,safeName(r.category)+(r.abcd||""),safeName(r.stake),safeName(r.species)].filter(Boolean).join("_");
         let k=name,j=2;while(used.has((r.stage||"")+k))k=name+"_"+j++;used.add((r.stage||"")+k);
-        zip.file((safeName(r.stage)||"未分階段")+"/"+k+".jpg",await fileBlob(r.photos[i]));
+        zip.file((safeName(r.stage)||"未分階段")+"/"+k+".jpg",await withExif(await fileBlob(r.photos[i]),r.lat,r.lng,exifDt(r)));
       }
     }
     b.textContent="壓縮中…";
