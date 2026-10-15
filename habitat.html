@@ -104,6 +104,12 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 .picker .pkh input{flex:1}
 .picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
 .picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
+.rpgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow:auto;flex:1;align-content:start}
+.rpi{position:relative;display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--ink);cursor:pointer;min-width:0}
+.rpi img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:3px solid transparent;background:var(--line)}
+.rpi input{position:absolute;top:6px;left:6px;width:20px;height:20px}
+.rpi:has(input:checked) img{border-color:var(--acc)}
+.rpi span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .picker li.on{color:var(--acc);font-weight:600}
 .picker .grp{font-size:12px;color:var(--mute);padding:8px 4px 2px;border:0;cursor:default}padding:2px 8px;font-size:12px;margin-top:2px}
 </style>
@@ -449,7 +455,7 @@ function phItem(x,i,kind,cur){
 }
 function photosHtml(p,kind){
  const ph=phGet(p,kind),old=p.photos||[];
- let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns two2"><label class="cam">📷 拍${KNAME[kind]}照片<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label>🖼 相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
+ let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns two2"><label class="cam">📷 拍${KNAME[kind]}照片<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label>🖼 相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label></div><button class="act" data-recpick="${kind}" style="width:100%;margin-top:8px">📋 從現場紀錄選照片（位置、時間一起帶入）</button>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
  ph.forEach((x,i)=>{h+=phItem(x,i,kind)});
  h+=`</div>`;
  if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
@@ -518,6 +524,34 @@ async function upPhotos(files,kind,fromCam){
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
  pm(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(geoErr?'（'+geoErr+'）':''):'完成');
+}
+/* 從現場紀錄選照片：讀同案件ID的 records/<案>.json；照片複製一份（兩邊各自刪除互不影響），位置與拍攝時間沿用該筆紀錄 */
+const recTaken=r=>{if(/^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(r.takenAt||""))return r.takenAt.replace(/\//g,":")+":00";
+ if(!r.createdAt)return "";const d=new Date(r.createdAt),z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}:${z(d.getMonth()+1)}:${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:00`};
+async function recPick(kind){
+ const id=curCase,ci=S.cur;let recs=[];
+ try{const r=await gh("records/"+id+".json",{headers:{Accept:"application/vnd.github.raw+json"}});recs=r?Object.values(await r.json()):[]}
+ catch(e){msg("讀取現場紀錄失敗（"+(e.code||e.message)+"）");return}
+ const items=[];recs.filter(r=>r.photos&&r.photos.length).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).forEach(r=>r.photos.forEach(pid=>items.push({pid,r})));
+ const pk=document.createElement("div");pk.className="picker";
+ pk.innerHTML=`<div class="pkh"><b style="flex:1;align-self:center">從現場紀錄選${KNAME[kind]}照片</b><button class="act" data-x="1">關閉</button></div>`+
+  (items.length?`<div class="rpgrid">${items.map(({pid,r},i)=>`<label class="rpi"><input type="checkbox" data-i="${i}"><img data-blob="${esc(pid)}" alt=""><span>${esc([fmtExifTime(recTaken(r)).slice(5),r.stake,r.category].filter(Boolean).join(" "))}</span>${r.note?`<span class="mut">${esc(r.note)}</span>`:""}</label>`).join("")}</div><button class="act primary" data-ok="1" style="margin-top:8px">加入所選照片</button>`
+   :`<div class="mut">這個案件在現場紀錄還沒有照片（現場紀錄要用同一個案件）。</div>`);
+ pk.querySelector("[data-x]").onclick=()=>pk.remove();
+ const ok=pk.querySelector("[data-ok]");
+ if(ok){const upd=()=>{const n=pk.querySelectorAll("input:checked").length;ok.textContent=n?`加入所選 ${n} 張`:"加入所選照片";ok.disabled=!n};pk.onchange=upd;upd();
+  ok.onclick=async()=>{const sel=[...pk.querySelectorAll("input:checked")].map(c=>items[+c.dataset.i]);pk.remove();
+   const pm=t=>{const e=$("phMsg");if(e)e.textContent=t};
+   for(const [k,{pid,r}] of sel.entries()){pm(`加入 ${k+1}/${sel.length}…`);
+    try{const up=await assets.upload(await fileBlob(pid));
+     if(curCase!==id||!S.p)return;
+     const taken=recTaken(r);
+     if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(taken)||todayStr();
+     const by=addBy(S.p[ci]);
+     phList(S.p[ci],kind).push({id:up.id,...(by?{by}:{}),lat:r.lat!=null?r.lat:null,lng:r.lng!=null?r.lng:null,gps:r.lat!=null?(r.gpsSource==="device"?"device":"exif"):"none",...(r.gpsAcc!=null?{acc:r.gpsAcc}:{}),taken,fromRec:1});
+     render()}catch(e){msg("照片加入失敗（"+(e.code||e.message)+"）");return}}
+   pm("完成")}}
+ document.body.appendChild(pk);hydrateImgs();
 }
 function viewCreek(){
  const p=S.p[S.cur];
@@ -688,6 +722,7 @@ document.addEventListener('click',e=>{
  else if(t.id==='caseAdd'){const r=$('caseAddRow');r.hidden=!r.hidden;if(!r.hidden)$('caseName').focus()}
  else if(t.id==='caseSave'){addCase()}
  else if(t.id==='caseDel'){delCase(t)}
+ else if(t.dataset.recpick){recPick(t.dataset.recpick)}
  else if(t.dataset.phdel!=null){
   if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='確認刪除';setTimeout(()=>{t.dataset.armed='';t.textContent='刪除'},5000);return}
   const p=S.p[S.cur],x=phList(p,t.dataset.kind).splice(+t.dataset.phdel,1)[0];render();
