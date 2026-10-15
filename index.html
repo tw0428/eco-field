@@ -312,7 +312,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   </details>
 
   <details class="panel checks" id="propBox" hidden>
-    <summary><span style="flex:1" id="propTitle">預計提出意見（現場提出並記錄回應）</span><span class="status" id="propCount"></span></summary>
+    <summary><span style="flex:1" id="propTitle">預計提出意見（現場確認；無法當場決定選待回覆）</span><span class="status" id="propCount"></span></summary>
     <div class="hint" id="propHint"></div>
     <div id="propList" class="chklist"></div>
   </details>
@@ -953,8 +953,8 @@ const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_S
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
 function resId(){return curCase+"_"+today()}
-// 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄是否已提出與當場回應（採納與否待書面回覆）
-const CHK_PROP=[["ok","✓ 已提出"],["adj","△ 現場有討論"],["ng","－ 未提出"]];
+// 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄 ok同意/adj調整/ng做不到/wait待回覆
+const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 做不到"],["wait","… 待回覆"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
@@ -970,11 +970,11 @@ function renderChecks(){
     addPhase:stage==="設計"?"report":stage==="開工前"?"design":"start",addLabel:"＋ 新增核對事項（會議、現場討論的新意見）"});
   // 第二區：設計＝預計提出意見；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
   const imp=stage==="施工中"||stage==="完工";
-  $("propHint").textContent=imp?"施工中發現的問題與改善意見，之後每次現勘追蹤改善情形。":"本團隊準備提給設計單位的意見，現場提出後記錄當場回應；是否採納待設計單位書面回覆，不在現場判定。";
+  $("propHint").textContent=imp?"施工中發現的問題與改善意見，之後每次現勘追蹤改善情形。":"本團隊準備提給設計單位的意見。現場能確定的記同意／調整／做不到，無法當場決定的記待回覆，之後等設計單位書面回覆。";
   renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
     items:stage==="設計"?all.filter(i=>i.phase==="propose"):imp?all.filter(i=>i.phase==="improve"):[],
     canAdd:!!c&&(stage==="設計"||imp),labels:imp?CHK_IMP:CHK_PROP,
-    titleText:imp?"改善意見（追蹤改善情形）":"預計提出意見（現場提出並記錄回應）",
+    titleText:imp?"改善意見（追蹤改善情形）":"預計提出意見（現場確認；無法當場決定選待回覆）",
     addPhase:imp?"improve":"propose",addLabel:imp?"＋ 新增改善意見":"＋ 新增預計提出的意見"});
 }
 function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleText,addPhase,addLabel}){
@@ -1050,7 +1050,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論內容或設計單位當場回應":"未提出原因（例：時間不足、現場已確認圖面有）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"做不到的原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
