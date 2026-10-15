@@ -597,7 +597,7 @@ function introText(D,kind){const ix=kind==='slope'?D.sIdx.filter(i=>D.sE[i].n>0)
  const all=kind==='slope'?draftSlope(D):draftCreek(D);
  return ix.map(i=>{const pre=`【${D.cn(i)}】`,own=((S.p[i].intro||{})[kind]||'').trim();return own?pre+own:(all.split('\n').find(l=>l.startsWith(pre))||'')}).filter(Boolean).join('\n')||all}
 function introCard(p,kind){const dr=draftOne(kind,S.cur),v=(p.intro||{})[kind]||'';
- return `<div class="card"><h3><span>評估說明（匯出時的前言）</span></h3><textarea data-intro="${kind}" rows="4" style="min-height:96px;font-size:15px" placeholder="${esc(dr||'評估位置、現地狀況、分數變化原因')}">${esc(v)}</textarea>`+
+ return `<div class="card"><h3><span>評估說明（匯出時的前言）</span></h3><textarea data-intro="${kind}" rows="4" style="min-height:96px;font:15px/1.6 inherit;font-family:inherit" placeholder="${esc(dr||'評估位置、現地狀況、分數變化原因')}">${esc(v)}</textarea>`+
   `<div class="row" style="margin:6px 0 0">${dr&&!v?`<button class="act sm" data-introdraft="${kind}">帶入自動草稿再修改</button>`:''}<span class="mut">沒填就用灰字的自動草稿匯出；＿＿＿處請補原因。</span></div></div>`}
 function selHtml(attr,opts,val){
  val=val==null?'':String(val);
