@@ -168,6 +168,9 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .seg button{border:0;border-radius:0;padding:6px 12px;font-size:14px}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
 #zipBtn{padding:6px 10px;font-size:14px}
+.expbox{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:var(--soft)}
+.expbox .row{flex-wrap:wrap}
+.expbox button{padding:6px 10px;font-size:14px}
 .wall{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 .wall a{position:relative;display:block;aspect-ratio:1;background:var(--soft);border-radius:6px;overflow:hidden;border-bottom:3px solid var(--stg-c)}
 .wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
@@ -353,7 +356,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
-    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="zipBtn" style="margin-left:auto">⬇ 下載本案照片</button></div>
+    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px">📋 匯出</button><button type="button" id="zipBtn">⬇ 下載本案照片</button></div>
+    <div id="expBox" class="expbox" hidden></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
   </section>
 </div>
@@ -1166,6 +1170,7 @@ $("caseSaveBtn").onclick=async()=>{
 
 /* ---------- 紀錄列表 ---------- */
 function renderRecords(){
+  if(!$("expBox").hidden&&document.activeElement?.closest?.("#expBox")==null)renderExp();
   const box=$("recList");box.innerHTML="";
   const c=cases.find(x=>x.id===curCase);
   $("listTitle").textContent=c?c.name+" 的紀錄":"本案紀錄";
@@ -1423,6 +1428,10 @@ async function withExif(blob,lat,lng,dt){
     while(a[at]===0xFF&&(a[at+1]===0xE0||a[at+1]===0xE1)){if(a[at+1]===0xE1&&a[at+4]===0x45&&a[at+5]===0x78)return blob;at+=2+(a[at+2]<<8|a[at+3])}
     return new Blob([a.subarray(0,at),seg,a.subarray(at)],{type:"image/jpeg"})}catch(e){return blob}
 }
+// 照片檔名（下載zip與匯出表格共用，兩邊對得上）：階段資料夾/日期時間_類別ABCD_樁號_物種.jpg
+function zipNames(list){const used=new Set();return list.map(r=>{const day=(r.takenAt||fmtMs(r.createdAt)).replace(/[\/: ]/g,"").slice(0,12);
+  return r.photos.map(()=>{const name=[day,safeName(r.category)+(r.abcd||""),safeName(r.stake),safeName(r.species)].filter(Boolean).join("_");
+    let k=name,j=2;while(used.has((r.stage||"")+k))k=name+"_"+j++;used.add((r.stage||"")+k);return (safeName(r.stage)||"未分階段")+"/"+k+".jpg"})})}
 const exifDt=r=>{const s=r.takenAt||fmtMs(r.createdAt);return /^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(s)?s.replace(/\//g,":")+":00":""};
 $("zipBtn").onclick=async()=>{
   const b=$("zipBtn"),old=b.textContent,c=cases.find(x=>x.id===curCase);if(!c)return;
@@ -1430,14 +1439,11 @@ $("zipBtn").onclick=async()=>{
   const total=list.reduce((n,r)=>n+r.photos.length,0);if(!total){b.textContent="本案沒有照片";setTimeout(()=>b.textContent=old,2000);return}
   b.disabled=true;
   try{
-    await loadZip();const zip=new JSZip(),used=new Set();let n=0;
-    for(const r of list){
-      const day=(r.takenAt||fmtMs(r.createdAt)).replace(/[\/: ]/g,"").slice(0,12);
+    await loadZip();const zip=new JSZip(),names=zipNames(list);let n=0;
+    for(const [ri,r] of list.entries()){
       for(let i=0;i<r.photos.length;i++){
         b.textContent=`準備中 ${++n}/${total}…`;
-        let name=[day,safeName(r.category)+(r.abcd||""),safeName(r.stake),safeName(r.species)].filter(Boolean).join("_");
-        let k=name,j=2;while(used.has((r.stage||"")+k))k=name+"_"+j++;used.add((r.stage||"")+k);
-        zip.file((safeName(r.stage)||"未分階段")+"/"+k+".jpg",await withExif(await fileBlob(r.photos[i]),r.lat,r.lng,exifDt(r)));
+        zip.file(names[ri][i],await withExif(await fileBlob(r.photos[i]),r.lat,r.lng,exifDt(r)));
       }
     }
     b.textContent="壓縮中…";
@@ -1446,6 +1452,56 @@ $("zipBtn").onclick=async()=>{
   }catch(e){b.textContent="下載失敗（"+(e.message||"網路")+"）"}
   finally{b.disabled=false;setTimeout(()=>b.textContent=old,2500)}
 };
+
+/* ---------- 匯出：紀錄表＋當天核對結果；複製可貼Word/Excel成表格，或下載CSV ---------- */
+const recDay=r=>(r.takenAt||fmtMs(r.createdAt)).slice(0,10);
+const ymd2day=s=>s.slice(0,4)+"/"+s.slice(4,6)+"/"+s.slice(6,8);
+let expDay=null;
+function expData(day){
+  const c=cases.find(x=>x.id===curCase)||{},chk=c.checks||[];
+  const all=records.filter(r=>r.caseId===curCase).sort((a,b)=>a.createdAt-b.createdAt);
+  const wp=all.filter(r=>r.photos&&r.photos.length),nm=zipNames(wp),nmOf=new Map(wp.map((r,i)=>[r,nm[i]]));
+  const recs=all.filter(r=>!day||recDay(r)===day);
+  const H1=["時間","階段","類別","ABCD","樁號／位置","物種／對象","數量","說明","對應核對項目","緯度","經度","紀錄者","照片檔名（同下載的照片）"];
+  const R1=recs.map(r=>[r.takenAt||fmtMs(r.createdAt),r.stage||"",r.category||"",r.abcd||"",r.stake||"",r.species||"",r.count||"",r.note||"",
+    (chk.find(i=>i.id===r.checkId)||{}).text||"",r.lat!=null?r.lat:"",r.lng!=null?r.lng:"",r.by||"",(nmOf.get(r)||[]).join("\n")]);
+  const d=day&&checkRes[curCase+"_"+day.replace(/\//g,"")];
+  const lbOf=(i,k)=>i.phase==="propose"?((CHK_PROP.find(s=>s[0]===k)||[,k])[1]):i.phase==="improve"?((CHK_IMP.find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
+  const H2=["清單","ABCD","項目","樁號","結果","備註"];
+  const R2=d?chk.filter(i=>d.st&&d.st[i.id]).map(i=>[i.phase==="propose"?"預計提出意見":i.phase==="improve"?"改善意見":"核對清單",i.abcd||"",i.text||"",i.stake||"",lbOf(i,d.st[i.id]),(d.notes||{})[i.id]||""]):[];
+  return {c,H1,R1,H2,R2};
+}
+const hEsc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+async function copyTable(H,R,btn){
+  const html=`<table border="1" style="border-collapse:collapse"><tr>${H.map(x=>`<th>${hEsc(x)}</th>`).join("")}</tr>${R.map(r=>`<tr>${r.map(x=>`<td>${hEsc(x)}</td>`).join("")}</tr>`).join("")}</table>`;
+  const txt=[H,...R].map(r=>r.map(x=>String(x).replace(/[\t\n]/g," ")).join("\t")).join("\n");
+  const o=btn.textContent,done=m=>{btn.textContent=m;setTimeout(()=>btn.textContent=o,1500)};
+  try{await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([txt],{type:"text/plain"})})]);done("已複製")}
+  catch(e){try{await navigator.clipboard.writeText(txt);done("已複製")}catch(_){done("複製失敗")}}
+}
+function renderExp(){
+  const box=$("expBox");box.innerHTML="";if(!curCase)return;
+  const days=[...new Set([...records.filter(r=>r.caseId===curCase).map(recDay),...Object.values(checkRes).filter(d=>d.caseId===curCase).map(d=>ymd2day(d.date))])].sort().reverse();
+  if(expDay==null||(expDay&&!days.includes(expDay)))expDay=days[0]||"";
+  const row=document.createElement("div");row.className="row";
+  const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="日期";
+  const sel=document.createElement("select");sel.className="grow";
+  [["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===expDay;sel.appendChild(o)});
+  sel.onchange=()=>{expDay=sel.value;renderExp()};row.append(lb,sel);
+  const {c,H1,R1,H2,R2}=expData(expDay);
+  const info=document.createElement("div");info.className="hint";
+  info.textContent=`紀錄 ${R1.length} 筆`+(expDay?`、核對結果 ${R2.length} 項`:"（核對結果要選單一日期）")+"。複製後貼到Word或Excel會是表格；照片檔名對應「下載本案照片」的檔案。";
+  const bs=document.createElement("div");bs.className="row";
+  const mk=(t,f)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>f(b);bs.appendChild(b);return b};
+  mk("複製紀錄表格",b=>copyTable(H1,R1,b)).disabled=!R1.length;
+  if(expDay)mk("複製核對結果",b=>copyTable(H2,R2,b)).disabled=!R2.length;
+  mk("下載CSV",()=>{const csv=v=>`"${String(v).replace(/"/g,'""')}"`;
+    const parts=[[H1,...R1].map(r=>r.map(csv).join(",")).join("\r\n")];
+    if(expDay&&R2.length)parts.push("",[H2,...R2].map(r=>r.map(csv).join(",")).join("\r\n"));
+    downloads.save({filename:safeName(c.name||"案件")+"_現場紀錄"+(expDay?"_"+expDay.replace(/\//g,""):"")+".csv",data:new Blob(["﻿"+parts.join("\r\n")],{type:"text/csv"})})}).disabled=!R1.length;
+  box.append(row,info,bs);
+}
+$("expBtn").onclick=()=>{const b=$("expBox");b.hidden=!b.hidden;if(!b.hidden)renderExp()};
 
 /* ---------- 地圖：中心線、樁號、紀錄點位、我的位置（國土測繪中心圖磚，按鈕開啟才載入元件） ---------- */
 let lfReady=null,map=null,mapLayers=null,meLayer=null,baseOn="EMAP",baseLayer=null,mapTimer=null;
