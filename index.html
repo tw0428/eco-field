@@ -1285,7 +1285,12 @@ $("recForm").onsubmit=async e=>{
   try{
     const blobs=[];
     for(let i=0;i<pending.length;i++){let blob;try{blob=await compress(pending[i].file)}catch(err){blob=pending[i].file}blobs.push(blob)}
+    // 照片還在等定位就先等（最多10秒），存太快也不會漏掉GPS
+    if(pending.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(10000);
+      if(g)pending.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})})}
     const gp=pending.find(p=>p.ex.lat!=null);const tp=pending.find(p=>p.ex.taken);
+    // 樁號欄空白但有GPS：存檔時補上推估樁號（離中心線60m內才補）
+    if(!f.stake&&gp){const v=fillOf(nearestStation(gp.ex.lat,gp.ex.lng));if(v)f.stake=v}
     const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
     if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
     if(!editing){body.stage=curStage();const by=whoAsk();if(by)body.by=by}
