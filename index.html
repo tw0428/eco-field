@@ -1258,6 +1258,9 @@ $("rvClose").onclick=closeRec;
 function startEdit(r){
   editing=r;editKeep=[...(r.photos||[])];cat=r.category||"其他";abcd=r.abcd||"";setLink(r.checkId);
   $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";
+  // 樁號欄原本空白、但紀錄有GPS：帶入GPS推估的樁號（卡片上顯示的那個），存檔就會寫進去
+  $("stakeHint").hidden=true;
+  if(!r.stake&&r.lat!=null){const ns=nearestStation(r.lat,r.lng);if(ns){if(fillOf(ns))$("stakeIn").value=fillOf(ns);$("stakeHint").textContent="GPS推估："+stationText(ns)+"（原本未填樁號）";$("stakeHint").hidden=false}}
   $("formTitle").textContent="編輯紀錄（可再加照片）";$("cancelEdit").hidden=false;$("saveBtn").textContent="儲存修改";
   renderChips();renderPending();showMsg("");$("recForm").scrollIntoView({behavior:"smooth"});
 }
