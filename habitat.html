@@ -124,7 +124,7 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="shareBtn" style="margin-left:auto">分享給同事</a></div>
+<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto">匯出</a><a href="#" id="shareBtn">分享給同事</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -721,6 +721,7 @@ document.addEventListener('click',e=>{
  const t=e.target;
  if(t.dataset.p!=null){S.cur=+t.dataset.p;if(S.view==='cmp'||S.view==='note')S.view='creek';render();}
  else if(t.dataset.v){S.view=t.dataset.v;render();}
+ else if(t.id==='expLink'){e.preventDefault();S.view='cmp';render();scrollTo(0,0)}
  else if(t.dataset.exp){S.exp=t.dataset.exp;lsSet('habitat_exp',S.exp);render()}
  else if(t.dataset.copy){const D=exportData(),k=t.dataset.copy;
   if(k==='sT')copyRich(tblHtml(D.slope,true),tblTsv(D.slope),t);
