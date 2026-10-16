@@ -943,7 +943,7 @@ function renderStage(){
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
-let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null,chkDay=null;
+let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null,chkDay=null,chkVisit=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
@@ -952,11 +952,15 @@ const CHK_DES=[["ok","✓ 已納入"],["adj","△ 部分納入"],["ng","✗ 未�
 const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_ST;
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
-// 核對日期：預設今天；可切到以前某天查看／修改那天的核對結果
-function curDay(){return chkDay||today()}
-// 每個階段只有一份核對結果（依階段存，不會每天開新的），日期存在結果裡（同棲地評估的期別日期）
-const byDay=()=>false;
-function resId(){return curCase+"_"+(byDay()?curDay():curStage())}
+function curDay(){return today()}
+// 每個階段一份核對結果（依階段存，不會每天開新的），日期存在結果裡（同棲地評估的期別日期）
+// 施工中可多次現勘：每次一份（key＝案件_施工中_編號；改版前依日期存的也算一次），可切換或新增
+const byDay=()=>curStage()==="施工中";
+function visits(){return Object.entries(checkRes).filter(([k,d])=>d.caseId===curCase&&d.stage==="施工中"&&d.st&&Object.keys(d.st).length)
+  .sort((a,b)=>(a[1].date||"").localeCompare(b[1].date||"")||((a[1].updatedAt||0)-(b[1].updatedAt||0)))}
+function resId(){if(!byDay())return curCase+"_"+curStage();
+  if(chkVisit)return chkVisit;const v=visits();if(v.length)return v[v.length-1][0];
+  return chkVisit=curCase+"_施工中_"+Date.now().toString(36)}
 // 目前這份結果；依階段存的還沒有時，沿用改版前同階段依日期存的最新一份（第一次按就會轉存成階段那份）
 function curRes(){const k=resId();if(checkRes[k])return checkRes[k];if(byDay())return null;const s=curStage();
   return Object.values(checkRes).filter(d=>d.caseId===curCase&&d.stage===s&&d.st&&Object.keys(d.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0]||null}
@@ -966,7 +970,7 @@ const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改�
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk&&ae.tagName!=="SELECT"&&chkCase===curCase)return;
-  if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null;chkDay=null}
+  if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null;chkDay=null;chkVisit=null}
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
   const repItems=stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&i.phase!=="improve"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report"));
@@ -990,7 +994,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   if(box.hidden)return;
   if(title)title.textContent=titleText;
   const cr=curRes(),st=(cr&&cr.st)||{},notes=(cr&&cr.notes)||{};
-  const past=Object.values(checkRes).filter(d=>d!==cr&&d.caseId===curCase&&d.stage!==stage).sort((a,b)=>b.date.localeCompare(a.date));
+  const past=Object.values(checkRes).filter(d=>d!==cr&&d.caseId===curCase&&(byDay()?(d.date||"")<=((cr&&cr.date)||today()):d.stage!==stage)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const lastOf=it=>{const d=past.find(d=>d.st&&d.st[it.id]);if(!d)return "";const k=d.st[it.id];
     const lb=it.phase==="propose"||it.phase==="improve"?(((it.phase==="propose"?CHK_PROP:CHK_IMP).find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
     const nt=(d.notes||{})[it.id];return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`+(nt?`（${nt}）`:"")};
@@ -1001,6 +1005,14 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     const di=document.createElement("input");di.type="date";di.dataset.chk="date";
     const sv=cr&&/^\d{8}$/.test(cr.date||"")?cr.date:"",show=sv||today();di.value=`${show.slice(0,4)}-${show.slice(4,6)}-${show.slice(6)}`;
     di.onchange=()=>{const v=di.value.replace(/-/g,"");if(/^\d{8}$/.test(v))setCheckDate(v)};dr.append(lb,di);
+    // 施工中：選第幾次現勘／新增一次
+    if(byDay()){const vs=visits(),rid=resId(),sel=document.createElement("select");sel.dataset.chk="visit";
+      const opts=vs.map(([k,d],i)=>[k,`第${i+1}次 ${(d.date||"").slice(4,6)}/${(d.date||"").slice(6)}`]);if(!vs.some(([k])=>k===rid))opts.push([rid,`第${vs.length+1}次（新）`]);
+      opts.forEach(([k,x])=>{const o=document.createElement("option");o.value=k;o.textContent=x;o.selected=k===rid;sel.appendChild(o)});
+      sel.onchange=()=>{chkVisit=sel.value;chkEditId=null;chkSort=null;sel.blur();renderChecks()};
+      const nb=document.createElement("button");nb.type="button";nb.textContent="＋新增一次現勘";nb.style.cssText="padding:5px 10px;font-size:13px";
+      nb.disabled=!vs.some(([k])=>k===rid);nb.onclick=()=>{chkVisit=curCase+"_施工中_"+Date.now().toString(36);chkEditId=null;chkSort=null;renderChecks()};
+      dr.prepend(sel);dr.appendChild(nb)}
     if(!sv){const m=document.createElement("span");m.className="hint";m.textContent="（今天，開始核對時存入）";dr.appendChild(m)}
     list.appendChild(dr)}
   // 有 group（工區）時依群組首次出現順序分組並加標題
