@@ -943,7 +943,7 @@ function renderStage(){
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
-let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null;
+let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null,chkDay=null;
 const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
@@ -952,14 +952,16 @@ const CHK_DES=[["ok","✓ 已納入"],["adj","△ 部分納入"],["ng","✗ 未�
 const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_ST;
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
-function resId(){return curCase+"_"+today()}
+// 核對日期：預設今天；可切到以前某天查看／修改那天的核對結果
+function curDay(){return chkDay||today()}
+function resId(){return curCase+"_"+curDay()}
 // 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄 ok同意/adj調整/ng做不到/wait待回覆
 const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 做不到"],["wait","… 待回覆"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk&&ae.tagName!=="SELECT"&&chkCase===curCase)return;
-  if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null}
+  if(chkCase!==curCase){chkCase=curCase;chkEditId=null;chkSort=null;chkDay=null}
   const c=cases.find(x=>x.id===curCase),stage=curStage(),all=(c&&c.checks)||[];
   if(linkCheck&&!all.find(i=>i.id===linkCheck))setLink(null);
   const repItems=stage==="提報"?[]:all.filter(i=>i.phase!=="propose"&&i.phase!=="improve"&&(stage==="設計"?i.phase==="report":stage==="開工前"?i.phase==="design":i.phase!=="report"));
@@ -983,11 +985,20 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   if(box.hidden)return;
   if(title)title.textContent=titleText;
   const st=(checkRes[resId()]&&checkRes[resId()].st)||{},notes=(checkRes[resId()]&&checkRes[resId()].notes)||{};
-  const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date<today()).sort((a,b)=>b.date.localeCompare(a.date));
+  const past=Object.values(checkRes).filter(d=>d.caseId===curCase&&d.date&&d.date<curDay()).sort((a,b)=>b.date.localeCompare(a.date));
   const lastOf=it=>{const d=past.find(d=>d.st&&d.st[it.id]);if(!d)return "";const k=d.st[it.id];
     const lb=it.phase==="propose"||it.phase==="improve"?(((it.phase==="propose"?CHK_PROP:CHK_IMP).find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
-    return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`};
-  count.textContent=items.length?`今天已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
+    const nt=(d.notes||{})[it.id];return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`+(nt?`（${nt}）`:"")};
+  const dayTxt=chkDay?`${chkDay.slice(4,6)}/${chkDay.slice(6)} `:"今天";
+  count.textContent=items.length?`${dayTxt}已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
+  // 日期切換：有核對紀錄的日期都列出來
+  const days=[...new Set(Object.values(checkRes).filter(d=>d.caseId===curCase&&/^\d{8}$/.test(d.date||"")&&d.st&&Object.keys(d.st).length).map(d=>d.date))].filter(d=>d!==today()).sort().reverse();
+  if(days.length||chkDay){const dr=document.createElement("div");dr.className="row chkday";
+    const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="核對日期";
+    const sel=document.createElement("select");sel.className="grow";
+    [["","今天 "+today().slice(4,6)+"/"+today().slice(6)],...days.map(d=>[d,`${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6)}`])].forEach(([v,x])=>{const o=document.createElement("option");o.value=v;o.textContent=x;o.selected=v===(chkDay||"");sel.appendChild(o)});
+    sel.onchange=()=>{chkDay=sel.value||null;chkEditId=null;chkSort=null;renderChecks()};dr.append(lb,sel);list.appendChild(dr);
+    if(chkDay){const w=document.createElement("div");w.className="chkbanner";w.textContent=`正在看 ${chkDay.slice(4,6)}/${chkDay.slice(6)} 的核對結果，在這裡修改會存回那一天。`;list.appendChild(w)}}
   // 有 group（工區）時依群組首次出現順序分組並加標題
   const gOrder=[...new Set(items.map(i=>i.group||""))];
   if(gOrder.some(Boolean))items.sort((a,b)=>gOrder.indexOf(a.group||"")-gOrder.indexOf(b.group||""));
@@ -1118,7 +1129,7 @@ async function setCheck(id,v,note){
   if(!db)return;const rid=resId(),cur=checkRes[rid]||{st:{}};const st={...cur.st},nt={...(cur.notes||{})};
   if(v)st[id]=v;else delete st[id];
   if(note!==undefined){if(note)nt[id]=note;else delete nt[id]}
-  const doc={caseId:curCase,date:today(),stage:curStage(),st,notes:nt,updatedAt:Date.now()};
+  const doc={caseId:curCase,date:curDay(),stage:cur.stage||curStage(),st,notes:nt,updatedAt:Date.now()};
   checkRes[rid]=doc;renderChecks();
   try{
     if(navigator.onLine===false)throw new TypeError("offline");
