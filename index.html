@@ -1001,7 +1001,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   count.textContent=items.length?`已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
   // 核對日期（同棲地評估）：每階段一份結果；第一次核對時存入今天，之後不會自己變，要改日期直接改
   if(c&&(!list.closest("#propBox")||$("chkBox").hidden)){const dr=document.createElement("div");dr.className="row chkday";
-    const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="核對日期";
+    const lb=document.createElement("span");lb.className="lbl";lb.style.margin="0";lb.textContent="核對日期";lb.style.whiteSpace="nowrap";
     const di=document.createElement("input");di.type="date";di.dataset.chk="date";
     const sv=cr&&/^\d{8}$/.test(cr.date||"")?cr.date:"",show=sv||today();di.value=`${show.slice(0,4)}-${show.slice(4,6)}-${show.slice(6)}`;
     di.onchange=()=>{const v=di.value.replace(/-/g,"");if(/^\d{8}$/.test(v))setCheckDate(v)};dr.append(lb,di);
@@ -1012,7 +1012,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       sel.onchange=()=>{chkVisit=sel.value;chkEditId=null;chkSort=null;sel.blur();renderChecks()};
       const nb=document.createElement("button");nb.type="button";nb.textContent="＋新增一次現勘";nb.style.cssText="padding:5px 10px;font-size:13px";
       nb.disabled=!vs.some(([k])=>k===rid);nb.onclick=()=>{chkVisit=curCase+"_施工中_"+Date.now().toString(36);chkEditId=null;chkSort=null;renderChecks()};
-      dr.prepend(sel);dr.appendChild(nb)}
+      sel.className="grow";nb.style.whiteSpace="nowrap";const vr=document.createElement("div");vr.className="row chkday";vr.append(sel,nb);list.appendChild(vr)}
     if(!sv){const m=document.createElement("span");m.className="hint";m.textContent="（今天，開始核對時存入）";dr.appendChild(m)}
     list.appendChild(dr)}
   // 有 group（工區）時依群組首次出現順序分組並加標題
