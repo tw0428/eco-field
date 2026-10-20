@@ -120,6 +120,7 @@ button.danger{color:var(--danger);border-color:var(--danger)}
 .vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
 .vcontent{transform-origin:0 0}
 #viewer{z-index:60}.vcontent img,.vcontent canvas{display:block;max-width:none;background:#fff;margin-bottom:8px}
+.vcontent img{-webkit-user-drag:none;user-select:none;pointer-events:none}
 .vmsg{padding:24px;color:var(--muted)}
 .plans{display:flex;flex-direction:column;gap:6px}
 .planlist{display:flex;flex-direction:column;gap:6px}
@@ -1098,11 +1099,13 @@ $("vOut").onclick=()=>vSetZoom(vZoom/1.5);
 $("vFit").onclick=vFit;
 (()=>{const st=$("vStage");const pts=new Map();let d0=0,z0=1;
   const dist=()=>{const p=[...pts.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};
-  st.addEventListener("pointerdown",e=>{try{st.setPointerCapture(e.pointerId)}catch(_){};pts.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pts.size===2){d0=dist();z0=vZoom}});
+  // 滑鼠按住拖曳＝移動畫面：先擋掉瀏覽器原生的「拖走圖片」，不然拖不動
+  st.addEventListener("dragstart",e=>e.preventDefault());
+  st.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"){if(e.button!==0)return;e.preventDefault();st.style.cursor="grabbing"}try{st.setPointerCapture(e.pointerId)}catch(_){};pts.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pts.size===2){d0=dist();z0=vZoom}});
   st.addEventListener("pointermove",e=>{if(!pts.has(e.pointerId))return;const prev=pts.get(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(pts.size===1){st.scrollLeft-=e.clientX-prev.x;st.scrollTop-=e.clientY-prev.y;return}
     if(pts.size===2&&d0){const p=[...pts.values()],r=st.getBoundingClientRect();vSetZoom(z0*dist()/d0,(p[0].x+p[1].x)/2-r.left,(p[0].y+p[1].y)/2-r.top)}});
-  const up=e=>{pts.delete(e.pointerId);if(pts.size<2)d0=0};
+  const up=e=>{pts.delete(e.pointerId);if(pts.size<2)d0=0;if(!pts.size)st.style.cursor=""};
   st.addEventListener("pointerup",up);st.addEventListener("pointercancel",up);
   // 照片：雙擊在「整張」與「放大到原尺寸」間切換；滾輪直接縮放（平面圖PDF仍是滾輪捲動、Ctrl+滾輪縮放）
   st.addEventListener("dblclick",e=>{if(!vImg)return;const r=st.getBoundingClientRect(),fit=Math.min((st.clientWidth-4)/vImg.naturalWidth,(st.clientHeight-4)/vImg.naturalHeight,1.5);
