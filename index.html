@@ -63,6 +63,18 @@ h1{font-size:20px;margin:0;letter-spacing:.02em}
 .lbl{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
 select,input[type=text],input[type=number],input[type=password],textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 textarea{min-height:72px;resize:vertical}
+/* 新增紀錄表單精簡版：標題只給讀屏、說明框兩行起跳隨內容長高、兩個勾選同一行 */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#recForm{gap:8px}
+#recForm textarea{min-height:0;overflow:hidden}
+.ckrow{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:14px;color:var(--accent)}
+.ckrow label{display:flex;gap:6px;align-items:center}
+/* 浮動拍照鈕不要蓋住最後一筆紀錄 */
+#recList{padding-bottom:76px}
+.offitem{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.offinfo{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;color:var(--muted)}
+.offinfo b{color:var(--fg);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.offitem button{padding:6px 10px;font-size:13px;flex:none}
 button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:8px 12px;cursor:pointer}
 button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
@@ -270,7 +282,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <label for="camIn" id="fab" class="fab" hidden aria-label="拍照">📷</label>
 <div class="wrap">
   <div class="pagehead" id="pagehead">
-  <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+  <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html" id="toHab">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink">匯出</a><a href="#" id="shareBtn">分享給同事</a></div>
   <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
   <div class="row">
@@ -304,7 +316,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <span class="lbl">平面圖／圖說（點開可放大）</span>
       <div id="planList" class="planlist"></div>
     </div>
-    <button type="button" id="offBtn" class="mapbtn" hidden>⬇ 下載離線包（平面圖、照片、地圖，出發前有網路時按）</button>
+    <button type="button" id="offBtn" class="mapbtn" hidden>⬇ 離線包</button>
     <div class="hint" id="offMsg" hidden></div>
   </section>
 
@@ -333,24 +345,23 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <a href="#" class="hint near" id="nearBox" hidden></a>
     <div class="thumbs" id="pendThumbs"></div>
 
-    <div>
-      <span class="lbl">類別</span>
-      <div class="chips" id="catChips"></div>
-    </div>
+    <!-- 表單精簡：欄位標題改成框內提示字（標題仍留給讀屏），省掉每欄一行 -->
+    <div class="chips" id="catChips" role="group" aria-label="類別"></div>
     <div id="abcdBox" hidden>
-      <span class="lbl">措施分類</span>
-      <div class="chips" id="abcdChips"></div>
+      <div class="chips" id="abcdChips" role="group" aria-label="措施分類"></div>
     </div>
 
     <div class="two">
-      <div><label class="lbl" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="例 0K+120 左岸"><span class="stkbtn" id="stakeArrow" hidden>▾</span><select id="stakeSel" aria-label="從樁號清單選" hidden></select></div><div class="hint" id="stakeHint" hidden></div></div>
-      <div><label class="lbl" for="countIn">數量</label><input type="text" id="countIn" placeholder="例 3隻、1株"></div>
+      <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><span class="stkbtn" id="stakeArrow" hidden>▾</span><select id="stakeSel" aria-label="從樁號清單選" hidden></select></div><div class="hint" id="stakeHint" hidden></div></div>
+      <div><label class="sr" for="countIn">數量</label><input type="text" id="countIn" placeholder="數量（3隻、1株）"></div>
     </div>
-    <div><label class="lbl" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="例 臺灣白魚、胸徑60cm榕樹"></div>
-    <div id="chkLinkBox" hidden><label class="lbl" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
-    <div><label class="lbl" for="noteIn">說明</label><textarea id="noteIn" placeholder="現況、建議、待確認事項"></textarea></div>
-    <label id="impBox" class="hint" style="display:flex;gap:6px;align-items:center;font-size:14px" hidden><input type="checkbox" id="impChk" checked>列入改善追蹤（說明會成為「改善意見」清單的一條，之後現勘追蹤）</label>
-    <label class="hint" style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="opChk">★ 要寫進意見（出會議紀錄／表11時優先採用）</label>
+    <div><label class="sr" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="物種／對象（臺灣白魚、胸徑60cm榕樹）"></div>
+    <div id="chkLinkBox" hidden><label class="sr" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
+    <div><label class="sr" for="noteIn">說明</label><textarea id="noteIn" rows="2" placeholder="說明：現況、建議、待確認事項"></textarea></div>
+    <div class="ckrow">
+      <label id="impBox" hidden><input type="checkbox" id="impChk" checked>列入改善追蹤</label>
+      <label><input type="checkbox" id="opChk">★ 寫進意見</label>
+    </div>
 
     <div id="formMsg" class="msg" hidden></div>
     <button class="primary" type="submit" id="saveBtn">儲存紀錄</button>
@@ -366,6 +377,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
     <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px">📋 匯出</button><button type="button" id="zipBtn">⬇ 下載本案照片</button></div>
+    <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
   </section>
@@ -801,6 +813,13 @@ $("batchBtn").onclick=async()=>{
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
 $("camIn").onclick=()=>geoStart();/* ---------- 案件 ---------- */
+/* 兩個工具切換時帶著目前案件：點頂端連結時記下 eco-jump，另一頁讀到案件清單後套用一次（5分鐘內有效） */
+function takeJump(to){let j=null;try{j=JSON.parse(lsGet("eco-jump")||"null")}catch(e){}
+  if(!j||j.to!==to)return null;try{localStorage.removeItem("eco-jump")}catch(e){}return Date.now()-j.t<300000?j:null}
+function jumpNote(text){let b=$("jumpBox");if(b)b.remove();b=document.createElement("div");b.id="jumpBox";b.className="chkbanner";
+  const s=document.createElement("span");s.textContent=text;const x=document.createElement("button");x.type="button";x.textContent="關閉";x.onclick=()=>b.remove();
+  b.append(s,x);document.querySelector(".caseinfo").before(b)}
+$("toHab").onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet("eco-jump",JSON.stringify({to:"habitat",id:c.id,name:c.name,t:Date.now()}))};
 function renderCases(){
   const sel=$("caseSel");sel.innerHTML="";
   if(!cases.length){sel.innerHTML='<option value="">（尚無案件，請先新增）</option>'}
@@ -809,6 +828,9 @@ function renderCases(){
     const n=records.filter(r=>r.caseId===c.id).length;
     o.textContent=`${c.name}（${n}）`;sel.appendChild(o);
   });
+  // 從棲地評估切過來：同id優先、再找同名；找不到就留在上次的案件並提示
+  const j=cases.length&&takeJump("field");
+  if(j){const hit=cases.find(c=>c.id===j.id)||cases.find(c=>c.name===j.name);if(hit){curCase=hit.id;lsSet("eco-case",curCase)}else jumpNote(`棲地評估的「${j.name}」在現場紀錄沒有同名案件，目前顯示上次的案件。`)}
   if(!cases.find(c=>c.id===curCase))curCase=cases.find(c=>c.id===lsGet("eco-case"))?lsGet("eco-case"):(cases[0]?.id||"");
   sel.value=curCase;
   const c=cases.find(x=>x.id===curCase),info=$("caseStakeInfo");
@@ -958,34 +980,94 @@ function offTiles(c){
   const out=[];let cnt=0;
   for(let z=13;z<=19;z++){
     const [x0,y0]=tileXY(N,W,z),[x1,y1]=tileXY(S,E,z),k=(x1-x0+1)*(y1-y0+1);if(cnt+k>1500)break;cnt+=k;
-    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)["EMAP","PHOTO2"].forEach(l=>out.push(`https://wmts.nlsc.gov.tw/wmts/${l}/default/GoogleMapsCompatible/${z}/${y}/${x}`));
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)out.push(`${z}/${y}/${x}`);
   }
   return out;
 }
 async function pool(items,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length)await fn(items[i++])}))}
-async function cachePut(name,u){const c=await caches.open(name);if(await c.match(u))return;const r=await fetch(u,{mode:"cors"});if(!r.ok)throw new Error(r.status);await c.put(u,r)}
-function offShow(c){
-  const b=$("offBtn"),m=$("offMsg");b.hidden=!c;if(!c){m.hidden=true;return}if(b.disabled)return;
-  let s=null;try{s=JSON.parse(lsGet(offKey(c.id))||"null")}catch(e){}
-  m.hidden=!s;if(!s)return;
-  const d=new Date(s.at);m.textContent=`已下載離線包（${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）：平面圖/照片 ${s.files} 個、地圖 ${s.tiles} 格`+(s.noMap?"（本案沒有樁號或定位紀錄，地圖沒下載）":"")+(s.fail?`；${s.fail} 個失敗，可再按一次補抓`:"")+"。之後新增的照片或平面圖要再按一次。";
-}
-$("offBtn").onclick=async()=>{
-  const c=cases.find(x=>x.id===curCase),b=$("offBtn"),m=$("offMsg");if(!c||b.disabled)return;
-  m.hidden=false;if(navigator.onLine===false){m.textContent="目前沒網路，請在有訊號的地方下載。";return}
-  b.disabled=true;
-  try{await navigator.storage.persist()}catch(e){}
+// 存一個網址進暫存，回傳大小（bytes）；已存過就用現有的
+async function cachePut(name,u){const c=await caches.open(name);const hit=await c.match(u);if(hit)return (await hit.blob()).size;
+  const r=await fetch(u,{mode:"cors"});if(!r.ok)throw new Error(r.status);const b=await r.clone().blob();await c.put(u,r);return b.size}
+const tileUrl=(l,k)=>`https://wmts.nlsc.gov.tw/wmts/${l}/default/GoogleMapsCompatible/${k}`;
+// 每案一份紀錄 eco-offpack-<案件id>：{at,files:[照片/平面圖id],tiles:["z/y/x"],bytes,fail,noMap}，刪除時靠它知道要清哪些
+function offPacks(){const out=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith("eco-offpack-"))continue;
+  try{const v=JSON.parse(localStorage.getItem(k));if(v&&v.at)out.push({...v,id:k.slice(12)})}catch(e){}}}catch(e){}return out.sort((a,b)=>b.at-a.at)}
+const offGet=id=>offPacks().find(p=>p.id===id)||null;
+const fmtMB=b=>b>=1048576?(b/1048576).toFixed(b>=104857600?0:1)+" MB":Math.max(1,Math.round(b/1024))+" KB";
+const fmtAt=t=>{const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
+let offBusy=null; // 下載中：{id,done,total}
+async function offDownload(c){
+  if(offBusy)return;if(navigator.onLine===false){offErr="目前沒網路，請在有訊號的地方下載。";offRender();return}
+  offErr="";try{await navigator.storage.persist()}catch(e){}
   const files=[...new Set([...(c.plans||[]).map(p=>p.id),...(c.overlays||[]).map(o=>o.id),...records.filter(r=>r.caseId===c.id).flatMap(r=>r.photos||[])].filter(Boolean))];
-  const tiles=offTiles(c),total=OFF_LIBS.length+files.length+tiles.length;let done=0,fail=0;
-  const tick=()=>{m.textContent=`下載中 ${done}/${total}…（可以繼續操作，頁面先不要關）`};tick();
-  const step=async f=>{try{await f()}catch(e){fail++}done++;if(done%10===0||done===total)tick()};
+  const tiles=offTiles(c);
+  offBusy={id:c.id,done:0,total:OFF_LIBS.length+files.length+tiles.length*2};let fail=0,bytes=0;offRender();
+  const step=async f=>{try{bytes+=(await f())||0}catch(e){fail++}offBusy.done++;if(offBusy.done%10===0||offBusy.done===offBusy.total)offRender()};
   try{
-    await pool(OFF_LIBS,3,u=>step(()=>cachePut(LIB_CACHE,u)));
-    await pool(files,4,id=>step(()=>fileBlob(id)));
-    await pool(tiles,6,u=>step(()=>cachePut(TILE_CACHE,u)));
-    lsSet(offKey(c.id),JSON.stringify({at:Date.now(),files:files.length,tiles:tiles.length/2,fail,noMap:!tiles.length}));
-  }finally{b.disabled=false;offShow(c)}
-};
+    await pool(OFF_LIBS,3,u=>step(()=>cachePut(LIB_CACHE,u).then(()=>0)));
+    await pool(files,4,id=>step(async()=>(await fileBlob(id)).size));
+    await pool(tiles.flatMap(k=>["EMAP","PHOTO2"].map(l=>tileUrl(l,k))),6,u=>step(()=>cachePut(TILE_CACHE,u)));
+    lsSet(offKey(c.id),JSON.stringify({at:Date.now(),files,tiles,bytes,fail,noMap:!tiles.length}));
+  }finally{offBusy=null;offRender()}
+}
+// 只刪這一案用到、而且別的離線包沒用到的檔案與圖磚（相鄰案件常共用圖磚）
+async function offDelete(id){
+  const all=offPacks(),me=all.find(p=>p.id===id);if(!me)return;
+  const others=all.filter(p=>p.id!==id),arr=x=>Array.isArray(x)?x:[];
+  const keepF=new Set(others.flatMap(p=>arr(p.files))),keepT=new Set(others.flatMap(p=>arr(p.tiles)));
+  try{
+    const fc=await caches.open(FILE_CACHE),tc=await caches.open(TILE_CACHE);
+    for(const f of arr(me.files))if(!keepF.has(f)){await fc.delete(fileKey(f));blobCache.delete(f)}
+    for(const t of arr(me.tiles))if(!keepT.has(t))for(const l of ["EMAP","PHOTO2"])await tc.delete(tileUrl(l,t));
+    if(!others.length)await caches.delete(LIB_CACHE);
+  }catch(e){}
+  try{localStorage.removeItem(offKey(id))}catch(e){}
+}
+let offErr="";
+// 案件資訊區：一顆按鈕，文字直接顯示本案狀態；點開是離線包管理
+function offShow(c){
+  const b=$("offBtn"),m=$("offMsg");b.hidden=!c;if(!c){m.hidden=true;return}
+  const s=offGet(c.id);
+  b.textContent=offBusy&&offBusy.id===c.id?`⬇ 離線包：下載中 ${offBusy.done}/${offBusy.total}`:s?`⬇ 離線包：已下載（${fmtAt(s.at)}）`:"⬇ 離線包：未下載";
+  const newer=s&&records.some(r=>r.caseId===c.id&&(r.photos||[]).some(p=>!s.files.includes?.(p)));
+  m.hidden=!newer;if(newer)m.textContent="下載後有新增照片，出發前可以按進去「更新」。";
+}
+function offRender(){
+  const c=cases.find(x=>x.id===curCase);offShow(c);
+  const box=$("offBox");if(!box||$("offSheet").hidden)return;box.innerHTML="";
+  const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+  const packs=offPacks();
+  if(c){
+    const s=packs.find(p=>p.id===c.id),sec=el("div","expbtns");
+    sec.appendChild(el("div","lbl","本案："+c.name));
+    const go=el("button","primary",offBusy&&offBusy.id===c.id?`下載中 ${offBusy.done}/${offBusy.total}…`:s?"⬇ 更新本案離線包":"⬇ 下載本案離線包");
+    go.type="button";go.disabled=!!offBusy;go.onclick=()=>offDownload(c);sec.appendChild(go);
+    sec.appendChild(el("div","hint",offErr||"含平面圖、對位設計圖、本案照片、工區周圍約300m的地圖。出發前有網路時下載；下載中可以繼續操作，頁面先不要關。"));
+    if(s&&s.noMap)sec.appendChild(el("div","hint","本案沒有樁號或定位紀錄，地圖沒有下載。"));
+    box.appendChild(sec);
+  }
+  box.appendChild(el("div","lbl",packs.length?`手機上的離線包（${packs.length} 個）`:"手機上還沒有離線包。"));
+  packs.forEach(p=>{
+    const cc=cases.find(x=>x.id===p.id),row=el("div","offitem");
+    const info=el("div","offinfo");info.appendChild(el("b",null,cc?cc.name:"（案件已刪除）"));
+    info.appendChild(el("span",null,`${fmtAt(p.at)}・約 ${fmtMB(p.bytes||0)}・檔案 ${Array.isArray(p.files)?p.files.length:0}・地圖 ${Array.isArray(p.tiles)?p.tiles.length:0} 格`+(p.fail?`・${p.fail} 個失敗`:"")));
+    row.appendChild(info);
+    if(cc){const u=el("button",null,"更新");u.type="button";u.disabled=!!offBusy;u.onclick=()=>offDownload(cc);row.appendChild(u)}
+    const d=el("button","danger","刪除");d.type="button";d.disabled=!!offBusy;
+    d.onclick=async()=>{if(d.dataset.armed!=="1"){d.dataset.armed="1";d.textContent="確認刪除";setTimeout(()=>{d.dataset.armed="";d.textContent="刪除"},4000);return}
+      d.disabled=true;await offDelete(p.id);offRender()};
+    row.appendChild(d);box.appendChild(row);
+  });
+  if(packs.length>1){const all=el("button","danger","刪除全部離線包");all.type="button";all.disabled=!!offBusy;
+    all.onclick=async()=>{if(all.dataset.armed!=="1"){all.dataset.armed="1";all.textContent="再按一次刪除全部";setTimeout(()=>{all.dataset.armed="";all.textContent="刪除全部離線包"},4000);return}
+      all.disabled=true;for(const p of offPacks())await offDelete(p.id);offRender()};
+    box.appendChild(all)}
+  const use=el("div","hint","");box.appendChild(use);
+  try{navigator.storage.estimate().then(e=>{use.textContent=`本工具在手機上共用了約 ${fmtMB(e.usage||0)}（含離線包、平時看過的照片、待上傳資料）。刪除離線包不會刪到金鑰和待上傳的紀錄。`})}catch(e){}
+}
+$("offBtn").onclick=()=>{$("offSheet").hidden=false;offRender()};
+$("offClose").onclick=()=>{$("offSheet").hidden=true};
+$("offSheet").onclick=e=>{if(e.target.id==="offSheet")$("offSheet").hidden=true};
 
 /* ---------- 階段（每案記在本機，新紀錄帶 stage） ---------- */
 const STAGES=["提報","設計","開工前","施工中","完工"];
@@ -1215,7 +1297,7 @@ async function putRes(doc){
 function renderLinkSel(){
   const c=cases.find(x=>x.id===curCase),items=(c&&c.checks)||[],sel=$("chkLinkSel");
   $("chkLinkBox").hidden=!items.length;sel.innerHTML="";
-  const o0=document.createElement("option");o0.value="";o0.textContent="（不連結）";sel.appendChild(o0);
+  const o0=document.createElement("option");o0.value="";o0.textContent="對應核對事項：（不連結）";sel.appendChild(o0);
   const groups=[...new Set(items.map(i=>i.group||""))];
   groups.forEach(g=>{
     const parent=g?document.createElement("optgroup"):sel;if(g){parent.label=g;sel.appendChild(parent)}
@@ -1347,7 +1429,7 @@ $("rvClose").onclick=closeRec;
 /* ---------- 編輯 ---------- */
 function startEdit(r){
   editing=r;editKeep=[...(r.photos||[])];cat=r.category||"其他";abcd=r.abcd||"";setLink(r.checkId);
-  $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";$("opChk").checked=!!r.op;
+  $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";growNote();$("opChk").checked=!!r.op;
   // 樁號欄原本空白、但紀錄有GPS：帶入GPS推估的樁號（卡片上顯示的那個），存檔就會寫進去
   $("stakeHint").hidden=true;
   if(!r.stake&&r.lat!=null){const ns=nearestStation(r.lat,r.lng);if(ns){if(fillOf(ns))$("stakeIn").value=fillOf(ns);$("stakeHint").textContent="GPS推估："+stationText(ns)+"（原本未填樁號）";$("stakeHint").hidden=false}}
@@ -1358,9 +1440,12 @@ function cancelEdit(){
   editing=null;editKeep=[];$("formTitle").textContent="新增紀錄";$("cancelEdit").hidden=true;$("saveBtn").textContent="儲存紀錄";renderPending();impUpd();
 }
 $("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
+// 說明框兩行起跳，打字時跟著長高（不出現框內捲軸）
+function growNote(){const t=$("noteIn");t.style.height="auto";t.style.height=t.scrollHeight+2+"px"}
+$("noteIn").addEventListener("input",growNote);
 function clearForm(){
   pending.forEach(p=>URL.revokeObjectURL(p.url));pending=[];renderPending();
-  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");$("opChk").checked=false;abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
+  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
 }
 
 /* ---------- 儲存 ---------- */
