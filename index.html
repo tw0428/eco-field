@@ -1238,13 +1238,16 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     const tx=document.createElement("div");tx.className="txt";
     const p=document.createElement("span");p.className="pill";p.textContent=it.abcd||"—";
     tx.append(p," "+it.text);el.appendChild(tx);
-    const n=records.filter(r=>r.caseId===curCase&&r.checkId===it.id).length;
+    // 同一核對事項施工中、完工都會出現：只算本階段的紀錄（沒有階段的舊紀錄算施工中）；施工中再只算這次現勘當天的
+    const vDay=byDay()?((cr&&cr.date)||today()):"",rDay=r=>{const d=new Date(r.takenAt||r.createdAt||0),p=x=>String(x).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`};
+    const mine=records.filter(r=>r.caseId===curCase&&r.checkId===it.id&&(r.stage||"施工中")===stage&&(!vDay||rDay(r)===vDay));
+    const n=mine.length;
     const m=document.createElement("div");m.className="meta";
     [it.stake,it.src,n?`已連結 ${n} 筆紀錄`:"",st[it.id]?"":lastOf(it)].filter(Boolean).forEach(s=>{const e=document.createElement("span");e.textContent=s;m.appendChild(e)});
     if(it.fig){const f=document.createElement("div");f.className="meta";f.textContent="圖："+it.fig;el.appendChild(f)}
     el.appendChild(m);
     // 已連結紀錄的照片（點開看該筆紀錄）
-    const lr=records.filter(r=>r.caseId===curCase&&r.checkId===it.id&&r.photos&&r.photos.length);
+    const lr=mine.filter(r=>r.photos&&r.photos.length);
     if(lr.length){const g=document.createElement("div");g.className="chkph";
       lr.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
         const i=document.createElement("img");i.alt="連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
