@@ -121,7 +121,10 @@ button.danger{color:var(--danger);border-color:var(--danger)}
 .plans{display:flex;flex-direction:column;gap:6px}
 .planlist{display:flex;flex-direction:column;gap:6px}
 .planitem{display:flex;gap:8px;align-items:center}
-.planitem a{flex:1;min-width:0;display:block;padding:8px 12px;border-radius:8px;background:var(--soft);color:var(--accent);font-weight:600;text-decoration:none;overflow-wrap:anywhere}
+.planitem a{flex:1;min-width:0;display:block;padding:7px 12px;border-radius:8px;background:var(--soft);color:var(--accent);font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#planBox{display:block}
+#planBox .planlist{margin-top:8px}
+.plangrp{font-size:12px;color:var(--muted);margin-top:4px}
 .planitem button{padding:6px 10px;font-size:13px}
 .addcase{display:flex;flex-direction:column;gap:8px}
 .planadd{font-size:13px;color:var(--muted);cursor:pointer}
@@ -312,10 +315,10 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     </div>
     <div class="hint" id="caseStakeInfo" hidden></div>
     <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、我的位置）</button>
-    <div id="planBox" class="plans" hidden>
-      <span class="lbl">平面圖／圖說（點開可放大）</span>
+    <details id="planBox" class="plans checks" hidden>
+      <summary><span style="flex:1">平面圖／圖說</span><span class="status" id="planCount"></span></summary>
       <div id="planList" class="planlist"></div>
-    </div>
+    </details>
     <button type="button" id="offBtn" class="mapbtn" hidden>⬇ 離線包</button>
     <div class="hint" id="offMsg" hidden></div>
   </section>
@@ -942,9 +945,15 @@ function renderPlans(c){
   const box=$("planBox"),list=$("planList");
   if(!c){box.hidden=true;return}
   list.innerHTML="";
-  (c.plans||[]).forEach((p,i)=>{
+  // 預設收合（檔案多時很長）；點開過就記住。標題「意見原文：」開頭的分到「意見原文」組，其餘為設計圖；每列單行
+  const ps=c.plans||[],isOp=p=>/^意見原文[：:]/.test(p.title||"");
+  $("planCount").textContent=ps.length?`${ps.length} 個`:"";
+  box.open=lsGet("eco-planopen")==="1";box.ontoggle=()=>lsSet("eco-planopen",box.open?"1":"");
+  const both=ps.some(isOp)&&ps.some(p=>!isOp(p));
+  [...ps.map((p,i)=>[p,i]).filter(([p])=>!isOp(p)),...ps.map((p,i)=>[p,i]).filter(([p])=>isOp(p))].forEach(([p,i],k,arr)=>{
+    if(both&&(k===0||isOp(p)!==isOp(arr[k-1][0]))){const g=document.createElement("div");g.className="plangrp";g.textContent=isOp(p)?"意見原文":"設計圖";list.appendChild(g)}
     const row=document.createElement("div");row.className="planitem";
-    const a=document.createElement("a");a.href="#";a.textContent="📄 "+(p.title||"平面圖");
+    const a=document.createElement("a");a.href="#";a.textContent="📄 "+(p.title||"平面圖").replace(/^意見原文[：:]\s*/,"");a.title=p.title||"";
     a.onclick=ev=>{ev.preventDefault();openViewer(p.id,p.type,p.title||"平面圖")};
     row.appendChild(a);
     if(assets){
