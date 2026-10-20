@@ -200,6 +200,8 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
 .wall img{width:100%;height:100%;object-fit:cover;display:block}
 .srttools{flex-wrap:wrap;margin-bottom:8px}
+.wall a .zoom{position:absolute;top:4px;left:4px;width:30px;height:30px;padding:0;border-radius:50%;border:0;background:rgba(0,0,0,.55);font-size:14px;line-height:30px}
+.wall img{-webkit-user-drag:none;user-select:none}
 #dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
 #dropOv[hidden]{display:none}
 .subrow{flex-wrap:wrap;gap:6px}.subrow select{width:auto;flex:none;max-width:100%;padding:5px 8px}select.ph{color:var(--muted)}
@@ -281,6 +283,9 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <button type="button" id="vOut" aria-label="縮小">－</button>
     <button type="button" id="vIn" aria-label="放大">＋</button>
     <button type="button" id="vFit">符合寬度</button>
+    <button type="button" id="vPrev" hidden aria-label="上一張">‹</button>
+    <button type="button" id="vNext" hidden aria-label="下一張">›</button>
+    <button type="button" id="vPick" hidden>☐ 勾選</button>
     <button type="button" id="vSave" hidden>下載</button>
     <button type="button" id="vClose" class="primary">關閉</button>
   </div>
@@ -895,7 +900,9 @@ $("batchBtn").onclick=async()=>{
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
 // 電腦：把照片拖進視窗任何位置＝從相簿選（整頁顯示放開提示）
-{let dn=0;const hasF=e=>[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files");
+// 網頁內自己拖的（照片牆的圖片、連結）不算：dragstart 只有頁內拖曳才會觸發
+{let dn=0,inner=false;addEventListener("dragstart",()=>{inner=true});addEventListener("dragend",()=>{inner=false});
+  const hasF=e=>!inner&&[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files");
   const ov=document.createElement("div");ov.id="dropOv";ov.hidden=true;document.body.appendChild(ov);
   addEventListener("dragenter",e=>{if(!hasF(e))return;e.preventDefault();dn++;const c=cases.find(x=>x.id===curCase);ov.textContent=c?`放開即加入照片\n${c.name}\n本次階段：${curStage()}`:"請先選擇案件";ov.hidden=false});
   addEventListener("dragover",e=>{if(hasF(e))e.preventDefault()});
@@ -904,7 +911,7 @@ $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
   const isImg=f=>/^image\//.test(f.type)||/\.(jpe?g|heic|png)$/i.test(f.name);
   const readAll=d=>new Promise(res=>{const r=d.createReader(),out=[];const nx=()=>r.readEntries(es=>{if(!es.length)return res(out);out.push(...es);nx()},()=>res(out));nx()});
   const walk=async en=>{if(en.isFile)return [await new Promise(res=>en.file(res,()=>res(null)))];const out=[];for(const c of (await readAll(en)).sort((a,b)=>a.name.localeCompare(b.name)))out.push(...await walk(c));return out};
-  addEventListener("drop",async e=>{if(!hasF(e))return;e.preventDefault();dn=0;ov.hidden=true;if(!curCase){showMsg("請先選擇或新增案件。",true);return}
+  addEventListener("drop",async e=>{if(inner){inner=false;e.preventDefault();return}if(!hasF(e))return;e.preventDefault();dn=0;ov.hidden=true;if(!curCase){showMsg("請先選擇或新增案件。",true);return}
     const ens=[...(e.dataTransfer.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
     let fs=[...e.dataTransfer.files];
     if(ens.some(x=>x.isDirectory)){showMsg("讀取資料夾…");fs=[];for(const en of ens)fs.push(...await walk(en))}
@@ -1051,7 +1058,20 @@ async function openViewer(id,type,title){
     }
   }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟這個檔案（'+(e.message||"載入失敗")+'）。</div>'}
 }
-function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow=""}
+function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow="";
+  if(vNav){vNav=null;["vPrev","vNext","vPick"].forEach(k=>$(k).hidden=true);renderRecords()}}
+// 整理分類看大圖：‹ › 換張（鍵盤←→）、勾選（空白鍵），關閉後照片牆的勾選同步
+let vNav=null;
+function vNavShow(){const {items,i}=vNav,{r,p}=items[i];
+  openViewer(p,"image/jpeg",`${i+1}/${items.length}　${catText(r)}${r.stake?"　"+r.stake:""}`);
+  $("vPrev").hidden=$("vNext").hidden=$("vPick").hidden=false;$("vPrev").disabled=i===0;$("vNext").disabled=i===items.length-1;
+  $("vPick").textContent=srtSel.has(r.id)?"☑ 已勾選":"☐ 勾選";$("vPick").className=srtSel.has(r.id)?"primary":""}
+function vNavGo(d){if(!vNav)return;const j=vNav.i+d;if(j<0||j>=vNav.items.length)return;vNav.i=j;vNavShow()}
+$("vPrev").onclick=()=>vNavGo(-1);$("vNext").onclick=()=>vNavGo(1);
+$("vPick").onclick=()=>{if(!vNav)return;const r=vNav.items[vNav.i].r;srtSel.has(r.id)?srtSel.delete(r.id):srtSel.add(r.id);vNavShow()};
+addEventListener("keydown",e=>{if(!vNav||$("viewer").hidden)return;
+  if(e.key==="ArrowLeft"){e.preventDefault();vNavGo(-1)}else if(e.key==="ArrowRight"){e.preventDefault();vNavGo(1)}
+  else if(e.key===" "){e.preventDefault();$("vPick").click()}else if(e.key==="Escape")closeViewer()});
 $("vClose").onclick=closeViewer;
 $("vIn").onclick=()=>vSetZoom(vZoom*1.5);
 $("vOut").onclick=()=>vSetZoom(vZoom/1.5);
@@ -1783,6 +1803,11 @@ function renderWall(box,list){
       const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
       const s=document.createElement("span");s.textContent=[r.stake,r.struct||r.sub||r.category].filter(Boolean).join(" ");
       a.append(i,s);w.appendChild(a);
+      // 整理中：左上🔍看大圖（電腦也可雙擊），大圖裡可換張、勾選
+      if(srtOn){const z=document.createElement("button");z.type="button";z.className="zoom";z.textContent="🔍";z.setAttribute("aria-label","看大圖");
+        const open=ev=>{ev.preventDefault();ev.stopPropagation();const items=list.filter(x=>x.photos&&x.photos.length).flatMap(x=>x.photos.map(q=>({r:x,p:q})));
+          vNav={items,i:Math.max(0,items.findIndex(t=>t.p===p))};vNavShow()};
+        z.onclick=open;a.ondblclick=open;a.appendChild(z)}
     });
   });
   box.appendChild(w);
