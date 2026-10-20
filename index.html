@@ -207,6 +207,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .wall.busy,.srttools.busy{pointer-events:none;opacity:.6}
 #dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
 #dropOv[hidden]{display:none}
+.two.one{grid-template-columns:1fr}
 .subrow{flex-wrap:wrap;gap:6px}.subrow select{width:auto;flex:none;max-width:100%;padding:5px 8px}select.ph{color:var(--muted)}
 #recForm.busy #catChips,#recForm.busy #abcdBox,#recForm.busy #habBox,#recForm.busy .ckrow,#recForm.busy .thumb button{pointer-events:none;opacity:.5}
 .wall a.sel{outline:3px solid var(--accent);outline-offset:-3px}.wall a.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:14px;line-height:22px;text-align:center}
@@ -391,11 +392,11 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <div class="row subrow"><div class="chips" id="habChips" role="group" aria-label="棲地或構造物"></div><label class="sr" for="structSel">構造物種類</label><select id="structSel" hidden></select></div>
     </div>
 
-    <div class="two">
+    <div class="two" id="stkRow">
       <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><span class="stkbtn" id="stakeArrow" hidden>▾</span><select id="stakeSel" aria-label="從樁號清單選" hidden></select></div><div class="hint" id="stakeHint" hidden></div></div>
-      <div><label class="sr" for="countIn">數量</label><input type="text" id="countIn" placeholder="數量（3隻、1株）"></div>
+      <div id="countWrap"><label class="sr" for="countIn">數量</label><input type="text" id="countIn" placeholder="數量（3隻、1株）"></div>
     </div>
-    <div><label class="sr" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="物種／對象（臺灣白魚、胸徑60cm榕樹）"></div>
+    <div id="spWrap"><label class="sr" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="物種／對象（臺灣白魚、胸徑60cm榕樹）"></div>
     <div id="chkLinkBox" hidden><label class="sr" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
     <div><label class="sr" for="noteIn">說明</label><textarea id="noteIn" rows="2" placeholder="說明：現況、建議、待確認事項"></textarea></div>
     <div class="ckrow">
@@ -735,6 +736,9 @@ function renderChips(){
   chips($("abcdChips"),ABCD.map(([k,n])=>[k,k+" "+n]),()=>abcd,v=>{abcd=v});
   chips($("habChips"),HAB_SUBS.map(s=>[s,s]),()=>sub,v=>{sub=sub===v?"":v;if(sub!=="構造物")struct=""});
   $("structSel").hidden=sub!=="構造物";if(sub==="構造物")fillSel($("structSel"),"構造物種類…",STRUCTS,struct);
+  // 物種、數量只在生態保護對象時出現（其他類別的細項已由選單表達）；已經有填的照樣顯示，不會藏掉資料
+  const sp=cat==="生態保護對象"||sub==="生態保護對象"||!!$("spIn").value.trim()||!!$("countIn").value.trim();
+  $("spWrap").hidden=$("countWrap").hidden=!sp;$("stkRow").classList.toggle("one",!sp);
   impUpd();
 }
 // 異常狀況／改善的新紀錄：可勾「列入改善追蹤」，存檔時自動在改善意見清單加一條並連結（已連結核對項目、編輯舊紀錄時不顯示）
@@ -1672,6 +1676,8 @@ function rvQuick(r){
   const st=mk("樁號／位置",r.stake||ns),sp=mk("物種／對象",r.species),ct=mk("數量",r.count),nt=mk("說明：現況、建議、待確認事項",r.note,true);
   const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,"★ 寫進意見");
   const row=document.createElement("div");row.className="two";row.append(st,ct);
+  // 同新增紀錄：物種、數量只在生態保護對象或已有填時出現
+  if(!(r.category==="生態保護對象"||r.sub==="生態保護對象"||r.species||r.count)){ct.hidden=sp.hidden=true;row.classList.add("one")}
   const msg=document.createElement("div");msg.className="hint";
   const bs=document.createElement("div");bs.className="row";
   const sv=document.createElement("button");sv.type="button";sv.textContent="儲存";
