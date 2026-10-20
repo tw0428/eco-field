@@ -200,6 +200,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
 .wall img{width:100%;height:100%;object-fit:cover;display:block}
 .srttools{flex-wrap:wrap;margin-bottom:8px}
+#filtSel{padding:5px 8px;font-size:16px}#filtSel.on{border-color:var(--accent);border-width:2px;font-weight:600}
 .wall a .zoom{position:absolute;top:4px;left:4px;width:30px;height:30px;padding:0;border-radius:50%;border:0;background:rgba(0,0,0,.55);font-size:14px;line-height:30px}
 .wall img{-webkit-user-drag:none;user-select:none}
 .wall.busy,.srttools.busy{pointer-events:none;opacity:.6}
@@ -411,6 +412,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
     <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px">📋 匯出</button><button type="button" id="zipBtn">⬇ 下載本案照片</button></div>
+    <div class="row" id="filtRow" hidden><label for="filtSel" class="lbl" style="margin:0;white-space:nowrap">篩選</label><select id="filtSel" class="grow"></select></div>
     <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
     <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
@@ -1522,6 +1524,28 @@ $("caseSaveBtn").onclick=async()=>{
 };
 
 /* ---------- 紀錄列表 ---------- */
+// 篩選（列表、照片牆共用）：依本案現有的類別→細項→構造物產生選項，另有★意見、待補說明、各階段；換案件就清掉
+let recFilt="",filtCase="";
+const filtOk=(r,f)=>{if(!f)return true;const [k,v]=[f.slice(0,f.indexOf(":")),f.slice(f.indexOf(":")+1)];
+  if(k==="op")return !!r.op;if(k==="todo")return !r.species&&!r.note;if(k==="stg")return (r.stage||"")===v;
+  const p=v.split("|");return (r.category||"")===p[0]&&(p.length<2||(r.sub||"")===p[1])&&(p.length<3||(r.struct||"")===p[2])};
+function renderFilt(list){
+  if(filtCase!==curCase){filtCase=curCase;recFilt=""}
+  const s=$("filtSel"),cnt=f=>list.filter(r=>filtOk(r,f)).length,opts=[["",`全部（${list.length}）`]];
+  const tree=new Map();list.forEach(r=>{const c=r.category||"";if(!tree.has(c))tree.set(c,new Map());const t=tree.get(c);
+    if(r.sub){if(!t.has(r.sub))t.set(r.sub,new Set());if(r.struct)t.get(r.sub).add(r.struct)}});
+  // 順序照分類鈕：未分類最前，類別依各階段清單，細項依選單順序
+  const CO=["未分類",...new Set([...CATS_BY["施工中"],"生態保護對象",...Object.values(CATS_BY).flat()])],SO=[...FM_SUBS,...HAB_SUBS,...STRUCTS],ix=(a,x)=>{const i=a.indexOf(x);return i<0?999:i};
+  [...tree.keys()].sort((a,b)=>ix(CO,a)-ix(CO,b)).forEach(c=>{opts.push(["c:"+c,`${c}（${cnt("c:"+c)}）`]);
+    [...tree.get(c)].sort((a,b)=>ix(SO,a[0])-ix(SO,b[0])).forEach(([sb,st])=>{opts.push([`c:${c}|${sb}`,`　・${sb}（${cnt(`c:${c}|${sb}`)}）`]);
+      [...st].forEach(x=>opts.push([`c:${c}|${sb}|${x}`,`　　・${x}（${cnt(`c:${c}|${sb}|${x}`)}）`]))})});
+  const op=cnt("op:"),td=cnt("todo:");if(op)opts.push(["op:",`★意見（${op}）`]);if(td)opts.push(["todo:",`待補說明（${td}）`]);
+  const stg=[...new Set(list.map(r=>r.stage||""))].filter(Boolean);if(stg.length>1)stg.forEach(x=>opts.push(["stg:"+x,`階段：${x}（${cnt("stg:"+x)}）`]));
+  if(!opts.some(o=>o[0]===recFilt))recFilt="";
+  s.innerHTML="";opts.forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===recFilt;s.appendChild(o)});
+  s.classList.toggle("on",!!recFilt);
+  return list.filter(r=>filtOk(r,recFilt));
+}
 function renderRecords(){
   records.forEach(r=>(r.photos||[]).forEach(id=>photoRec.set(id,r)));
   if(!$("expSheet").hidden&&document.activeElement?.closest?.("#expBox")==null)renderExp();
@@ -1531,11 +1555,14 @@ function renderRecords(){
   const list=records.filter(r=>r.caseId===curCase).sort((a,b)=>b.createdAt-a.createdAt);
   const todo=list.filter(r=>!r.species&&!r.note).length;
   $("listCount").textContent=list.length?list.length+" 筆"+(todo?`（${todo} 筆待補說明）`:""):"";
-  if(!c){box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
-  $("listTools").hidden=!list.length;renderNear();
+  if(!c){$("filtRow").hidden=true;box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
+  $("listTools").hidden=!list.length;$("filtRow").hidden=!list.length;renderNear();
   if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
-  if(listMode()==="wall"){renderWall(box,list);return}
-  list.forEach(r=>box.appendChild(recCard(r,c)));
+  const shown=renderFilt(list);
+  if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
+  if(listMode()==="wall"){renderWall(box,shown,list);return}
+  if(!shown.length){box.innerHTML='<div class="empty">這個篩選沒有紀錄。</div>';return}
+  shown.forEach(r=>box.appendChild(recCard(r,c)));
 }
 // 一筆紀錄的卡片（列表與照片牆點開共用）
 function recCard(r,c,onEdit){
@@ -1745,9 +1772,10 @@ const listMode=()=>lsGet("eco-listmode")||"list";
 function renderSeg(){document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===listMode())))}
 document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.onclick=()=>{lsSet("eco-listmode",b.dataset.mode);renderSeg();renderRecords()});
 renderSeg();
+$("filtSel").onchange=e=>{recFilt=e.target.value;srtSel.clear();srtFM=false;e.target.blur();renderRecords()};
 const recTitle=r=>[r.stage,catText(r),r.stake,r.species].filter(Boolean).join("｜");
 // 整理分類：照片牆上勾選多筆，下方點類別一次改好（批次上傳的「未分類」可篩出來慢慢分）
-let srtOn=false,srtOnly=false,srtFM=false,srtBusy=false;const srtSel=new Set();
+let srtOn=false,srtFM=false,srtBusy=false;const srtSel=new Set();
 function srtBar(bar,list){
   bar.innerHTML="";const sel=list.filter(r=>srtSel.has(r.id));
   const n=document.createElement("span");n.className="hint";n.style.flex="none";n.textContent=sel.length?`已選 ${sel.length} 筆`:"點照片勾選（可多選）";bar.appendChild(n);
@@ -1785,21 +1813,18 @@ async function srtApply(bar,list,v){
   catch(e){showMsg(`沒改成功（${(e&&e.code)||"網路"}），照片還勾著，再點一次類別。`,true)}
   srtBusy=false;srtFM=false;renderRecords();
 }
-function renderWall(box,list){
-  // 工具列：整理分類開關；整理中可只看未分類、全選
-  const unc=list.filter(r=>r.category==="未分類"&&r.photos&&r.photos.length).length;
+function renderWall(box,list,all){
+  // 工具列：整理分類開關、全選（篩選用上方「篩選」選單；進整理時有未分類就自動篩未分類）
+  const unc=all.filter(r=>r.category==="未分類"&&r.photos&&r.photos.length).length;
   const tb=document.createElement("div");tb.className="row srttools";
   const sb=document.createElement("button");sb.type="button";sb.className=srtOn?"mini primary":"mini";sb.textContent=srtOn?"✓ 完成整理":"🗂 整理分類"+(unc?`（未分類 ${unc}）`:"");
-  sb.onclick=()=>{srtOn=!srtOn;srtSel.clear();srtFM=false;if(!srtOn)srtOnly=false;else if(unc)srtOnly=true;renderRecords();fabUpd()};tb.appendChild(sb);
+  sb.onclick=()=>{srtOn=!srtOn;srtSel.clear();srtFM=false;if(srtOn&&unc&&!recFilt)recFilt="c:未分類";renderRecords();fabUpd()};tb.appendChild(sb);
   if(srtOn){
-    const sg=document.createElement("div");sg.className="seg";
-    [["全部",false],[`未分類 ${unc}`,true]].forEach(([t,v])=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.setAttribute("aria-pressed",String(srtOnly===v));b.onclick=()=>{srtOnly=v;srtSel.clear();srtFM=false;renderRecords()};sg.appendChild(b)});
     const ab=document.createElement("button");ab.type="button";ab.className="mini";ab.style.marginLeft="auto";ab.textContent="全選";
-    ab.onclick=()=>{const vis=list.filter(r=>r.photos&&r.photos.length&&(!srtOnly||r.category==="未分類"));const all=vis.every(r=>srtSel.has(r.id));vis.forEach(r=>all?srtSel.delete(r.id):srtSel.add(r.id));renderRecords()};
-    tb.append(sg,ab)}
+    ab.onclick=()=>{const vis=list.filter(r=>r.photos&&r.photos.length);const al=vis.every(r=>srtSel.has(r.id));vis.forEach(r=>al?srtSel.delete(r.id):srtSel.add(r.id));renderRecords()};
+    tb.append(ab)}
   box.appendChild(tb);
-  if(srtOn&&srtOnly)list=list.filter(r=>r.category==="未分類");
-  if(srtOn&&!list.length){const e=document.createElement("div");e.className="empty";e.textContent="沒有未分類的照片了。";box.appendChild(e)}
+  if(srtOn&&!list.length){const e=document.createElement("div");e.className="empty";e.textContent="這個篩選沒有照片了。";box.appendChild(e)}
   const bar=document.createElement("div");bar.className="srtbar";
   const w=document.createElement("div");w.className="wall";let none=0;
   list.forEach(r=>{
