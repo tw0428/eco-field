@@ -1,6 +1,8 @@
 // 網頁存手機：開啟時直接用手機上的副本（秒開、沒訊號也能開），背景再抓新版；
 // 新版和副本不同時通知頁面顯示「有新版本」提示條。只管兩個網頁本身，GitHub資料與照片另有暫存。
-const CACHE = "eco-pages-v2"; // 改這個檔的邏輯時要升版號
+const CACHE = "eco-pages-v3"; // 改這個檔的邏輯時要升版號
+// 離線包：圖磚由頁面「下載離線包」寫進 eco-tiles；地圖/PDF元件（cdnjs，網址含版號不會變）第一次用到就存
+const TILES = "eco-tiles", LIBS = "eco-libs";
 const PAGES = ["index.html", "habitat.html"];
 
 self.addEventListener("install", e => {
@@ -28,7 +30,24 @@ function pageOf(url) {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
-  if (new URL(req.url).searchParams.has("swbypass")) return; // ↻ 檢查新版時直接抓網路
+  const u = new URL(req.url);
+  if (u.searchParams.has("swbypass")) return; // ↻ 檢查新版時直接抓網路
+  // 國土測繪中心圖磚：有下載過就用手機上的（山區沒訊號也看得到），沒有才上網抓
+  if (u.hostname === "wmts.nlsc.gov.tw") {
+    e.respondWith(caches.open(TILES).then(c => c.match(req.url, { ignoreVary: true })).then(hit => hit || fetch(req)));
+    return;
+  }
+  // 地圖/PDF元件：用手機上的副本，沒有就抓（cors模式，存起來才不會是看不到內容的opaque回應）
+  if (u.hostname === "cdnjs.cloudflare.com" && /\/ajax\/libs\/(leaflet|pdf\.js|jszip)\//.test(u.pathname)) {
+    e.respondWith((async () => {
+      const c = await caches.open(LIBS);
+      const hit = await c.match(req.url, { ignoreVary: true });
+      if (hit) return hit;
+      try { const res = await fetch(req.url, { mode: "cors" }); if (res.ok) await c.put(req.url, res.clone()); return res; }
+      catch (err) { return fetch(req); }
+    })());
+    return;
+  }
   const page = pageOf(req.url);
   if (!page) return; // GitHub API、照片、外部元件都不經過這裡
 
