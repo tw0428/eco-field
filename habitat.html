@@ -95,7 +95,12 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 /* 未填標示：卡片左側橘條、標籤、空選單底色 */
 .card.todo{border-left:4px solid var(--warn)}
 .unftag{display:inline-block;font-size:12px;font-weight:600;padding:0 7px;border-radius:99px;background:var(--warnbg);color:var(--warn);vertical-align:middle}
-select.unf{border-color:var(--warn);background:var(--warnbg)}
+select.unf{border-color:var(--warn);border-width:2px}
+/* 野溪各項欄位與坡地同版型：題目一行（同.qh label）、選單整行寬 */
+.flds{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld>label{font-size:14px;color:var(--ink)}
+.fld select{width:100%}
 /* 期別＝圓角膠囊（同現場紀錄「本次階段」）；評估類型＝分段按鈕（同現場紀錄「列表／照片牆」）；匯出、說明＝右側文字連結 */
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{font:inherit;font-size:14px;border:0;border-radius:0;background:var(--card);color:var(--ink);padding:6px 12px;cursor:pointer;white-space:nowrap}
@@ -646,12 +651,12 @@ function viewCreek(){
   // 還沒評到分的項目：卡片左側橘條＋「未填」，空的選單也標底色
   const todo=(it.sides?['L','R']:['']).some(sd=>evalItem(it,sd,p).empty);
   h+=`<div class="card${todo?' todo':''}"><h3><span>${it.no}. ${it.name}${todo?' <span class="unftag">未填</span>':''}</span><span class="mut">滿分${it.max}${it.sides?'（左右岸各'+it.max+'）':''}</span></h3>`;
-  if(it.id==='lat')h+=`<div class="row"><label>海拔</label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select><span class="mut">選一次三期都套用</span></div>`;
+  if(it.id==='lat')h+=`<div class="flds"><div class="fld"><label>海拔 <span class="mut">（選一次三期都套用）</span></label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select></div></div>`;
   (it.sides?['L','R']:['']).forEach(sd=>{
    const r=evalItem(it,sd,p),st=r.st;
    h+=`<div class="${it.sides?'side':''}">`;
    if(it.sides)h+=`<div class="mut">${sd==='L'?'左岸':'右岸'}</div>`;
-   h+=`<div class="row">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p,r.empty)).join('')+`</div>`;
+   h+=`<div class="flds">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p,r.empty)).join('')+`</div>`;
    h+=resHtml(it,sd,r);
    h+=noteHtml(p,it.id+sd);
    h+=`</div>`;
@@ -674,9 +679,10 @@ function memoText(D,kind){const ix=kind==='slope'?D.sIdx:D.cIdx;return ix.map(i=
 }
 function fieldHtml(key,f,st,p,todo){
  const opts=typeof f.opts==='function'?f.opts(st,p):f.opts;
- if(!opts)return `<label>${esc(f.label)}</label><span class="mut">先選原溪床寬度</span>`;
+ if(!opts)return `<div class="fld"><label>${esc(f.label)}</label><span class="mut">先選原溪床寬度</span></div>`;
  const unf=todo&&(st[f.k]==null||st[f.k]==='');
- return `<label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"${unf?' class="unf"':''}`,opts,st[f.k]);
+ // 與坡地同版型：題目一行、選單整行寬
+ return `<div class="fld"><label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"${unf?' class="unf"':''}`,opts,st[f.k])+`</div>`;
 }
 function noteHtml(p,key){
  let h='';
