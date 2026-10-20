@@ -92,6 +92,20 @@ textarea{width:100%;min-height:160px;font:13px/1.5 inherit;background:var(--bg);
 .qh .score{color:var(--acc);white-space:nowrap}
 .qrow select{width:100%}
 .card .tot{margin-top:8px}
+/* 未填標示：卡片左側橘條、標籤、空選單底色 */
+.card.todo{border-left:4px solid var(--warn)}
+.unftag{display:inline-block;font-size:12px;font-weight:600;padding:0 7px;border-radius:99px;background:var(--warnbg);color:var(--warn);vertical-align:middle}
+select.unf{border-color:var(--warn);background:var(--warnbg)}
+/* 期別、評估類型：分段按鈕；匯出、說明：右側文字連結（與切換分開） */
+.seg{display:flex;border:1px solid var(--acc);border-radius:8px;overflow:hidden}
+.seg button{flex:1;font:inherit;font-size:14px;border:0;border-left:1px solid var(--acc);background:var(--card);color:var(--acc);padding:6px 4px;cursor:pointer;white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg:empty{display:none}
+.seg button.on{background:var(--acc);color:var(--accfg);font-weight:600}
+.vrow{display:flex;gap:10px;align-items:center;margin-top:6px}
+.vrow .seg{flex:1}
+.vlink{font:inherit;font-size:14px;background:none;border:0;color:var(--acc);text-decoration:underline;padding:4px 2px;cursor:pointer}
+.vlink.on{font-weight:700;text-decoration:none}
 .phs{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .ph{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding-top:8px;border-top:1px solid var(--line)}
 .ph img{width:120px;height:90px;object-fit:cover;border-radius:6px;display:block;border:1px solid var(--line)}
@@ -131,14 +145,14 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 </head>
 <body>
 <header>
-<div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+<div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./" id="toField">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
 <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto">匯出</a><a href="#" id="shareBtn">分享給同事</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
-<div class="tabs" id="ptabs"></div>
-<div class="tabs" id="vtabs" style="margin-top:6px"></div>
+<div class="seg" id="ptabs"></div>
+<div class="vrow" id="vtabs"></div>
 </header>
 <main id="app"></main>
 <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button class="act" id="expClose">關閉</button></div><div id="expBody" class="expbox"></div></div></div>
@@ -431,6 +445,11 @@ async function initDb(){
  S.p=null;render();
  db.collection('cases').orderBy('createdAt').onSnapshot(s=>{
   cases=s.docs.map(d=>({id:d.id,...d.data()}));
+  // 從現場紀錄切過來：同id優先、再找同名；沒有的話留在上次的案件，提示可建立同名評估（用同一id，才讀得到現場紀錄照片）
+  const j=cases.length&&takeJump('habitat');
+  if(j){const hit=cases.find(c=>c.id===j.id)||cases.find(c=>c.name===j.name);
+   if(hit){curCase=hit.id;S.cur=0;loadCase(true);render();return}
+   jumpNote(j)}
   if(!cases.find(c=>c.id===curCase)){curCase=(cases.find(c=>c.id===pf.c)||cases[0]||{}).id||'';loadCase(true)}else loadCase(false);
   render();
  });
@@ -479,9 +498,10 @@ const $=id=>document.getElementById(id);
 function render(){
  renderCases();
  if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
- $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
- const v=[['creek','野溪治理工程生態回復追蹤評估指標'],['slope','坡地棲地評估指標'],['cmp','匯出'],['note','說明']];
- $('vtabs').innerHTML=v.map(([k,n])=>`<button class="tab ${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('');
+ // 第一層：期別（分段按鈕）；第二層：評估類型（分段按鈕）＋匯出、說明（文字連結）
+ $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
+ const v=[['creek','野溪評估'],['slope','坡地評估']];
+ $('vtabs').innerHTML=`<div class="seg">${v.map(([k,n])=>`<button class="${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('')}</div>`+[['cmp','匯出'],['note','說明']].map(([k,n])=>`<button class="vlink ${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('');
  document.body.dataset.view=S.view; // 野溪藍、坡地土黃，其他維持綠
  const m=$('app');
  if(S.view==='creek')m.innerHTML=viewCreek();
@@ -618,13 +638,15 @@ function viewCreek(){
  const p=S.p[S.cur];
  let h=head(p)+`</div>`+photosHtml(p,'creek');
  ITEMS.forEach(it=>{
-  h+=`<div class="card"><h3><span>${it.no}. ${it.name}</span><span class="mut">滿分${it.max}${it.sides?'（左右岸各'+it.max+'）':''}</span></h3>`;
+  // 還沒評到分的項目：卡片左側橘條＋「未填」，空的選單也標底色
+  const todo=(it.sides?['L','R']:['']).some(sd=>evalItem(it,sd,p).empty);
+  h+=`<div class="card${todo?' todo':''}"><h3><span>${it.no}. ${it.name}${todo?' <span class="unftag">未填</span>':''}</span><span class="mut">滿分${it.max}${it.sides?'（左右岸各'+it.max+'）':''}</span></h3>`;
   if(it.id==='lat')h+=`<div class="row"><label>海拔</label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select><span class="mut">選一次三期都套用</span></div>`;
   (it.sides?['L','R']:['']).forEach(sd=>{
    const r=evalItem(it,sd,p),st=r.st;
    h+=`<div class="${it.sides?'side':''}">`;
    if(it.sides)h+=`<div class="mut">${sd==='L'?'左岸':'右岸'}</div>`;
-   h+=`<div class="row">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p)).join('')+`</div>`;
+   h+=`<div class="row">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p,r.empty)).join('')+`</div>`;
    h+=resHtml(it,sd,r);
    h+=noteHtml(p,it.id+sd);
    h+=`</div>`;
@@ -645,10 +667,11 @@ function memoText(D,kind){const ix=kind==='slope'?D.sIdx:D.cIdx;return ix.map(i=
  const hit=val===''||opts.some(o=>String(o[0])===val);
  return `<select ${attr}><option value="">—</option>${hit?'':`<option value="${esc(val)}" selected>實測 ${esc(val)}</option>`}${opts.map(o=>`<option value="${o[0]}" ${String(o[0])===val?'selected':''}>${esc(o[1])}</option>`).join('')}</select>`;
 }
-function fieldHtml(key,f,st,p){
+function fieldHtml(key,f,st,p,todo){
  const opts=typeof f.opts==='function'?f.opts(st,p):f.opts;
  if(!opts)return `<label>${esc(f.label)}</label><span class="mut">先選原溪床寬度</span>`;
- return `<label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"`,opts,st[f.k]);
+ const unf=todo&&(st[f.k]==null||st[f.k]==='');
+ return `<label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"${unf?' class="unf"':''}`,opts,st[f.k]);
 }
 function noteHtml(p,key){
  let h='';
@@ -668,8 +691,8 @@ function viewSlope(){
  e.rows.forEach(({x,s})=>{
   const val=p.slope[x.k]==null?'':p.slope[x.k];
   // 一項兩行：名稱＋分數一行、選單整行寬（選項文字長短不一，放同一行會參差、分數被擠到下一行）
-  h+=`<div class="qrow"><div class="qh"><label>${x.name}</label><span class="score">${s==null?'—':s+' 分'}</span></div>`;
-  h+=selHtml(`data-sl="${x.k}"`,x.sel||x.opts,val);
+  h+=`<div class="qrow"><div class="qh"><label>${x.name}${val===''?' <span class="unftag">未填</span>':''}</label><span class="score">${s==null?'—':s+' 分'}</span></div>`;
+  h+=selHtml(`data-sl="${x.k}"${val===''?' class="unf"':''}`,x.sel||x.opts,val);
   h+=`</div>`+noteHtml(p,'slope_'+x.k);
  });
  h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項填完才判定）</span>'}</div>`;
@@ -853,6 +876,16 @@ document.addEventListener('click',e=>{
   if(x&&assets)assets.delete(x.id).catch(()=>{});
  }
  else if(t.dataset.mv!=null){const p=S.p[S.cur],x=p.photos.splice(+t.dataset.mv,1)[0];if(x)phList(p,t.dataset.to).push(x);if(!p.photos.length)delete p.photos;render()}});
+/* 兩個工具切換時帶著目前案件（與現場紀錄共用 eco-jump，5分鐘內有效、用一次就清） */
+function takeJump(to){let j=null;try{j=JSON.parse(lsGet('eco-jump')||'null')}catch(e){}
+ if(!j||j.to!==to)return null;try{localStorage.removeItem('eco-jump')}catch(e){}return Date.now()-j.t<300000?j:null}
+function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement('div');b.id='jumpBox';b.className='warn row';b.style.margin='6px auto';
+ const s=document.createElement('span');s.style.flex='1';s.textContent=`「${j.name}」還沒有棲地評估，目前顯示上次的案件。`;
+ const mk=(t,cls,f)=>{const x=document.createElement('button');x.className='act'+(cls?' '+cls:'');x.textContent=t;x.onclick=f;return x};
+ b.append(s,mk('建立同名評估','primary',async()=>{b.remove();try{await flush();await db.collection('cases').doc(j.id).set({name:j.name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
+   curCase=j.id;S.cur=0;S.view='creek';loadCase(true);render()}catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}}),mk('關閉','',()=>b.remove()));
+ $('caseMsg').after(b)}
+$('toField').onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet('eco-jump',JSON.stringify({to:'field',id:c.id,name:c.name,t:Date.now()}))};
 async function addCase(){
  const name=$('caseName').value.trim();if(!name||!db)return;
  try{await flush();const ref=db.collection('cases').doc();const p=[blank('施工前'),blank('施工中'),blank('完工')];
