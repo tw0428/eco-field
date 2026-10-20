@@ -208,6 +208,9 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 #dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
 #dropOv[hidden]{display:none}
 .two.one{grid-template-columns:1fr}
+.two>*{min-width:0}
+/* 保險：任何元素超出畫面寬度都不讓整頁左右滑（clip 不影響頂端固定列） */
+html,body{overflow-x:clip}
 .subrow{flex-wrap:wrap;gap:6px}.subrow select{width:auto;flex:none;max-width:100%;padding:5px 8px}select.ph{color:var(--muted)}
 #recForm.busy #catChips,#recForm.busy #abcdBox,#recForm.busy #habBox,#recForm.busy .ckrow,#recForm.busy .thumb button{pointer-events:none;opacity:.5}
 .wall a.sel{outline:3px solid var(--accent);outline-offset:-3px}.wall a.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:14px;line-height:22px;text-align:center}
