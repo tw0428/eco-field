@@ -241,6 +241,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 .btnlike{display:inline-block;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:8px 12px;background:var(--surface);cursor:pointer;font-weight:600}
 .chkph{display:flex;gap:4px;overflow-x:auto}
 .chkph img{width:56px;height:56px;object-fit:cover;border-radius:5px;display:block;background:var(--soft)}
+.chkph.prev{align-items:center;margin-top:4px}.chkph.prev img{width:40px;height:40px;opacity:.7}
+.chkph .phlab{font-size:12px;color:var(--muted);white-space:nowrap;flex:none}
 .chk .del{margin-left:auto;font-size:12px;padding:2px 8px;color:var(--danger);border-color:var(--danger)}
 /* 照片牆點開：紀錄詳細 */
 #recView .rvbody{flex:1;overflow:auto;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px))}
@@ -1248,10 +1250,16 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(m);
     // 已連結紀錄的照片（點開看該筆紀錄）
     const lr=mine.filter(r=>r.photos&&r.photos.length);
-    if(lr.length){const g=document.createElement("div");g.className="chkph";
-      lr.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
-        const i=document.createElement("img");i.alt="連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
-      el.appendChild(g)}
+    // 上一次的照片（只放最近一天，不累加）：本次之前、有連結本事項照片的最近一天，縮小淡色並標日期階段
+    const ref=(cr&&cr.date)||today(),older=records.filter(r=>r.caseId===curCase&&r.checkId===it.id&&r.photos&&r.photos.length&&!mine.includes(r)&&rDay(r)<ref);
+    const pd=older.reduce((m,r)=>rDay(r)>m?rDay(r):m,""),pr=older.filter(r=>rDay(r)===pd);
+    const phRow=(rs,cls,lab)=>{const g=document.createElement("div");g.className="chkph"+(cls?" "+cls:"");
+      if(lab){const s=document.createElement("span");s.className="phlab";s.textContent=lab;g.appendChild(s)}
+      rs.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
+        const i=document.createElement("img");i.alt=cls?"上次的照片":"連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
+      el.appendChild(g)};
+    if(lr.length)phRow(lr,"","");
+    if(pr.length)phRow(pr,"prev",`上次 ${pd.slice(4,6)}/${pd.slice(6)}${pr[0].stage&&pr[0].stage!==stage?" "+pr[0].stage:""}`);
     // 排序模式：卡片內容照常顯示，只把按鈕列換成 ▲▼
     if(sorting){const ix=items.indexOf(it),sameG=j=>items[j]&&(items[j].group||"")===(it.group||"");
       const bs=document.createElement("div");bs.className="btns";const mv=mvBtns(sameG(ix-1),sameG(ix+1),d=>mvItem(it,d));mv.style.marginLeft="auto";
