@@ -202,6 +202,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .srttools{flex-wrap:wrap;margin-bottom:8px}
 #dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
 #dropOv[hidden]{display:none}
+#recForm.busy #catChips,#recForm.busy #abcdChips,#recForm.busy .ckrow,#recForm.busy .thumb button{pointer-events:none;opacity:.5}
 .wall a.sel{outline:3px solid var(--accent);outline-offset:-3px}.wall a.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:14px;line-height:22px;text-align:center}
 .srtbar{position:sticky;bottom:0;z-index:41;background:var(--surface);border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .wall span{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:1px 4px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -534,6 +535,12 @@ async function loadAllRest(){
     if(c.data)nc[cid]=c.data;Object.assign(nr,rs.data||{});Object.assign(nk,ks.data||{})}));
   loadedAt=Date.now();applyStore(nc,nr,nk);
 }
+// 同一案一次加多筆紀錄：只寫一次紀錄檔、畫面只重畫一次（批次上傳用）
+async function writeMany(col,cid,map){
+  const res=await mutate(`${col}/${cid}.json`,old=>({...(old||{}),...map}));
+  for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
+  Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
+}
 async function write(col,id,kind,d){
   if(col==="cases"){
     const res=await mutate(`cases/${id}.json`,old=>kind==="delete"?null:kind==="set"?d:{...(old||{}),...d});
@@ -783,6 +790,14 @@ async function addFiles(list,fromCam){
   }
   suggestStake();
 }
+// 待存照片的小縮圖：一次做一張（排隊），已移除的跳過
+let thQ=Promise.resolve();
+function mkThumb(p){if(p._th)return;p._th=1;thQ=thQ.then(async()=>{if(!pending.includes(p))return;
+  try{let src;try{src=await createImageBitmap(p.file,{imageOrientation:"from-image"})}catch(e){src=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=p.url})}
+    const s=200/Math.max(src.width,src.height),c=document.createElement("canvas");c.width=Math.max(1,Math.round(src.width*s));c.height=Math.max(1,Math.round(src.height*s));
+    c.getContext("2d").drawImage(src,0,0,c.width,c.height);if(src.close)src.close();
+    const b=await new Promise(r=>c.toBlob(r,"image/jpeg",0.7));if(!b||!pending.includes(p))return;p.thumb=URL.createObjectURL(b);if(p._img)p._img.src=p.thumb}
+  catch(e){if(p._img)p._img.src=p.url}})}
 function renderPending(){
   const box=$("pendThumbs");box.innerHTML="";
   // 編輯時先列出原有照片（可移除），點了看大圖
@@ -795,10 +810,11 @@ function renderPending(){
     d.append(im,x,o);box.appendChild(d);
   });
   pending.forEach((p,i)=>{
-    const d=document.createElement("div");d.className="thumb";
-    const im=document.createElement("img");im.src=p.url;im.alt="待上傳照片";
+    const d=document.createElement("div");d.className="thumb";p._el=d;
+    // 原檔當縮圖太吃效能（類單眼一張六千萬畫素）→ 背景做小縮圖，好了再換上
+    const im=document.createElement("img");im.alt="待上傳照片";im.decoding="async";p._img=im;if(p.thumb)im.src=p.thumb;else mkThumb(p);
     const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
-    x.onclick=()=>{URL.revokeObjectURL(p.url);pending.splice(i,1);renderPending()};
+    x.onclick=()=>{if(saving)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
     const g=document.createElement("div");g.className="gps";
     g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoErr?"定位中…":"無GPS";
     d.append(im,x,g);box.appendChild(d);
@@ -815,26 +831,43 @@ $("batchBtn").onclick=async()=>{
   const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
   const by=whoAsk();
-  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
-  const total=pending.length;let done=0,queued=0;
+  // 按下當時的設定先固定下來：上傳中動到上面的分類、勾選也不影響這一批
+  const fix={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),...($("opChk").checked?{op:true}:{})};
+  const docOf=p=>{const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
+    return {...fix,stake:manualStake&&!autoFilled?manualStake:fillOf(ns),createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
+      lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})}};
+  const cmp=async p=>{try{return await compress(p.file)}catch(err){return p.file}};
+  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;$("recForm").classList.add("busy");
+  const list=[...pending],total=list.length;let done=0,queued=0,i=0;
+  // 存好的從待存區拿掉（不整個重畫，照片多時才不會卡）
+  const drop=ps=>{ps.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);if(p._el)p._el.remove()});pending=pending.filter(p=>!ps.includes(p))};
   try{
-    while(pending.length){
-      const p=pending[0];
-      showMsg(`建立紀錄 ${done+queued+1}/${total}…`);
-      let blob;try{blob=await compress(p.file)}catch(err){blob=p.file}
-      const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
-      const stake=manualStake&&!autoFilled?manualStake:fillOf(ns);
-      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),...($("opChk").checked?{op:true}:{}),
-        createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
-        lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})},[blob]);
-      r==="queued"?queued++:done++;
-      URL.revokeObjectURL(p.url);pending.shift();renderPending();
+    // 有訊號：照片一張張傳，紀錄每 10 筆寫一次（原本每筆都寫一次紀錄檔、整頁重畫）；壓縮下一張和上傳這一張同時進行
+    if(navigator.onLine!==false){
+      let grp={},gp=[],nx=cmp(list[0]);
+      const flush=async()=>{if(!gp.length)return;await writeMany("records",fix.caseId,grp);done+=gp.length;drop(gp);grp={};gp=[]};
+      try{
+        for(;i<total;i++){
+          showMsg(`上傳 ${i+1}/${total}…`);
+          const blob=await nx;nx=i+1<total?cmp(list[i+1]):null;
+          const id=(await assets.upload(blob)).id;
+          grp[newId()]={...docOf(list[i]),photos:[id]};gp.push(list[i]);
+          if(gp.length>=10)await flush();
+        }
+        await flush();
+      }catch(e){if(!isNetErr(e))throw e;
+        // 中途斷線：已傳好照片、還沒寫紀錄的轉成待上傳
+        for(const [rid,d] of Object.entries(grp)){const {photos,...doc}=d;await obAddRecord(rid,doc,[],photos);queued++}drop(gp);grp={};gp=[]}
     }
+    // 沒訊號（或中途斷線）剩下的：照舊一筆一筆存手機待上傳
+    for(;i<total;i++){const p=list[i];if(!pending.includes(p))continue;
+      showMsg(`存到手機 ${i+1}/${total}…`);
+      const r=await saveNew(docOf(p),[await cmp(p)]);r==="queued"?queued++:done++;drop([p])}
     clearForm();showMsg(queued?`已存 ${done} 筆；${queued} 筆沒訊號，先存在手機（見上方「待上傳」），有訊號會自動上傳。`:`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`,queued>0);
   }catch(err){
-    renderPending();
-    showMsg(`已存 ${done+queued} 筆，第 ${done+queued+1} 張失敗（${(err&&err.code)||"錯誤"}）。剩下 ${pending.length} 張還在上面。`,true);
-  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false}
+    console.error(err);renderPending();
+    showMsg(`已存 ${done+queued} 筆，之後失敗（${(err&&err.code)||"錯誤"}）。剩下 ${pending.length} 張還在上面，可以再按一次。`,true);
+  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;$("recForm").classList.remove("busy")}
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
@@ -1540,7 +1573,7 @@ $("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
 function growNote(){const t=$("noteIn");t.style.height="auto";t.style.height=t.scrollHeight+2+"px"}
 $("noteIn").addEventListener("input",growNote);
 function clearForm(){
-  pending.forEach(p=>URL.revokeObjectURL(p.url));pending=[];renderPending();
+  pending.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb)});pending=[];renderPending();
   ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
 }
 
