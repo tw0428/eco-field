@@ -200,6 +200,8 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .wall a.stg-a{border-bottom-color:var(--stg-a)}.wall a.stg-b{border-bottom-color:var(--stg-b)}
 .wall img{width:100%;height:100%;object-fit:cover;display:block}
 .srttools{flex-wrap:wrap;margin-bottom:8px}
+#dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
+#dropOv[hidden]{display:none}
 .wall a.sel{outline:3px solid var(--accent);outline-offset:-3px}.wall a.sel::after{content:"✓";position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:14px;line-height:22px;text-align:center}
 .srtbar{position:sticky;bottom:0;z-index:41;background:var(--surface);border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .wall span{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:1px 4px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -836,6 +838,16 @@ $("batchBtn").onclick=async()=>{
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
+// 電腦：把照片拖進視窗任何位置＝從相簿選（整頁顯示放開提示）
+{let dn=0;const hasF=e=>[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files");
+  const ov=document.createElement("div");ov.id="dropOv";ov.hidden=true;document.body.appendChild(ov);
+  addEventListener("dragenter",e=>{if(!hasF(e))return;e.preventDefault();dn++;const c=cases.find(x=>x.id===curCase);ov.textContent=c?`放開即加入照片\n${c.name}`:"請先選擇案件";ov.hidden=false});
+  addEventListener("dragover",e=>{if(hasF(e))e.preventDefault()});
+  addEventListener("dragleave",e=>{if(hasF(e)&&--dn<=0){dn=0;ov.hidden=true}});
+  addEventListener("drop",e=>{if(!hasF(e))return;e.preventDefault();dn=0;ov.hidden=true;if(!curCase){showMsg("請先選擇或新增案件。",true);return}
+    const fs=[...e.dataTransfer.files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|heic|png)$/i.test(f.name));
+    if(!fs.length){showMsg("拖進來的不是照片。",true);return}
+    if(editing)cancelEdit();addFiles(fs,false);$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})})}
 $("camIn").onclick=()=>geoStart();/* ---------- 案件 ---------- */
 /* 兩個工具切換時帶著目前案件：點頂端連結時記下 eco-jump，另一頁讀到案件清單後套用一次（5分鐘內有效） */
 function takeJump(to){let j=null;try{j=JSON.parse(lsGet("eco-jump")||"null")}catch(e){}
