@@ -696,8 +696,8 @@ function chips(box,items,getSel,onPick){
   });
 }
 function fillSel(s,ph,opts,v){s.innerHTML="";[["",ph],...opts.map(o=>[o,o])].forEach(([k,t])=>{const o=document.createElement("option");o.value=k;o.textContent=t;o.selected=k===v;s.appendChild(o)});s.classList.toggle("ph",!v)}
-// 選了措施種類就不用再選ABCD（填表時依種類判斷）；只有「其他」或沒選種類時才留ABCD
-$("subSel").onchange=e=>{sub=e.target.value;if(sub&&sub!=="其他")abcd="";renderChips()};
+// 友善措施只選措施種類，不再選ABCD（填表時依種類判斷）；舊紀錄的abcd保留顯示
+$("subSel").onchange=e=>{sub=e.target.value;abcd="";renderChips()};
 $("structSel").onchange=e=>{struct=e.target.value;renderChips()};
 function renderChips(){
   // 一次選兩張以上（批次）多一個「未分類」：先全部存上去，之後在照片牆「整理分類」慢慢分
@@ -706,7 +706,7 @@ function renderChips(){
   const cl=catList();if(many&&!cl.includes("未分類"))cl.push("未分類");
   chips($("catChips"),cl.map(c=>[c,c]),()=>cat,v=>{if(v!==cat){sub="";struct=""}cat=v});
   $("abcdBox").hidden=!isFM(cat);$("habBox").hidden=cat!=="棲地影像";
-  if(isFM(cat)){fillSel($("subSel"),"措施種類…",FM_SUBS,sub);$("abcdChips").hidden=!!sub&&sub!=="其他"}
+  if(isFM(cat)){fillSel($("subSel"),"措施種類…",FM_SUBS,sub);$("abcdChips").hidden=true}
   chips($("abcdChips"),ABCD.map(([k,n])=>[k,k+" "+n]),()=>abcd,v=>{abcd=v});
   chips($("habChips"),HAB_SUBS.map(s=>[s,s]),()=>sub,v=>{sub=sub===v?"":v;if(sub!=="構造物")struct=""});
   $("structSel").hidden=sub!=="構造物";if(sub==="構造物")fillSel($("structSel"),"構造物種類…",STRUCTS,struct);
@@ -1753,8 +1753,7 @@ function srtBar(bar,list){
   const go=st=>{srtFM=st;srtBar(bar,list)},back=st=>mk("← 上一步",false,()=>go(st));
   const s=srtFM||{};
   if(!srtFM)cats.forEach(c=>mk(c,false,()=>hasSub(c)?go({c}):srtApply(bar,list,{category:c})));
-  else if(isFM(s.c)&&!s.sub){back(false);FM_SUBS.forEach(x=>mk(x,false,()=>x!=="其他"?srtApply(bar,list,{category:s.c,sub:x}):go({c:s.c,sub:x})))}
-  else if(isFM(s.c)){back({c:s.c});ABCD.forEach(([k,nm])=>mk(k+" "+nm,false,()=>srtApply(bar,list,{category:s.c,sub:s.sub,abcd:k})));mk("不分ABCD",false,()=>srtApply(bar,list,{category:s.c,sub:s.sub}))}
+  else if(isFM(s.c)&&!s.sub){back(false);FM_SUBS.forEach(x=>mk(x,false,()=>srtApply(bar,list,{category:s.c,sub:x})))}
   else if(!s.sub){back(false);mk("棲地",false,()=>srtApply(bar,list,{category:s.c,sub:"棲地"}));mk("構造物",false,()=>go({c:s.c,sub:"構造物"}))}
   else{back({c:s.c});STRUCTS.forEach(x=>mk(x,false,()=>srtApply(bar,list,{category:s.c,sub:"構造物",struct:x})))}
   if(srtFM){const h=document.createElement("span");h.className="hint";h.textContent=[s.c,s.sub].filter(Boolean).join("・")+" →";box.prepend(h)}
