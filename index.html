@@ -1002,7 +1002,8 @@ async function offDownload(c){
   const files=[...new Set([...(c.plans||[]).map(p=>p.id),...(c.overlays||[]).map(o=>o.id),...records.filter(r=>r.caseId===c.id).flatMap(r=>r.photos||[])].filter(Boolean))];
   const tiles=offTiles(c);
   offBusy={id:c.id,done:0,total:OFF_LIBS.length+files.length+tiles.length*2};let fail=0,bytes=0;offRender();
-  const step=async f=>{try{bytes+=(await f())||0}catch(e){fail++}offBusy.done++;if(offBusy.done%10===0||offBusy.done===offBusy.total)offRender()};
+  // 下載中只改進度文字（整個面板重畫會閃）；開始與結束才重畫
+  const step=async f=>{try{bytes+=(await f())||0}catch(e){fail++}offBusy.done++;if(offBusy.done%10===0||offBusy.done===offBusy.total)offTick()};
   try{
     await pool(OFF_LIBS,3,u=>step(()=>cachePut(LIB_CACHE,u).then(()=>0)));
     await pool(files,4,id=>step(async()=>(await fileBlob(id)).size));
@@ -1023,7 +1024,9 @@ async function offDelete(id){
   }catch(e){}
   try{localStorage.removeItem(offKey(id))}catch(e){}
 }
-let offErr="";
+let offErr="",offUse="";
+function offTick(){if(!offBusy)return;const t=`下載中 ${offBusy.done}/${offBusy.total}`;
+  const g=$("offGo");if(g)g.textContent=t+"…";const c=cases.find(x=>x.id===curCase);if(c&&c.id===offBusy.id)$("offBtn").textContent="⬇ 離線包："+t}
 // 案件資訊區：一顆按鈕，文字直接顯示本案狀態；點開是離線包管理
 function offShow(c){
   const b=$("offBtn"),m=$("offMsg");b.hidden=!c;if(!c){m.hidden=true;return}
@@ -1041,7 +1044,7 @@ function offRender(){
     const s=packs.find(p=>p.id===c.id),sec=el("div","expbtns");
     sec.appendChild(el("div","lbl","本案："+c.name));
     const go=el("button","primary",offBusy&&offBusy.id===c.id?`下載中 ${offBusy.done}/${offBusy.total}…`:s?"⬇ 更新本案離線包":"⬇ 下載本案離線包");
-    go.type="button";go.disabled=!!offBusy;go.onclick=()=>offDownload(c);sec.appendChild(go);
+    go.type="button";go.id="offGo";go.disabled=!!offBusy;go.onclick=()=>offDownload(c);sec.appendChild(go);
     sec.appendChild(el("div","hint",offErr||"含平面圖、對位設計圖、本案照片、工區周圍約300m的地圖。出發前有網路時下載；下載中可以繼續操作，頁面先不要關。"));
     if(s&&s.noMap)sec.appendChild(el("div","hint","本案沒有樁號或定位紀錄，地圖沒有下載。"));
     box.appendChild(sec);
@@ -1062,8 +1065,9 @@ function offRender(){
     all.onclick=async()=>{if(all.dataset.armed!=="1"){all.dataset.armed="1";all.textContent="再按一次刪除全部";setTimeout(()=>{all.dataset.armed="";all.textContent="刪除全部離線包"},4000);return}
       all.disabled=true;for(const p of offPacks())await offDelete(p.id);offRender()};
     box.appendChild(all)}
-  const use=el("div","hint","");box.appendChild(use);
-  try{navigator.storage.estimate().then(e=>{use.textContent=`本工具在手機上共用了約 ${fmtMB(e.usage||0)}（含離線包、平時看過的照片、待上傳資料）。刪除離線包不會刪到金鑰和待上傳的紀錄。`})}catch(e){}
+  // 先放上次的用量文字，估算回來再換，避免高度忽有忽無
+  const use=el("div","hint",offUse||"本工具在手機上的用量計算中…");box.appendChild(use);
+  try{navigator.storage.estimate().then(e=>{offUse=`本工具在手機上共用了約 ${fmtMB(e.usage||0)}（含離線包、平時看過的照片、待上傳資料）。刪除離線包不會刪到金鑰和待上傳的紀錄。`;use.textContent=offUse})}catch(e){}
 }
 $("offBtn").onclick=()=>{$("offSheet").hidden=false;offRender()};
 $("offClose").onclick=()=>{$("offSheet").hidden=true};
