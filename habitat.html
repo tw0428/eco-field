@@ -252,9 +252,10 @@ function save(){
  lsSet(PREF,JSON.stringify({view:S.view,cur:S.cur,c:curCase}));
  if(!curCase||!S.p)return;
  const j=JSON.stringify(S.p);if(j===lastJson)return;
- lastJson=j;const id=curCase;clearTimeout(saveTimer);
+ lastJson=j;const id=curCase;clearTimeout(saveTimer);pendSet(id,j);
  // 存失敗時清掉lastJson，下次render或恢復訊號（online事件）會重送，不用手動再改一次
- saveFn=async()=>{saveTimer=null;saveFn=null;try{await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分還沒存到雲端；有訊號時會自動補存，這頁先不要關':'儲存失敗（'+(e.code||e.message)+'），請有網路時再改一次')}};
+ // 每次修改先存手機（pendSet），存上雲端才刪；離線拍的照片要先補傳，評分才不會指到雲端沒有的照片
+ saveFn=async()=>{saveTimer=null;saveFn=null;try{await phFlush();await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});pendDel(id,j);unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分與照片先存在手機（關掉網頁也不會不見），有訊號時會自動補存':'儲存失敗（'+(e.code||e.message)+'），資料已存在手機，有網路時會再試')}};
  saveTimer=setTimeout(saveFn,600);
 }
 async function flush(){if(saveTimer){clearTimeout(saveTimer);await saveFn()}}
@@ -264,6 +265,45 @@ function loadCase(force){
  if((saveTimer||unsaved)&&!force)return; // 有還沒存上去的評分時，不讓背景更新蓋掉
  const src=c.p&&c.p.length===3?JSON.stringify(c.p):null;
  if(force||(src&&src!==lastJson)||(!src&&!S.p)){S.p=src?JSON.parse(src).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')];lastJson=JSON.stringify(S.p)}
+ // 手機上有還沒存上雲端的評分（上次沒訊號、網頁被關掉）→ 用手機上的，並重送
+ const pd=pendAll()[curCase];
+ if(pd){if(pd.p===src)pendDel(curCase,pd.p);else{S.p=JSON.parse(pd.p).map(fixP);lastJson='';unsaved=true}}
+}
+/* 離線暫存：評分（localStorage eco-hab-pending，每案最新一份）與照片（IndexedDB eco-hab-outbox）存上雲端前先留在手機 */
+const PEND='eco-hab-pending';
+const pendAll=()=>{try{return JSON.parse(lsGet(PEND)||'{}')||{}}catch(e){return {}}};
+function pendSet(id,j){const m=pendAll();m[id]={p:j,at:Date.now()};lsSet(PEND,JSON.stringify(m))}
+function pendDel(id,j){const m=pendAll();if(m[id]&&(j==null||m[id].p===j)){delete m[id];lsSet(PEND,JSON.stringify(m))}}
+// iOS主畫面App第一次開時indexedDB.open可能一直不回應 → 3秒逾時，成功的連線留著重用
+let phDbP=null;
+function phDb(){if(phDbP)return phDbP;phDbP=new Promise((res,rej)=>{const tm=setTimeout(()=>rej(new Error('idb_timeout')),3000);
+ try{const r=indexedDB.open('eco-hab-outbox',1);r.onupgradeneeded=()=>r.result.createObjectStore('ph',{keyPath:'id'});
+  r.onsuccess=()=>{clearTimeout(tm);res(r.result)};r.onerror=r.onblocked=()=>{clearTimeout(tm);rej(r.error||new Error('idb_blocked'))}}catch(e){clearTimeout(tm);rej(e)}});
+ phDbP.catch(()=>{phDbP=null});return phDbP}
+async function phTx(mode,fn){const d=await phDb();return new Promise((res,rej)=>{const t=d.transaction('ph',mode);const out=fn(t.objectStore('ph'));t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)})}
+// 照片id在手機先產生；同時放進照片暫存（eco-files），沒上傳前畫面也看得到
+async function phQueue(blob){const id=newId(),buf=await blob.arrayBuffer();
+ await phTx('readwrite',s=>s.put({id,buf,type:blob.type||'image/jpeg',at:Date.now()}));
+ try{const c=await caches.open(FILE_CACHE);await c.put(fileKey(id),new Response(blob))}catch(e){}
+ return id}
+let phFlushing=null;
+function phFlush(){
+ if(phFlushing)return phFlushing;
+ phFlushing=(async()=>{let list=[];try{list=(await phTx('readonly',s=>s.getAll()))||[]}catch(e){return}
+  for(const it of list){
+   if(!(await gh('files/'+it.id)))await putNew('files/'+it.id,await blobB64(new Blob([it.buf],{type:it.type})),'habitat photo '+it.id); // 已傳過（上次刪暫存失敗）就不重傳
+   await phTx('readwrite',s=>s.delete(it.id));
+  }})().finally(()=>{phFlushing=null});
+ return phFlushing;
+}
+// 有訊號時：先補照片，再把每個案件手機上的評分存上去（已刪除的案件就丟掉）
+async function habFlush(){
+ if(!ghToken||navigator.onLine===false)return;
+ try{await phFlush()}catch(e){return}
+ for(const [id,v] of Object.entries(pendAll())){
+  if(!hStore[id]){pendDel(id);continue}
+  try{await db.doc('cases/'+id).update({p:JSON.parse(v.p),updatedAt:Date.now()});pendDel(id,v.p);if(id===curCase&&!saveTimer){unsaved=false;msg('')}}catch(e){return}
+ }
 }
 function renderCases(){
  $('caseBar').hidden=!db;if(!db)return;
@@ -377,7 +417,7 @@ async function connect(){
  if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
  $('conn').textContent=Object.keys(hStore).length?'更新中…':'讀取中…';
  const t0=performance.now();
- try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
+ try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart();habFlush()}
  catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾 eco-field-data，Contents 設 Read and write。')}
   else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生一組貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
 }
@@ -396,7 +436,9 @@ async function initDb(){
  });
  if(ghToken)hLoadCache();
  connect();
- window.addEventListener('online',()=>{if(S.p&&curCase){lastJson='';save()}});
+ window.addEventListener('online',()=>{habFlush()});
+ // 請系統把本站資料（暫存照片、待上傳）列為保留，降低空間不足時被清掉的機會
+ try{navigator.storage.persist().catch(()=>{})}catch(e){}
 }
 
 /* ===== 計算 ===== */
@@ -522,7 +564,7 @@ async function compress(file){
  return await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
 }
 async function upPhotos(files,kind,fromCam){
- const id=curCase,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0;
+ const id=curCase,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0,queued=0;
  for(let i=0;i<files.length;i++){
   pm(`上傳 ${i+1}/${files.length}…`);
   const ex=await readExif(files[i]);
@@ -531,7 +573,10 @@ async function upPhotos(files,kind,fromCam){
   const tk=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(ex.taken||''),tkMs=tk?new Date(+tk[1],tk[2]-1,+tk[3],+tk[4],+tk[5]).getTime():0;
   if(ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000))){pm('取得定位中…');const g=geoFresh()||await geoWait(10000);if(g){ex.lat=g.lat;ex.lng=g.lng;ex.acc=g.acc;ex.src='device'}}
   let blob;try{blob=await compress(files[i])}catch(e){blob=files[i]}
-  try{const r=await assets.upload(blob,{type:blob.type||'image/jpeg'});
+  try{let r;
+   // 沒訊號：照片先存手機（待上傳），評分照常記；有訊號時自動補傳
+   try{if(navigator.onLine===false)throw new TypeError('offline');r=await assets.upload(blob,{type:blob.type||'image/jpeg'})}
+   catch(e){if(!(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'))throw e;r={id:await phQueue(blob)};queued++}
    if(curCase!==id||!S.p)return;
    if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
    const by=addBy(S.p[ci]);
@@ -539,7 +584,7 @@ async function upPhotos(files,kind,fromCam){
    if(ex.lat==null)noGps++;render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
- pm(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(geoErr?'（'+geoErr+'）':''):'完成');
+ pm((queued?`沒訊號，${queued} 張先存在手機，有訊號時自動上傳。`:'')+(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(geoErr?'（'+geoErr+'）':''):'完成'));
 }
 /* 從現場紀錄選照片：讀同案件ID的 records/<案>.json；照片複製一份（兩邊各自刪除互不影響），位置與拍攝時間沿用該筆紀錄 */
 const recTaken=r=>{if(/^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(r.takenAt||""))return r.takenAt.replace(/\//g,":")+":00";
