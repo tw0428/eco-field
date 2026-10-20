@@ -119,7 +119,7 @@ button.danger{color:var(--danger);border-color:var(--danger)}
 .vtitle{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
 .vcontent{transform-origin:0 0}
-.vcontent img,.vcontent canvas{display:block;max-width:none;background:#fff;margin-bottom:8px}
+#viewer{z-index:60}.vcontent img,.vcontent canvas{display:block;max-width:none;background:#fff;margin-bottom:8px}
 .vmsg{padding:24px;color:var(--muted)}
 .plans{display:flex;flex-direction:column;gap:6px}
 .planlist{display:flex;flex-direction:column;gap:6px}
@@ -305,6 +305,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <div id="recView" class="viewer" hidden>
   <div class="vbar">
     <span class="vtitle" id="rvTitle">紀錄</span>
+    <button type="button" id="rvPrev" hidden aria-label="上一筆">‹</button>
+    <button type="button" id="rvNext" hidden aria-label="下一筆">›</button>
     <button type="button" id="rvClose" class="primary">關閉</button>
   </div>
   <div class="rvbody" id="rvBody"></div>
@@ -1009,13 +1011,22 @@ let vZoom=1,vBase=[],vToken=0;
 function vApply(){
   const items=$("vContent").children;
   for(let i=0;i<items.length;i++){const w=vBase[i];if(w)items[i].style.width=Math.round(w*vZoom)+"px"}
+  vCenter();
 }
-function vFit(){const w=$("vStage").clientWidth-4;const mx=Math.max(...vBase.filter(Boolean),1);vZoom=w/mx;vApply()}
+// 照片：整張放進畫面（寬高都要塞得下）並置中；平面圖PDF：照舊依寬度、往下捲
+let vImg=null;
+function vFit(){const st=$("vStage"),w=st.clientWidth-4;
+  if(vImg){vZoom=Math.min(w/vImg.naturalWidth,(st.clientHeight-4)/vImg.naturalHeight,1.5);vApply();return}
+  const mx=Math.max(...vBase.filter(Boolean),1);vZoom=w/mx;vApply()}
+function vCenter(){const st=$("vStage"),b=$("vContent");if(!vImg){b.style.margin="";return}
+  b.style.marginLeft=Math.max(0,(st.clientWidth-vImg.naturalWidth*vZoom)/2)+"px";b.style.marginTop=Math.max(0,(st.clientHeight-vImg.naturalHeight*vZoom)/2)+"px"}
 function vSetZoom(z,cx,cy){
   const st=$("vStage"),old=vZoom;z=Math.max(0.1,Math.min(6,z));
-  const px=(st.scrollLeft+(cx??st.clientWidth/2))/old,py=(st.scrollTop+(cy??st.clientHeight/2))/old;
+  // 置中的留白（照片比畫面小時）要扣掉，游標下的那一點縮放後才會留在原處
+  const b=$("vContent"),ml=()=>parseFloat(b.style.marginLeft)||0,mt=()=>parseFloat(b.style.marginTop)||0;
+  const px=(st.scrollLeft+(cx??st.clientWidth/2)-ml())/old,py=(st.scrollTop+(cy??st.clientHeight/2)-mt())/old;
   vZoom=z;vApply();
-  st.scrollLeft=px*z-(cx??st.clientWidth/2);st.scrollTop=py*z-(cy??st.clientHeight/2);
+  st.scrollLeft=px*z+ml()-(cx??st.clientWidth/2);st.scrollTop=py*z+mt()-(cy??st.clientHeight/2);
 }
 let downloads=null,vCur=null;
 $("vSave").onclick=async()=>{
@@ -1045,7 +1056,8 @@ function loadPdfJs(){
 async function openViewer(id,type,title){
   vCur={id,type,title};$("vSave").hidden=!downloads;
   const tok=++vToken;$("vTitle").textContent=title;$("viewer").hidden=false;document.body.style.overflow="hidden";
-  const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];
+  const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];vImg=null;box.style.margin="";
+  $("vFit").textContent=type==="application/pdf"?"符合寬度":"整張";
   try{
     if(type==="application/pdf"){
       await loadPdfJs();
@@ -1062,7 +1074,7 @@ async function openViewer(id,type,title){
     }else{
       const img=new Image();img.alt=title;
       await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;blobUrl(id,type).then(u=>{img.src=u},rej)});
-      if(tok!==vToken)return;box.innerHTML="";box.appendChild(img);vBase=[img.naturalWidth];vFit();
+      if(tok!==vToken)return;box.innerHTML="";box.appendChild(img);vBase=[img.naturalWidth];vImg=img;img.style.marginBottom="0";vFit();
     }
   }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟這個檔案（'+(e.message||"載入失敗")+'）。</div>'}
 }
@@ -1092,7 +1104,10 @@ $("vFit").onclick=vFit;
     if(pts.size===2&&d0){const p=[...pts.values()],r=st.getBoundingClientRect();vSetZoom(z0*dist()/d0,(p[0].x+p[1].x)/2-r.left,(p[0].y+p[1].y)/2-r.top)}});
   const up=e=>{pts.delete(e.pointerId);if(pts.size<2)d0=0};
   st.addEventListener("pointerup",up);st.addEventListener("pointercancel",up);
-  st.addEventListener("wheel",e=>{if(e.ctrlKey){e.preventDefault();const r=st.getBoundingClientRect();vSetZoom(vZoom*(e.deltaY<0?1.1:0.9),e.clientX-r.left,e.clientY-r.top)}},{passive:false});
+  // 照片：雙擊在「整張」與「放大到原尺寸」間切換；滾輪直接縮放（平面圖PDF仍是滾輪捲動、Ctrl+滾輪縮放）
+  st.addEventListener("dblclick",e=>{if(!vImg)return;const r=st.getBoundingClientRect(),fit=Math.min((st.clientWidth-4)/vImg.naturalWidth,(st.clientHeight-4)/vImg.naturalHeight,1.5);
+    if(vZoom>fit*1.05)vFit();else vSetZoom(Math.max(1,fit*2.5),e.clientX-r.left,e.clientY-r.top)});
+  st.addEventListener("wheel",e=>{if(e.ctrlKey||vImg){e.preventDefault();const r=st.getBoundingClientRect();vSetZoom(vZoom*(e.deltaY<0?1.1:0.9),e.clientX-r.left,e.clientY-r.top)}},{passive:false});
 })();
 
 /* ---------- 平面圖（存在案件的 plans:[{id,title,type}]） ---------- */
@@ -1558,7 +1573,7 @@ function renderRecords(){
   if(!c){$("filtRow").hidden=true;box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
   $("listTools").hidden=!list.length;$("filtRow").hidden=!list.length;renderNear();
   if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
-  const shown=renderFilt(list);
+  const shown=renderFilt(list);rvShown=listMode()==="wall"?shown.filter(r=>r.photos&&r.photos.length):shown;
   if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
   if(listMode()==="wall"){renderWall(box,shown,list);return}
   if(!shown.length){box.innerHTML='<div class="empty">這個篩選沒有紀錄。</div>';return}
@@ -1622,14 +1637,23 @@ function recCard(r,c,onEdit){
     return el;
 }
 // 照片牆點開：顯示該筆紀錄的完整資料，可編輯/刪除；點照片再看大圖
+// ‹ › 依目前列表／照片牆顯示的順序（含篩選）換上一筆、下一筆；電腦可按 ←→，Esc 關閉
+let rvShown=[],rvCur=null;
 function openRec(r){
-  const c=cases.find(x=>x.id===curCase);if(!c)return;
+  const c=cases.find(x=>x.id===curCase);if(!c)return;rvCur=r;
   $("rvTitle").textContent=recTitle(r);
-  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));
+  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.scrollTop=0;
+  const i=rvShown.findIndex(x=>x.id===r.id);$("rvPrev").hidden=$("rvNext").hidden=i<0||rvShown.length<2;
+  if(i>=0){$("rvPrev").disabled=i===0;$("rvNext").disabled=i===rvShown.length-1;$("rvTitle").textContent=`${i+1}/${rvShown.length}　`+recTitle(r)}
   $("recView").hidden=false;document.body.style.overflow="hidden";
 }
-function closeRec(){$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow=""}
-$("rvClose").onclick=closeRec;
+function rvGo(d){if(!rvCur)return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
+function closeRec(){$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
+$("rvClose").onclick=closeRec;$("rvPrev").onclick=()=>rvGo(-1);$("rvNext").onclick=()=>rvGo(1);
+addEventListener("keydown",e=>{if(!$("viewer").hidden){if(e.key==="Escape"&&!vNav)closeViewer();return}if($("recView").hidden)return;
+  const t=e.target;if(t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName))return;
+  if(e.key==="ArrowLeft"){e.preventDefault();rvGo(-1)}else if(e.key==="ArrowRight"){e.preventDefault();rvGo(1)}else if(e.key==="Escape")closeRec()});
+addEventListener("resize",()=>{if(!$("viewer").hidden&&vImg)vFit()});
 
 /* ---------- 編輯 ---------- */
 function startEdit(r){
