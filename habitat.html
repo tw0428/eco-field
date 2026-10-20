@@ -131,6 +131,13 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 .picker .pkh input{flex:1}
 .picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
 .picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
+/* 案件選單：長名中間省略（保留結尾工區編號）、右側釘選鈕、分組切換 */
+.pickbtn{display:flex;align-items:center}
+.nh{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nt{flex:none;white-space:nowrap}
+.picker li:not(.grp){display:flex;align-items:center;gap:6px;padding:4px 0 4px 4px}
+.pkname{flex:1;min-width:0;display:flex;padding:7px 0}
+.picker .pin{flex:none;border:0;background:none;font-size:18px;padding:6px 10px;color:var(--muted,var(--mute));cursor:pointer}
+.pkmode{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;color:var(--muted,var(--mute))}
 .rpgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow:auto;flex:1;align-content:start}
 .rpi{position:relative;display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--ink);cursor:pointer;min-width:0}
 .rpi img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:3px solid transparent;background:var(--line)}
@@ -883,6 +890,10 @@ function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement
  b.append(s,mk('建立同名評估','primary',async()=>{b.remove();try{await flush();await db.collection('cases').doc(j.id).set({name:j.name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
    curCase=j.id;S.cur=0;S.view='creek';loadCase(true);render()}catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}}),mk('關閉','',()=>b.remove()));
  $('caseMsg').after(b)}
+// 選單分組用：地區、階段在現場紀錄設定，這裡讀手機上現場紀錄的暫存（同id、再找同名）；棲地自己不存
+function habMeta(id){const c=cases.find(x=>x.id===id)||{};let fid=null,f=null;
+ try{const all=(JSON.parse(lsGet('eco-cache-field')||'null')||{}).cases||{};if(all[id]){fid=id;f=all[id]}else{fid=Object.keys(all).find(k=>all[k].name===c.name)||null;f=fid?all[fid]:null}}catch(e){}
+ return {name:c.name||'',area:(f&&f.area)||'',stage:(fid&&lsGet('eco-stage-'+fid))||(f&&f.stage)||''}}
 $('toField').onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet('eco-jump',JSON.stringify({to:'field',id:c.id,name:c.name,t:Date.now()}))};
 async function addCase(){
  const name=$('caseName').value.trim();if(!name||!db)return;
@@ -928,38 +939,61 @@ document.addEventListener('change',e=>{
   const sd=k.slice(it.id.length);const r=evalItem(it,sd,p);st.ovr=v;st.ovrBand=r.b;render();return;}
  if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
 });
-/* 案件挑選器：全螢幕清單＋搜尋，最近用過的在前（底層仍是原本的select；與現場紀錄相同） */
-function makePicker(sel,recentKey){
- if(matchMedia('(pointer:fine)').matches)return; // 電腦（滑鼠）維持原本的下拉選單
- const btn=document.createElement('button');btn.type='button';btn.className='act pickbtn';sel.before(btn);sel.hidden=true;
- const sync=()=>{const o=sel.options[sel.selectedIndex];btn.textContent=o?o.textContent:'（尚無案件）'};
- new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
- const recent=()=>{try{return JSON.parse(lsGet(recentKey)||'[]')}catch(e){return []}};
- const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
- sel.addEventListener('change',()=>{touch(sel.value);sync()});
- setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500);
- btn.onclick=()=>{
-  const opts=[...sel.options].filter(o=>o.value),rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
-  const ov=document.createElement('div');ov.className='picker';
-  ov.innerHTML='<div class="pkh"><input type="text" placeholder="搜尋案件名稱" aria-label="搜尋案件"><button type="button" class="act">取消</button></div><ul></ul>';
-  const q=ov.querySelector('input'),ul=ov.querySelector('ul');
-  const close=()=>{ov.remove();document.body.style.overflow=''};
-  ov.querySelector('button').onclick=close;
-  const draw=()=>{
-   const k=q.value.trim().toLowerCase();ul.innerHTML='';
-   const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k));
-   const r=hit.filter(o=>rank(o.value)<1e9).sort((a,b)=>rank(a.value)-rank(b.value)),rest=hit.filter(o=>rank(o.value)>=1e9);
-   const grp=(t,l)=>{if(!l.length)return;if(!k&&r.length&&rest.length){const h=document.createElement('li');h.className='grp';h.textContent=t;ul.appendChild(h)}
-    l.forEach(o=>{const li=document.createElement('li');li.textContent=o.textContent;if(o.value===sel.value)li.className='on';
-     li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event('change',{bubbles:true}))}};ul.appendChild(li)})};
-   grp('最近使用',r);grp('其他案件',rest);
-   if(!hit.length){const li=document.createElement('li');li.className='grp';li.textContent='找不到符合的案件';ul.appendChild(li)}
+/* 案件挑選器：全螢幕清單＋搜尋（底層仍是原本的select；兩頁同一份程式）
+   最上面「📌 釘選」（eco-pins，存在這支手機、兩頁共用，用id或案名對應）；其餘依「最近使用／地區／階段」分組（eco-pickmode，兩頁共用）
+   地區、階段只用案件上明確設定的值（現場紀錄案件資訊區、本次階段），沒設定的歸「未設定」，不從案名推測
+   長案名：保留開頭與最後10字、中間省略，工區編號才看得到 */
+const PICK_STAGES=["提報","設計","開工前","施工中","完工"];
+function nameEl(el,t){el.textContent="";const n=10;if(t.length<=n+6){el.textContent=t;return}
+  const h=document.createElement("span");h.className="nh";h.textContent=t.slice(0,-n);
+  const tl=document.createElement("span");tl.className="nt";tl.textContent=t.slice(-n);el.append(h,tl)}
+function makePicker(sel,recentKey,metaOf){
+  if(matchMedia("(pointer:fine)").matches)return; // 電腦（滑鼠）維持原本的下拉選單，手機才用全螢幕清單
+  const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow act";sel.before(btn);sel.hidden=true;
+  const sync=()=>{const o=sel.options[sel.selectedIndex];nameEl(btn,o?o.textContent:"（尚無案件）")};
+  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
+  const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
+  const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
+  const pins=()=>{try{return JSON.parse(lsGet("eco-pins")||"[]")}catch(e){return []}};
+  const isPin=o=>{const nm=metaOf(o.value).name;return pins().some(p=>p.id===o.value||(nm&&p.name===nm))};
+  const togglePin=o=>{const nm=metaOf(o.value).name,l=pins(),hit=x=>x.id===o.value||(nm&&x.name===nm);
+    lsSet("eco-pins",JSON.stringify(l.some(hit)?l.filter(x=>!hit(x)):[...l,{id:o.value,name:nm}]))};
+  sel.addEventListener("change",()=>{touch(sel.value);sync()});
+  setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500); // 程式改value不會觸發事件
+  btn.onclick=()=>{
+    const opts=[...sel.options].filter(o=>o.value),rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
+    const ov=document.createElement("div");ov.className="picker";
+    ov.innerHTML='<div class="pkh"><input type="text" placeholder="搜尋案件名稱" aria-label="搜尋案件"><button type="button" class="act">取消</button></div><div class="pkmode"><span>分組</span><div class="seg"></div></div><ul></ul>';
+    const q=ov.querySelector("input"),ul=ov.querySelector("ul"),seg=ov.querySelector(".seg");
+    const close=()=>{ov.remove();document.body.style.overflow=""};
+    ov.querySelector(".pkh button").onclick=close;
+    const draw=()=>{
+      const mode=lsGet("eco-pickmode")||"recent";
+      seg.innerHTML="";[["recent","最近使用"],["area","地區"],["stage","階段"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
+        b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
+      const k=q.value.trim().toLowerCase();ul.innerHTML="";
+      const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k)),byRank=(a,b)=>rank(a.value)-rank(b.value)||a.textContent.localeCompare(b.textContent,"zh-Hant");
+      const head=t=>{const h=document.createElement("li");h.className="grp";h.textContent=t;ul.appendChild(h)};
+      const item=o=>{const li=document.createElement("li");if(o.value===sel.value)li.className="on";
+        const nm=document.createElement("span");nm.className="pkname";nameEl(nm,o.textContent);
+        const pb=document.createElement("button");pb.type="button";pb.className="pin";const on=isPin(o);pb.textContent=on?"📌":"☆";pb.setAttribute("aria-label",on?"取消釘選":"釘選");
+        pb.onclick=e=>{e.stopPropagation();togglePin(o);draw()};
+        li.append(nm,pb);li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}))}};ul.appendChild(li)};
+      const P=hit.filter(isPin).sort(byRank),R=hit.filter(o=>!isPin(o));
+      if(P.length){head("📌 釘選");P.forEach(item)}
+      if(k){R.sort(byRank).forEach(item)}
+      else if(mode==="recent"){const r=R.filter(o=>rank(o.value)<1e9).sort(byRank),rest=R.filter(o=>rank(o.value)>=1e9).sort(byRank);
+        if(r.length){head("最近使用");r.forEach(item)}if(rest.length){head("其他案件");rest.forEach(item)}}
+      else{const key=o=>metaOf(o.value)[mode]||"",keys=[...new Set(R.map(key))];
+        keys.sort((a,b)=>!a?1:!b?-1:mode==="stage"?PICK_STAGES.indexOf(a)-PICK_STAGES.indexOf(b):a.localeCompare(b,"zh-Hant"));
+        keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定階段"));R.filter(o=>key(o)===g).sort(byRank).forEach(item)})}
+      if(!hit.length)head("找不到符合的案件");
+    };
+    q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow="hidden";
   };
-  q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow='hidden';
- };
- sync();
+  sync();
 }
-makePicker($('caseSel'),'eco-recent-habitat');
+makePicker($('caseSel'),'eco-recent-habitat',habMeta);
 whoShow();$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
 $('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
