@@ -71,6 +71,9 @@ textarea{min-height:72px;resize:vertical}
 .ckrow label{display:flex;gap:6px;align-items:center}
 /* 浮動拍照鈕不要蓋住最後一筆紀錄 */
 #recList{padding-bottom:76px}
+/* 地區欄：小欄位，不佔整行（字維持16px，iPhone點了才不會自動放大畫面） */
+#areaRow{gap:6px}#areaIn{width:8.5em;flex:none;padding:3px 8px;font-size:16px}
+#areaPick .chip{padding:3px 10px;font-size:13px}
 .offitem{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .offinfo{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;color:var(--muted)}
 .offinfo b{color:var(--fg);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -321,7 +324,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <span class="lbl">本次階段（之後新增的紀錄都會標上）</span>
       <div class="chips" id="stageChips"></div>
     </div>
-    <div class="row" id="areaRow" hidden><label class="lbl" for="areaIn" style="margin:0;white-space:nowrap">地區</label><input type="text" id="areaIn" list="areaList" placeholder="未設定（有樁號或定位紀錄時自動帶入鄉鎮）" enterkeyhint="done"><datalist id="areaList"></datalist></div>
+    <div class="row" id="areaRow" hidden><label class="lbl" for="areaIn" style="margin:0;white-space:nowrap">地區</label><input type="text" id="areaIn" list="areaList" placeholder="自動帶入" enterkeyhint="done"><datalist id="areaList"></datalist></div>
+    <div class="row" id="areaPick" hidden style="flex-wrap:wrap;font-size:13px;color:var(--muted)"></div>
     <div class="hint" id="caseStakeInfo" hidden></div>
     <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、我的位置）</button>
     <details id="planBox" class="plans checks" hidden>
@@ -832,23 +836,26 @@ function jumpNote(text){let b=$("jumpBox");if(b)b.remove();b=document.createElem
   const s=document.createElement("span");s.textContent=text;const x=document.createElement("button");x.type="button";x.textContent="關閉";x.onclick=()=>b.remove();
   b.append(s,x);document.querySelector(".caseinfo").before(b)}
 $("toHab").onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet("eco-jump",JSON.stringify({to:"habitat",id:c.id,name:c.name,t:Date.now()}))};
-/* 地區自動帶入：案件還沒有地區、但有座標（樁號→工區點→紀錄GPS）時，查國土測繪中心「坐標查鄉鎮村里」，存鄉鎮名（例：阿里山鄉）
-   用座標查官方行政區，不從案名推測；使用者手改過就以手改為準（有值就不再自動） */
-const areaTried=new Set();let areaBusy=false;
+/* 地區自動帶入：案件還沒有地區、但有座標（樁號頭中尾→工區點→紀錄GPS）時，查國土測繪中心「坐標查鄉鎮村里」，存鄉鎮名（例：阿里山鄉）
+   用座標查官方行政區，不從案名推測；使用者手改過就以手改為準（有值就不再自動）
+   野溪常是鄉鎮界（托亞奇伊溪：阿里山鄉／那瑪夏區，實務算阿里山鄉）→ 每點都查，全部一致才自動填；
+   查出兩個以上鄉鎮就不填，在地區欄下列出候選讓使用者點選（areaCand） */
+const areaTried=new Set(),areaCand={};let areaBusy=false;
 async function autoArea(){
   if(areaBusy||!ghToken||navigator.onLine===false)return;areaBusy=true;
   try{for(const c of cases){
     if(c.area||areaTried.has(c.id))continue;
-    // 點剛好落在溪中線（行政界）會查不到 → 樁號頭中尾、工區點、紀錄GPS依序試，最多5點
     const st=(Array.isArray(c.stakes)?c.stakes:[]).filter(p=>p.lat!=null);
     const pts=[st[0],st[st.length>>1],st[st.length-1],...(Array.isArray(c.sites)?c.sites:[]).filter(p=>p.lat!=null),...records.filter(r=>r.caseId===c.id&&r.lat!=null)].filter(Boolean).slice(0,5);
     if(!pts.length)continue;areaTried.add(c.id);
+    const towns=new Set();
     for(const s of pts){
       try{const r=await fetch(`https://api.nlsc.gov.tw/other/TownVillagePointQuery/${s.lng}/${s.lat}/4326`);if(!r.ok)continue;
         const town=((new DOMParser().parseFromString(await r.text(),"text/xml").querySelector("townName")||{}).textContent||"").trim();
-        if(!town)continue;
-        if(!(cases.find(x=>x.id===c.id)||{}).area)await db.doc("cases/"+c.id).update({area:town});break}catch(e){}
+        if(town)towns.add(town)}catch(e){}
     }
+    if(towns.size===1){if(!(cases.find(x=>x.id===c.id)||{}).area){try{await db.doc("cases/"+c.id).update({area:[...towns][0]})}catch(e){}}}
+    else if(towns.size>1){areaCand[c.id]=[...towns];if(c.id===curCase)renderCases()}
   }}finally{areaBusy=false}
 }
 $("areaIn").onchange=async()=>{const c=cases.find(x=>x.id===curCase),v=$("areaIn").value.trim();if(!c||(c.area||"")===v)return;
@@ -873,6 +880,10 @@ function renderCases(){
   renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);
   // 地區：使用者自己填（不從案名推測），候選＝其他案件已填過的地區
   $("areaRow").hidden=!c;if(c&&document.activeElement!==$("areaIn"))$("areaIn").value=c.area||"";
+  // 座標跨兩個以上鄉鎮（溪流是界線）：列出候選，點一下就存
+  const ap=$("areaPick"),cand=c&&!c.area&&areaCand[c.id];ap.hidden=!cand;ap.innerHTML="";
+  if(cand){ap.append("工區跨鄉鎮界，選實務上的：");cand.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
+    b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區沒存上（"+(e.code||"網路")+"），有訊號時再點一次。",true)}};ap.appendChild(b)})}
   $("areaList").innerHTML="";[...new Set(cases.map(x=>x.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant")).forEach(a=>{const o=document.createElement("option");o.value=a;$("areaList").appendChild(o)});
   const vals=stakeVals(c),ss=$("stakeSel");fillStakeSel(ss,vals);
   ss.hidden=$("stakeArrow").hidden=!vals.length;
