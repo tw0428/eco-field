@@ -137,7 +137,8 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 .picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
 .picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
 /* 案件選單：長名中間省略（保留結尾工區編號）、右側釘選鈕、分組切換 */
-.pickbtn{display:flex;align-items:center}
+.pickbtn{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.3;font-size:15px;padding-top:6px;padding-bottom:6px}
+.nc{flex:none;font-size:12px;color:var(--muted,var(--mute));margin-left:4px}
 .nh{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nt{flex:none;white-space:nowrap}
 .picker li:not(.grp){display:flex;align-items:center;gap:6px;padding:4px 0 4px 4px}
 .pkname{flex:1;min-width:0;display:flex;padding:7px 0}
@@ -950,13 +951,17 @@ document.addEventListener('change',e=>{
    地區、階段只用案件上明確設定的值（現場紀錄案件資訊區、本次階段），沒設定的歸「未設定」，不從案名推測
    長案名：保留開頭與最後10字、中間省略，工區編號才看得到 */
 const PICK_STAGES=["提報","設計","開工前","施工中","完工"];
-function nameEl(el,t){el.textContent="";const n=10;if(t.length<=n+6){el.textContent=t;return}
-  const h=document.createElement("span");h.className="nh";h.textContent=t.slice(0,-n);
-  const tl=document.createElement("span");tl.className="nt";tl.textContent=t.slice(-n);el.append(h,tl)}
+function nameEl(el,t){el.textContent="";
+  // 選項文字＝案名＋（紀錄數）：紀錄數不顯示；案名結尾的括號（工區一）固定顯示，前面太長才省略
+  const m=/^(.*?)(（\d+）)?$/.exec(t),nm=m[1],cnt=m[2]||"",tl=/（[^（）]+）$/.exec(nm);
+  const h=document.createElement("span");h.className="nh";h.textContent=tl?nm.slice(0,tl.index):nm;el.appendChild(h);
+  if(tl){const s=document.createElement("span");s.className="nt";s.textContent=tl[0];el.appendChild(s)}}
+// 頂端按鈕：案名完整顯示（最多兩行），不放紀錄數
+const btnName=(btn,t)=>{btn.textContent=t.replace(/（\d+）$/,"")};
 function makePicker(sel,recentKey,metaOf){
   if(matchMedia("(pointer:fine)").matches)return; // 電腦（滑鼠）維持原本的下拉選單，手機才用全螢幕清單
   const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow act";sel.before(btn);sel.hidden=true;
-  const sync=()=>{const o=sel.options[sel.selectedIndex];nameEl(btn,o?o.textContent:"（尚無案件）")};
+  const sync=()=>{const o=sel.options[sel.selectedIndex];btnName(btn,o?o.textContent:"（尚無案件）")};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
