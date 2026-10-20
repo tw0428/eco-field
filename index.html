@@ -1678,23 +1678,33 @@ function rvQuick(r){
   const ns=!r.stake&&r.lat!=null?fillOf(nearestStation(r.lat,r.lng)):"";
   const st=mk("樁號／位置",r.stake||ns),sp=mk("物種／對象",r.species),ct=mk("數量",r.count),nt=mk("說明：現況、建議、待確認事項",r.note,true);
   const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,"★ 寫進意見");
-  const row=document.createElement("div");row.className="two";row.append(st,ct);
-  // 同新增紀錄：物種、數量只在生態保護對象或已有填時出現
-  if(!(r.category==="生態保護對象"||r.sub==="生態保護對象"||r.species||r.count)){ct.hidden=sp.hidden=true;row.classList.add("one")}
+  const row=document.createElement("div");row.className="two";row.append(st,ct);  // 分類（同新增紀錄：類別鈕＋細項選單／棲地鈕＋構造物選單），依這筆紀錄的階段列類別
+  let qc=r.category||"其他",qs=r.sub||"",qt=r.struct||"";
+  const cb=document.createElement("div"),sb2=document.createElement("div");cb.className="chips";sb2.className="row subrow";
+  const drawCat=()=>{cb.innerHTML="";sb2.innerHTML="";
+    const cl=[...(CATS_BY[r.stage||"施工中"]||CATS_BY["施工中"])];if(!cl.includes(qc))cl.unshift(qc);
+    cl.forEach(c=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",String(c===qc));
+      b.onclick=()=>{if(c!==qc){qc=c;qs="";qt=""}drawCat()};cb.appendChild(b)});
+    if(isFM(qc)){const s=document.createElement("select");fillSel(s,"措施種類…",FM_SUBS,qs);s.onchange=()=>{qs=s.value;drawCat()};sb2.appendChild(s)}
+    else if(qc==="棲地影像"){HAB_SUBS.forEach(h=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=h;b.setAttribute("aria-pressed",String(h===qs));
+        b.onclick=()=>{qs=qs===h?"":h;if(qs!=="構造物")qt="";drawCat()};sb2.appendChild(b)});
+      if(qs==="構造物"){const s=document.createElement("select");fillSel(s,"構造物種類…",STRUCTS,qt);s.onchange=()=>{qt=s.value;drawCat()};sb2.appendChild(s)}}
+    sb2.hidden=!sb2.childNodes.length;
+    const showSp=qc==="生態保護對象"||qs==="生態保護對象"||!!sp.value.trim()||!!ct.value.trim();ct.hidden=sp.hidden=!showSp;row.classList.toggle("one",!showSp)};
   const msg=document.createElement("div");msg.className="hint";
   const bs=document.createElement("div");bs.className="row";
   const sv=document.createElement("button");sv.type="button";sv.textContent="儲存";
   const sn=document.createElement("button");sn.type="button";sn.className="primary grow";sn.textContent="儲存並下一筆";
   const save=async next=>{
     const i=rvShown.findIndex(x=>x.id===r.id),nx=next&&i>=0?rvShown[i+1]:null;
-    const u={stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
+    const u={category:qc,sub:hasSub(qc)?qs:"",struct:qc==="棲地影像"&&qs==="構造物"?qt:"",stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
     sv.disabled=sn.disabled=true;msg.textContent="儲存中…";
     try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
     catch(e){msg.textContent="沒存成功（"+((e&&e.code)||"網路")+"），再按一次。";sv.disabled=sn.disabled=false}};
   sv.onclick=()=>save(false);sn.onclick=()=>save(true);
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
-  bs.append(sv,sn);f.append(row,sp,nt,op,bs,msg);
+  bs.append(sv,sn);f.append(cb,sb2,row,sp,nt,op,bs,msg);drawCat();
   setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
   return f;
 }
