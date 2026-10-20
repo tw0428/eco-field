@@ -320,7 +320,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <span class="lbl">本次階段（之後新增的紀錄都會標上）</span>
       <div class="chips" id="stageChips"></div>
     </div>
-    <div class="row" id="areaRow" hidden><label class="lbl" for="areaIn" style="margin:0;white-space:nowrap">地區</label><input type="text" id="areaIn" list="areaList" placeholder="未設定（案件選單分組用）" enterkeyhint="done"><datalist id="areaList"></datalist></div>
+    <div class="row" id="areaRow" hidden><label class="lbl" for="areaIn" style="margin:0;white-space:nowrap">地區</label><input type="text" id="areaIn" list="areaList" placeholder="未設定（有樁號或定位紀錄時自動帶入鄉鎮）" enterkeyhint="done"><datalist id="areaList"></datalist></div>
     <div class="hint" id="caseStakeInfo" hidden></div>
     <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、我的位置）</button>
     <details id="planBox" class="plans checks" hidden>
@@ -831,6 +831,25 @@ function jumpNote(text){let b=$("jumpBox");if(b)b.remove();b=document.createElem
   const s=document.createElement("span");s.textContent=text;const x=document.createElement("button");x.type="button";x.textContent="關閉";x.onclick=()=>b.remove();
   b.append(s,x);document.querySelector(".caseinfo").before(b)}
 $("toHab").onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet("eco-jump",JSON.stringify({to:"habitat",id:c.id,name:c.name,t:Date.now()}))};
+/* 地區自動帶入：案件還沒有地區、但有座標（樁號→工區點→紀錄GPS）時，查國土測繪中心「坐標查鄉鎮村里」，存鄉鎮名（例：阿里山鄉）
+   用座標查官方行政區，不從案名推測；使用者手改過就以手改為準（有值就不再自動） */
+const areaTried=new Set();let areaBusy=false;
+async function autoArea(){
+  if(areaBusy||!ghToken||navigator.onLine===false)return;areaBusy=true;
+  try{for(const c of cases){
+    if(c.area||areaTried.has(c.id))continue;
+    // 點剛好落在溪中線（行政界）會查不到 → 樁號頭中尾、工區點、紀錄GPS依序試，最多5點
+    const st=(Array.isArray(c.stakes)?c.stakes:[]).filter(p=>p.lat!=null);
+    const pts=[st[0],st[st.length>>1],st[st.length-1],...(Array.isArray(c.sites)?c.sites:[]).filter(p=>p.lat!=null),...records.filter(r=>r.caseId===c.id&&r.lat!=null)].filter(Boolean).slice(0,5);
+    if(!pts.length)continue;areaTried.add(c.id);
+    for(const s of pts){
+      try{const r=await fetch(`https://api.nlsc.gov.tw/other/TownVillagePointQuery/${s.lng}/${s.lat}/4326`);if(!r.ok)continue;
+        const town=((new DOMParser().parseFromString(await r.text(),"text/xml").querySelector("townName")||{}).textContent||"").trim();
+        if(!town)continue;
+        if(!(cases.find(x=>x.id===c.id)||{}).area)await db.doc("cases/"+c.id).update({area:town});break}catch(e){}
+    }
+  }}finally{areaBusy=false}
+}
 $("areaIn").onchange=async()=>{const c=cases.find(x=>x.id===curCase),v=$("areaIn").value.trim();if(!c||(c.area||"")===v)return;
   try{await db.doc("cases/"+c.id).update({area:v})}catch(e){$("areaIn").value=c.area||"";showMsg("地區沒存上（"+(e.code||"網路")+"），有訊號時再改一次。",true)}};
 function renderCases(){
@@ -1979,7 +1998,8 @@ function makePicker(sel,recentKey,metaOf){
   };
   sync();
 }
-makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{};return {name:c.name||"",area:c.area||"",stage:lsGet("eco-stage-"+id)||c.stage||""}});
+// 階段沒選過＝畫面上預設的施工中（同curStage），分組也照這個
+makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{};return {name:c.name||"",area:c.area||"",stage:lsGet("eco-stage-"+id)||c.stage||"施工中"}});
 
 whoShow();
 $("whoIn").oninput=e=>lsSet("eco-recorder",e.target.value);
@@ -1987,7 +2007,7 @@ $("shareBtn").onclick=e=>{e.preventDefault();share()};
 (async()=>{
   db.collection("cases").orderBy("createdAt").onSnapshot(s=>{cases=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
-  db.collection("records").onSnapshot(s=>{records=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
+  db.collection("records").onSnapshot(s=>{records=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords();setTimeout(autoArea,1500)},
     ()=>{$("conn").textContent="連線中斷，請重新整理"});
   // 待上傳的核對結果蓋在雲端資料上面，重新讀取時不會被舊資料覆蓋
   db.collection("checkres").onSnapshot(s=>{checkRes={};s.docs.forEach(d=>{checkRes[d.id]=d.data()});outbox.filter(x=>x.kind==="check").forEach(x=>{checkRes[x.rid]=x.doc});renderChecks()},()=>{});
