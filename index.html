@@ -841,12 +841,19 @@ $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
 // 電腦：把照片拖進視窗任何位置＝從相簿選（整頁顯示放開提示）
 {let dn=0;const hasF=e=>[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files");
   const ov=document.createElement("div");ov.id="dropOv";ov.hidden=true;document.body.appendChild(ov);
-  addEventListener("dragenter",e=>{if(!hasF(e))return;e.preventDefault();dn++;const c=cases.find(x=>x.id===curCase);ov.textContent=c?`放開即加入照片\n${c.name}`:"請先選擇案件";ov.hidden=false});
+  addEventListener("dragenter",e=>{if(!hasF(e))return;e.preventDefault();dn++;const c=cases.find(x=>x.id===curCase);ov.textContent=c?`放開即加入照片\n${c.name}\n本次階段：${curStage()}`:"請先選擇案件";ov.hidden=false});
   addEventListener("dragover",e=>{if(hasF(e))e.preventDefault()});
   addEventListener("dragleave",e=>{if(hasF(e)&&--dn<=0){dn=0;ov.hidden=true}});
-  addEventListener("drop",e=>{if(!hasF(e))return;e.preventDefault();dn=0;ov.hidden=true;if(!curCase){showMsg("請先選擇或新增案件。",true);return}
-    const fs=[...e.dataTransfer.files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|heic|png)$/i.test(f.name));
-    if(!fs.length){showMsg("拖進來的不是照片。",true);return}
+  // 資料夾：逐層展開（含子資料夾）；entry 要在 drop 當下取，之後 dataTransfer 就清空了
+  const isImg=f=>/^image\//.test(f.type)||/\.(jpe?g|heic|png)$/i.test(f.name);
+  const readAll=d=>new Promise(res=>{const r=d.createReader(),out=[];const nx=()=>r.readEntries(es=>{if(!es.length)return res(out);out.push(...es);nx()},()=>res(out));nx()});
+  const walk=async en=>{if(en.isFile)return [await new Promise(res=>en.file(res,()=>res(null)))];const out=[];for(const c of (await readAll(en)).sort((a,b)=>a.name.localeCompare(b.name)))out.push(...await walk(c));return out};
+  addEventListener("drop",async e=>{if(!hasF(e))return;e.preventDefault();dn=0;ov.hidden=true;if(!curCase){showMsg("請先選擇或新增案件。",true);return}
+    const ens=[...(e.dataTransfer.items||[])].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+    let fs=[...e.dataTransfer.files];
+    if(ens.some(x=>x.isDirectory)){showMsg("讀取資料夾…");fs=[];for(const en of ens)fs.push(...await walk(en))}
+    fs=fs.filter(f=>f&&isImg(f));
+    if(!fs.length){showMsg("拖進來的沒有照片。",true);return}showMsg("");
     if(editing)cancelEdit();addFiles(fs,false);$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})})}
 $("camIn").onclick=()=>geoStart();/* ---------- 案件 ---------- */
 /* 兩個工具切換時帶著目前案件：點頂端連結時記下 eco-jump，另一頁讀到案件清單後套用一次（5分鐘內有效） */
