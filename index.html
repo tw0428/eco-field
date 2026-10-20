@@ -304,6 +304,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <span class="lbl">平面圖／圖說（點開可放大）</span>
       <div id="planList" class="planlist"></div>
     </div>
+    <button type="button" id="offBtn" class="mapbtn" hidden>⬇ 下載離線包（平面圖、照片、地圖，出發前有網路時按）</button>
+    <div class="hint" id="offMsg" hidden></div>
   </section>
 
   <details class="panel checks" id="chkBox" hidden>
@@ -348,6 +350,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div id="chkLinkBox" hidden><label class="lbl" for="chkLinkSel">對應核對事項</label><select id="chkLinkSel"></select></div>
     <div><label class="lbl" for="noteIn">說明</label><textarea id="noteIn" placeholder="現況、建議、待確認事項"></textarea></div>
     <label id="impBox" class="hint" style="display:flex;gap:6px;align-items:center;font-size:14px" hidden><input type="checkbox" id="impChk" checked>列入改善追蹤（說明會成為「改善意見」清單的一條，之後現勘追蹤）</label>
+    <label class="hint" style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="opChk">★ 要寫進意見（出會議紀錄／表11時優先採用）</label>
 
     <div id="formMsg" class="msg" hidden></div>
     <button class="primary" type="submit" id="saveBtn">儲存紀錄</button>
@@ -589,7 +592,7 @@ function renderOutbox(){
     const d=it.doc,el=document.createElement("article");el.className="rec";
     const head=document.createElement("div");head.className="head";
     const t=document.createElement("span");t.className="pill no";t.textContent="待上傳";
-    const c=document.createElement("span");c.className="pill";c.textContent=(d.stage?d.stage+"｜":"")+d.category+(d.abcd?" "+d.abcd:"");
+    const c=document.createElement("span");c.className="pill";c.textContent=(d.stage?d.stage+"｜":"")+d.category+(d.abcd?" "+d.abcd:"")+(d.op?" ★意見":"");
     const cn=document.createElement("span");cn.textContent=(cases.find(x=>x.id===d.caseId)||{}).name||"";
     head.append(t,c,cn);if(d.stake){const s=document.createElement("span");s.textContent=d.stake;head.appendChild(s)}
     el.appendChild(head);
@@ -783,7 +786,7 @@ $("batchBtn").onclick=async()=>{
       let blob;try{blob=await compress(p.file)}catch(err){blob=p.file}
       const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
       const stake=manualStake&&!autoFilled?manualStake:fillOf(ns);
-      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),
+      const r=await saveNew({caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f,stake,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),...($("opChk").checked?{op:true}:{}),
         createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
         lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})},[blob]);
       r==="queued"?queued++:done++;
@@ -812,7 +815,7 @@ function renderCases(){
   if(c&&Array.isArray(c.stakes)&&c.stakes.length>1){info.textContent=`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
-  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;
+  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);
   const vals=stakeVals(c),ss=$("stakeSel");fillStakeSel(ss,vals);
   ss.hidden=$("stakeArrow").hidden=!vals.length;
 }
@@ -865,7 +868,10 @@ function loadPdfJs(){
   if(window.pdfjsLib)return Promise.resolve();
   if(!pdfReady)pdfReady=new Promise((res,rej)=>{const s=document.createElement("script");
     s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    s.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";res()};
+    // worker先用fetch讀（會經過sw.js、沒網路時拿手機上的副本）再轉本機網址，避免跨網域worker繞過暫存
+    s.onload=async()=>{const w="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";let src=w;
+      try{const r=await fetch(w);if(r.ok)src=URL.createObjectURL(new Blob([await r.text()],{type:"text/javascript"}))}catch(e){}
+      pdfjsLib.GlobalWorkerOptions.workerSrc=src;res()};
     s.onerror=()=>{pdfReady=null;rej(new Error("PDF元件載入失敗，請確認網路"))};document.head.appendChild(s)});
   return pdfReady;
 }
@@ -933,6 +939,53 @@ function renderPlans(c){
   });
   box.hidden=!(c.plans&&c.plans.length);
 }
+
+/* ---------- 離線包：出發前把本案平面圖、對位設計圖、照片、地圖圖磚與元件存進手機（山區沒訊號也能看） ----------
+   圖磚寫進 eco-tiles、元件寫進 eco-libs，沒網路時由 sw.js 讀；平面圖與照片走 fileBlob 的 eco-files */
+const TILE_CACHE="eco-tiles",LIB_CACHE="eco-libs",offKey=id=>"eco-offpack-"+id;
+const OFF_LIBS=["leaflet/1.9.4/leaflet.min.css","leaflet/1.9.4/leaflet.min.js","leaflet/1.9.4/images/marker-icon.png","leaflet/1.9.4/images/marker-icon-2x.png","leaflet/1.9.4/images/marker-shadow.png","pdf.js/3.11.174/pdf.min.js","pdf.js/3.11.174/pdf.worker.min.js"].map(p=>"https://cdnjs.cloudflare.com/ajax/libs/"+p);
+const tileXY=(lat,lng,z)=>{const n=2**z,r=lat*Math.PI/180;return [Math.floor((lng+180)/360*n),Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n)]};
+// 範圍＝樁號、點位、本案紀錄、對位設計圖外擴約300m；z13~19，超過1500格就不抓更細的層級
+function offTiles(c){
+  const pts=[];
+  (Array.isArray(c.stakes)?c.stakes:[]).forEach(p=>{if(p.lat!=null)pts.push([p.lat,p.lng])});
+  (Array.isArray(c.sites)?c.sites:[]).forEach(p=>{if(p.lat!=null)pts.push([p.lat,p.lng])});
+  (Array.isArray(c.overlays)?c.overlays:[]).forEach(o=>{if(Array.isArray(o.bounds))o.bounds.forEach(b=>pts.push(b))});
+  records.filter(r=>r.caseId===c.id&&r.lat!=null).forEach(r=>pts.push([r.lat,r.lng]));
+  if(!pts.length)return [];
+  const la=pts.map(p=>+p[0]),lo=pts.map(p=>+p[1]),dy=0.003,dx=0.003/Math.cos(la[0]*Math.PI/180);
+  const N=Math.max(...la)+dy,S=Math.min(...la)-dy,W=Math.min(...lo)-dx,E=Math.max(...lo)+dx;
+  const out=[];let cnt=0;
+  for(let z=13;z<=19;z++){
+    const [x0,y0]=tileXY(N,W,z),[x1,y1]=tileXY(S,E,z),k=(x1-x0+1)*(y1-y0+1);if(cnt+k>1500)break;cnt+=k;
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)["EMAP","PHOTO2"].forEach(l=>out.push(`https://wmts.nlsc.gov.tw/wmts/${l}/default/GoogleMapsCompatible/${z}/${y}/${x}`));
+  }
+  return out;
+}
+async function pool(items,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length)await fn(items[i++])}))}
+async function cachePut(name,u){const c=await caches.open(name);if(await c.match(u))return;const r=await fetch(u,{mode:"cors"});if(!r.ok)throw new Error(r.status);await c.put(u,r)}
+function offShow(c){
+  const b=$("offBtn"),m=$("offMsg");b.hidden=!c;if(!c){m.hidden=true;return}if(b.disabled)return;
+  let s=null;try{s=JSON.parse(lsGet(offKey(c.id))||"null")}catch(e){}
+  m.hidden=!s;if(!s)return;
+  const d=new Date(s.at);m.textContent=`已下載離線包（${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}）：平面圖/照片 ${s.files} 個、地圖 ${s.tiles} 格`+(s.noMap?"（本案沒有樁號或定位紀錄，地圖沒下載）":"")+(s.fail?`；${s.fail} 個失敗，可再按一次補抓`:"")+"。之後新增的照片或平面圖要再按一次。";
+}
+$("offBtn").onclick=async()=>{
+  const c=cases.find(x=>x.id===curCase),b=$("offBtn"),m=$("offMsg");if(!c||b.disabled)return;
+  m.hidden=false;if(navigator.onLine===false){m.textContent="目前沒網路，請在有訊號的地方下載。";return}
+  b.disabled=true;
+  try{await navigator.storage.persist()}catch(e){}
+  const files=[...new Set([...(c.plans||[]).map(p=>p.id),...(c.overlays||[]).map(o=>o.id),...records.filter(r=>r.caseId===c.id).flatMap(r=>r.photos||[])].filter(Boolean))];
+  const tiles=offTiles(c),total=OFF_LIBS.length+files.length+tiles.length;let done=0,fail=0;
+  const tick=()=>{m.textContent=`下載中 ${done}/${total}…（可以繼續操作，頁面先不要關）`};tick();
+  const step=async f=>{try{await f()}catch(e){fail++}done++;if(done%10===0||done===total)tick()};
+  try{
+    await pool(OFF_LIBS,3,u=>step(()=>cachePut(LIB_CACHE,u)));
+    await pool(files,4,id=>step(()=>fileBlob(id)));
+    await pool(tiles,6,u=>step(()=>cachePut(TILE_CACHE,u)));
+    lsSet(offKey(c.id),JSON.stringify({at:Date.now(),files:files.length,tiles:tiles.length/2,fail,noMap:!tiles.length}));
+  }finally{b.disabled=false;offShow(c)}
+};
 
 /* ---------- 階段（每案記在本機，新紀錄帶 stage） ---------- */
 const STAGES=["提報","設計","開工前","施工中","完工"];
@@ -1231,6 +1284,7 @@ function recCard(r,c,onEdit){
     const t=document.createElement("span");t.className="pill "+stgCls(r.stage);t.textContent=(r.stage?r.stage+"｜":"")+r.category+(r.abcd?" "+r.abcd:"");
     const time=document.createElement("span");time.className="mono";time.textContent=r.takenAt||fmtMs(r.createdAt);
     head.append(t,time);
+    if(r.op){const o=document.createElement("span");o.className="pill";o.textContent="★意見";t.after(o)}
     if(r.stake){const s=document.createElement("span");s.style.color="var(--fg)";s.textContent=r.stake;head.appendChild(s)}
     if(!r.species&&!r.note){const w=document.createElement("span");w.className="pill no";w.textContent="待補說明";head.appendChild(w)}
     el.appendChild(head);
@@ -1293,7 +1347,7 @@ $("rvClose").onclick=closeRec;
 /* ---------- 編輯 ---------- */
 function startEdit(r){
   editing=r;editKeep=[...(r.photos||[])];cat=r.category||"其他";abcd=r.abcd||"";setLink(r.checkId);
-  $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";
+  $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";$("opChk").checked=!!r.op;
   // 樁號欄原本空白、但紀錄有GPS：帶入GPS推估的樁號（卡片上顯示的那個），存檔就會寫進去
   $("stakeHint").hidden=true;
   if(!r.stake&&r.lat!=null){const ns=nearestStation(r.lat,r.lng);if(ns){if(fillOf(ns))$("stakeIn").value=fillOf(ns);$("stakeHint").textContent="GPS推估："+stationText(ns)+"（原本未填樁號）";$("stakeHint").hidden=false}}
@@ -1306,7 +1360,7 @@ function cancelEdit(){
 $("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
 function clearForm(){
   pending.forEach(p=>URL.revokeObjectURL(p.url));pending=[];renderPending();
-  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
+  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");$("opChk").checked=false;abcd="";renderChips();$("stakeHint").hidden=true;setLink(null);
 }
 
 /* ---------- 儲存 ---------- */
@@ -1329,6 +1383,7 @@ $("recForm").onsubmit=async e=>{
     if(!f.stake&&gp){const v=fillOf(nearestStation(gp.ex.lat,gp.ex.lng));if(v)f.stake=v}
     const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",...f};
     if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
+    if($("opChk").checked)body.op=true;else if(editing&&editing.op)body.op=false;
     if(!editing){body.stage=curStage();const by=whoAsk();if(by)body.by=by}
     // 列入改善追蹤：先在改善意見清單加一條，這筆紀錄連到它
     let impFail=false,impAdded=false;
@@ -1365,6 +1420,8 @@ $("recForm").onsubmit=async e=>{
 
 /* ---------- 啟動 ---------- */
 renderChips();
+// 請系統把本站資料（暫存照片、待上傳、離線包）列為保留，降低空間不足時被清掉的機會
+try{navigator.storage.persist().catch(()=>{})}catch(e){}
 db=ghDb;assets=ghAssets;
 // 下載：獨立網頁直接用<a download>
 downloads={async save({filename,data}){const u=URL.createObjectURL(data),a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}};
