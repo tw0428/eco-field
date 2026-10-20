@@ -202,6 +202,7 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .srttools{flex-wrap:wrap;margin-bottom:8px}
 .wall a .zoom{position:absolute;top:4px;left:4px;width:30px;height:30px;padding:0;border-radius:50%;border:0;background:rgba(0,0,0,.55);font-size:14px;line-height:30px}
 .wall img{-webkit-user-drag:none;user-select:none}
+.wall.busy,.srttools.busy{pointer-events:none;opacity:.6}
 #dropOv{position:fixed;inset:12px;z-index:100;border:3px dashed var(--accent);border-radius:16px;background:color-mix(in srgb,var(--surface) 88%,transparent);display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-line;font-size:20px;font-weight:600;color:var(--fg);pointer-events:none}
 #dropOv[hidden]{display:none}
 .subrow{flex-wrap:wrap;gap:6px}.subrow select{width:auto;flex:none;max-width:100%;padding:5px 8px}select.ph{color:var(--muted)}
@@ -554,6 +555,11 @@ async function loadAllRest(){
 // 同一案一次加多筆紀錄：只寫一次紀錄檔、畫面只重畫一次（批次上傳用）
 async function writeMany(col,cid,map){
   const res=await mutate(`${col}/${cid}.json`,old=>({...(old||{}),...map}));
+  for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
+  Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
+}
+async function updateMany(col,cid,ids,u){
+  const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};ids.forEach(i=>{if(m[i])m[i]={...m[i],...u}});return m});
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
 }
@@ -1741,7 +1747,7 @@ document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.onclick=()=>{ls
 renderSeg();
 const recTitle=r=>[r.stage,catText(r),r.stake,r.species].filter(Boolean).join("｜");
 // 整理分類：照片牆上勾選多筆，下方點類別一次改好（批次上傳的「未分類」可篩出來慢慢分）
-let srtOn=false,srtOnly=false,srtFM=false;const srtSel=new Set();
+let srtOn=false,srtOnly=false,srtFM=false,srtBusy=false;const srtSel=new Set();
 function srtBar(bar,list){
   bar.innerHTML="";const sel=list.filter(r=>srtSel.has(r.id));
   const n=document.createElement("span");n.className="hint";n.style.flex="none";n.textContent=sel.length?`已選 ${sel.length} 筆`:"點照片勾選（可多選）";bar.appendChild(n);
@@ -1762,19 +1768,22 @@ function srtBar(bar,list){
   const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除這 ${sel.length} 筆`;
   del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（連照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除這 ${sel.length} 筆`}},4000);return}
     bar.querySelectorAll("button").forEach(b=>b.disabled=true);del.textContent="刪除中…";
-    try{await deleteMany("records",curCase,sel.map(r=>r.id));sel.forEach(r=>srtSel.delete(r.id));
-      const ps=sel.flatMap(r=>r.photos||[]);let k=0;for(const p of ps){k++;showMsg(`刪除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
-    catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
-    srtFM=false;renderRecords()};
+    srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
+    // 紀錄一次刪掉（畫面立刻消失），照片檔在背景慢慢刪
+    try{await deleteMany("records",curCase,sel.map(r=>r.id));sel.forEach(r=>srtSel.delete(r.id));srtBusy=false;srtFM=false;renderRecords();
+      const ps=sel.flatMap(r=>r.photos||[]);let k=0;for(const p of ps){k++;showMsg(`已刪除 ${sel.length} 筆紀錄；背景清除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
+    catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），再試一次。",true);srtBusy=false;srtFM=false;renderRecords()}};
   bar.appendChild(del);
 }
 async function srtApply(bar,list,v){
   const u={category:v.category,abcd:v.abcd||"",sub:v.sub||"",struct:v.struct||""};
+  // 勾選的一次改好：只寫一次紀錄檔（原本一筆一筆寫，慢又能在中途點別張）；寫入中整面照片牆鎖住
   const sel=list.filter(r=>srtSel.has(r.id));bar.querySelectorAll("button").forEach(b=>b.disabled=true);
-  let ok=0;
-  try{for(const r of sel){await db.doc("records/"+r.id).update(u);Object.assign(r,u);srtSel.delete(r.id);ok++}}
-  catch(e){showMsg(`已改 ${ok} 筆，第 ${ok+1} 筆失敗（${(e&&e.code)||"網路"}），剩下的還勾著，再點一次類別。`,true)}
-  srtFM=false;renderRecords();
+  srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
+  const h=bar.querySelector(".hint");if(h)h.textContent=`更新 ${sel.length} 筆中…`;
+  try{await updateMany("records",curCase,sel.map(r=>r.id),u);sel.forEach(r=>{Object.assign(r,u);srtSel.delete(r.id)})}
+  catch(e){showMsg(`沒改成功（${(e&&e.code)||"網路"}），照片還勾著，再點一次類別。`,true)}
+  srtBusy=false;srtFM=false;renderRecords();
 }
 function renderWall(box,list){
   // 工具列：整理分類開關；整理中可只看未分類、全選
@@ -1797,7 +1806,7 @@ function renderWall(box,list){
     if(!r.photos||!r.photos.length){none++;return}
     r.photos.forEach(p=>{
       const a=document.createElement("a");a.href="#";a.className=stgCls(r.stage)+(srtOn&&srtSel.has(r.id)?" sel":"");a.dataset.rid=r.id;
-      a.onclick=ev=>{ev.preventDefault();if(!srtOn){openRec(r);return}
+      a.onclick=ev=>{ev.preventDefault();if(!srtOn){openRec(r);return}if(srtBusy)return;
         srtSel.has(r.id)?srtSel.delete(r.id):srtSel.add(r.id);w.querySelectorAll(`a[data-rid="${r.id}"]`).forEach(x=>x.classList.toggle("sel",srtSel.has(r.id)));srtFM=false;srtBar(bar,list)};
       const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
       const s=document.createElement("span");s.textContent=[r.stake,r.struct||r.sub||r.category].filter(Boolean).join(" ");
