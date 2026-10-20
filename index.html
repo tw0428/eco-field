@@ -261,6 +261,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvbody .rec{max-width:640px;margin:0 auto}
 #recView .rvbody .rec .imgs img{width:100%;height:auto;max-height:60vh;object-fit:contain}
 #recView .rvbody .rec .imgs{flex-direction:column}
+#recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+#recView .rvq textarea{resize:vertical}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
 .picker .pkh input{flex:1}
@@ -567,6 +569,18 @@ async function updateMany(col,cid,ids,u){
   const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};ids.forEach(i=>{if(m[i])m[i]={...m[i],...u}});return m});
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
+}
+// 多筆併成一筆：以拍攝時間最早的那筆為主（類別、階段、定位、建立時間沿用它），其餘刪掉，一次寫入
+async function mergeRecs(cid,sel){
+  const tk=r=>r.takenAt||fmtMs(r.createdAt);const rs=[...sel].sort((a,b)=>tk(a).localeCompare(tk(b))),base=rs[0];
+  const uniq=(k,sep)=>[...new Set(rs.map(r=>(r[k]||"").trim()).filter(Boolean))].join(sep);
+  const first=k=>(rs.find(r=>r[k])||{})[k]||"";
+  const u={photos:rs.flatMap(r=>r.photos||[]),note:uniq("note","\n"),species:uniq("species","、"),count:uniq("count","、"),stake:first("stake"),checkId:first("checkId")};
+  if(rs.some(r=>r.op))u.op=true;if(base.lat==null){const g=rs.find(r=>r.lat!=null);if(g)Object.assign(u,{lat:g.lat,lng:g.lng,gpsSource:g.gpsSource||"exif"})}
+  const drop=new Set(rs.slice(1).map(r=>r.id));
+  const res=await mutate(`records/${cid}.json`,old=>{const m={...(old||{})};if(!m[base.id])throw Object.assign(new Error("gone"),{code:"已被刪除"});m[base.id]={...m[base.id],...u};drop.forEach(i=>delete m[i]);return m});
+  for(const k of Object.keys(store.records))if(store.records[k].caseId===cid&&!(k in res))delete store.records[k];
+  Object.assign(store.records,res);emit("records");lsSet(CACHE_KEY,JSON.stringify(store));
 }
 async function deleteMany(col,cid,ids){
   const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};ids.forEach(i=>delete m[i]);return m});
@@ -1645,10 +1659,35 @@ let rvShown=[],rvCur=null;
 function openRec(r){
   const c=cases.find(x=>x.id===curCase);if(!c)return;rvCur=r;
   $("rvTitle").textContent=recTitle(r);
-  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.scrollTop=0;
+  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.appendChild(rvQuick(r));b.scrollTop=0;
   const i=rvShown.findIndex(x=>x.id===r.id);$("rvPrev").hidden=$("rvNext").hidden=i<0||rvShown.length<2;
   if(i>=0){$("rvPrev").disabled=i===0;$("rvNext").disabled=i===rvShown.length-1;$("rvTitle").textContent=`${i+1}/${rvShown.length}　`+recTitle(r)}
   $("recView").hidden=false;document.body.style.overflow="hidden";
+}
+// 詳情窗直接補說明：不用跳回上面的表單；「儲存並下一筆」配合篩選「待補說明」一路補下去（電腦 Ctrl+Enter）
+function rvQuick(r){
+  const f=document.createElement("div");f.className="rvq";
+  const mk=(ph,v,ta)=>{const e=document.createElement(ta?"textarea":"input");if(!ta)e.type="text";else e.rows=3;e.placeholder=ph;e.value=v||"";e.setAttribute("aria-label",ph);return e};
+  const ns=!r.stake&&r.lat!=null?fillOf(nearestStation(r.lat,r.lng)):"";
+  const st=mk("樁號／位置",r.stake||ns),sp=mk("物種／對象",r.species),ct=mk("數量",r.count),nt=mk("說明：現況、建議、待確認事項",r.note,true);
+  const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,"★ 寫進意見");
+  const row=document.createElement("div");row.className="two";row.append(st,ct);
+  const msg=document.createElement("div");msg.className="hint";
+  const bs=document.createElement("div");bs.className="row";
+  const sv=document.createElement("button");sv.type="button";sv.textContent="儲存";
+  const sn=document.createElement("button");sn.type="button";sn.className="primary grow";sn.textContent="儲存並下一筆";
+  const save=async next=>{
+    const i=rvShown.findIndex(x=>x.id===r.id),nx=next&&i>=0?rvShown[i+1]:null;
+    const u={stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
+    sv.disabled=sn.disabled=true;msg.textContent="儲存中…";
+    try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
+    catch(e){msg.textContent="沒存成功（"+((e&&e.code)||"網路")+"），再按一次。";sv.disabled=sn.disabled=false}};
+  sv.onclick=()=>save(false);sn.onclick=()=>save(true);
+  const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
+  f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
+  bs.append(sv,sn);f.append(row,sp,nt,op,bs,msg);
+  setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
+  return f;
 }
 function rvGo(d){if(!rvCur)return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
 function closeRec(){$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
@@ -1819,6 +1858,13 @@ function srtBar(bar,list){
   else{back({c:s.c});STRUCTS.forEach(x=>mk(x,false,()=>srtApply(bar,list,{category:s.c,sub:"構造物",struct:x})))}
   if(srtFM){const h=document.createElement("span");h.className="hint";h.textContent=[s.c,s.sub].filter(Boolean).join("・")+" →";box.prepend(h)}
   bar.appendChild(box);
+  // 合併：勾選的多筆併成一筆（照片依拍攝時間排、文字欄位不重複地接起來），照片檔不刪
+  if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="mini";mg.style.alignSelf="flex-start";mg.textContent=`合併成一筆（${sel.flatMap(r=>r.photos||[]).length} 張照片）`;
+    mg.onclick=async()=>{bar.querySelectorAll("button").forEach(b=>b.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
+      try{await mergeRecs(curCase,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併成一筆，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
+      catch(e){showMsg("合併失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+      srtBusy=false;srtFM=false;renderRecords()};
+    bar.appendChild(mg)}
   // 刪除勾選的紀錄（連照片）：按兩次確認
   const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除這 ${sel.length} 筆`;
   del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（連照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除這 ${sel.length} 筆`}},4000);return}
