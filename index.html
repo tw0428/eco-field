@@ -1156,7 +1156,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     di.onchange=()=>{const v=di.value.replace(/-/g,"");if(/^\d{8}$/.test(v))setCheckDate(v)};dr.append(lb,di);
     // 施工中：選第幾次現勘／新增一次
     if(byDay()){const vs=visits(),rid=resId(),sel=document.createElement("select");sel.dataset.chk="visit";
-      const opts=vs.map(([k,d],i)=>[k,`第${i+1}次 ${(d.date||"").slice(4,6)}/${(d.date||"").slice(6)}`]);if(!vs.some(([k])=>k===rid))opts.push([rid,`第${vs.length+1}次（新）`]);
+      const opts=vs.map(([k,d],i)=>[k,`第${i+1}次 ${(d.date||"").slice(4,6)}/${(d.date||"").slice(6)}`]);if(!vs.some(([k])=>k===rid))opts.push([rid,`第${vs.length+1}次 ${show.slice(4,6)}/${show.slice(6)}（新）`]);
       opts.forEach(([k,x])=>{const o=document.createElement("option");o.value=k;o.textContent=x;o.selected=k===rid;sel.appendChild(o)});
       sel.onchange=()=>{chkVisit=sel.value;chkEditId=null;chkSort=null;sel.blur();renderChecks()};
       const nb=document.createElement("button");nb.type="button";nb.textContent="＋新增一次現勘";nb.style.cssText="padding:5px 10px;font-size:13px";
