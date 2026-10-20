@@ -541,6 +541,11 @@ async function writeMany(col,cid,map){
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
 }
+async function deleteMany(col,cid,ids){
+  const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};ids.forEach(i=>delete m[i]);return m});
+  for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
+  Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
+}
 async function write(col,id,kind,d){
   if(col==="cases"){
     const res=await mutate(`cases/${id}.json`,old=>kind==="delete"?null:kind==="set"?d:{...(old||{}),...d});
@@ -1709,6 +1714,15 @@ function srtBar(bar,list){
   if(srtFM){mk("← 類別",false,()=>{srtFM=false;srtBar(bar,list)});ABCD.forEach(([k,nm])=>mk(k+" "+nm,false,()=>srtApply(bar,list,"生態友善措施",k)));mk("不分ABCD",false,()=>srtApply(bar,list,"生態友善措施",""))}
   else cats.forEach(c=>mk(c,false,()=>{if(isFM(c)){srtFM=true;srtBar(bar,list)}else srtApply(bar,list,c,"")}));
   bar.appendChild(box);
+  // 刪除勾選的紀錄（連照片）：按兩次確認
+  const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除這 ${sel.length} 筆`;
+  del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（連照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除這 ${sel.length} 筆`}},4000);return}
+    bar.querySelectorAll("button").forEach(b=>b.disabled=true);del.textContent="刪除中…";
+    try{await deleteMany("records",curCase,sel.map(r=>r.id));sel.forEach(r=>srtSel.delete(r.id));
+      const ps=sel.flatMap(r=>r.photos||[]);let k=0;for(const p of ps){k++;showMsg(`刪除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
+    catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+    srtFM=false;renderRecords()};
+  bar.appendChild(del);
 }
 async function srtApply(bar,list,category,ab){
   const sel=list.filter(r=>srtSel.has(r.id));bar.querySelectorAll("button").forEach(b=>b.disabled=true);
