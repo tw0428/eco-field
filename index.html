@@ -269,6 +269,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvbody .rec .imgs{flex-direction:column}
 #recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 #recView .rvq textarea{resize:vertical}
+/* 關閉／儲存固定在畫面底部，看照片時也按得到 */
+#recView .rvbar{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom,0px));background:var(--bg);margin:0 -16px;padding:8px 16px calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);z-index:2}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
 .picker .pkh input{flex:1}
@@ -1676,7 +1678,7 @@ let rvShown=[],rvCur=null;
 function openRec(r){
   const c=cases.find(x=>x.id===curCase);if(!c)return;rvCur=r;
   $("rvTitle").textContent=recTitle(r);
-  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.appendChild(rvQuick(r));b.scrollTop=0;
+  const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.appendChild(rvQuick(r));const bar=b.querySelector(".rvbar");if(bar)b.appendChild(bar);b.scrollTop=0;
   const i=rvShown.findIndex(x=>x.id===r.id);$("rvPrev").hidden=$("rvNext").hidden=i<0||rvShown.length<2;
   if(i>=0){$("rvPrev").disabled=i===0;$("rvNext").disabled=i===rvShown.length-1;$("rvTitle").textContent=`${i+1}/${rvShown.length}　`+recTitle(r)}
   $("recView").hidden=false;document.body.style.overflow="hidden";
@@ -1714,7 +1716,8 @@ function rvQuick(r){
   sv.onclick=()=>save(false);sn.onclick=()=>save(true);
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
-  bs.append(sv,sn);f.append(cb,sb2,row,sp,nt,op,bs,msg);drawCat();
+  const cl=document.createElement("button");cl.type="button";cl.textContent="關閉";cl.onclick=closeRec;
+  bs.className="row rvbar";bs.append(cl,sv,sn);f.append(cb,sb2,row,sp,nt,op,msg,bs);drawCat();
   setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
   return f;
 }
