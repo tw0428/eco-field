@@ -1761,7 +1761,13 @@ function rvQuick(r){
   const cl=document.createElement("button");cl.type="button";cl.textContent="關閉";cl.onclick=closeRec;
   bs.className="row rvbar";bs.append(sn,sv,cl);f.append(cb,sb2,row,sp,nt,op,msg,bs);drawCat();
   const snap=()=>JSON.stringify([qc,qs,qt,st.value.trim(),sp.value.trim(),ct.value.trim(),nt.value.trim(),ck.checked]);let init=snap();rvDirty=()=>snap()!==init;
-  setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
+  // 電腦：游標放進說明欄並捲到編輯區。照片是陸續載入、載完卡片才變高，
+  // 所以前4秒內卡片一長高就再捲一次（使用者自己捲動或打字就停）
+  setTimeout(()=>{if(!matchMedia("(pointer:fine)").matches)return;
+    const t=r.note||sp.hidden||sp.value?nt:sp,body=$("rvBody"),rec=body.querySelector(".rec");t.focus({preventScroll:true});
+    const go=()=>t.scrollIntoView({block:"center"});go();if(!rec||!window.ResizeObserver)return;
+    let stop=false;const st=()=>{stop=true};["wheel","touchstart","keydown","mousedown"].forEach(k=>body.addEventListener(k,st,{once:true}));
+    const ro=new ResizeObserver(()=>{if(!stop)go()});ro.observe(rec);setTimeout(()=>ro.disconnect(),4000)},0);
   return f;
 }
 function rvGo(d){if(!rvCur||!rvOk())return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
