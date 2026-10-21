@@ -270,7 +270,12 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 #recView .rvq textarea{resize:vertical}
 /* 關閉／儲存固定在畫面底部，看照片時也按得到 */
-#recView .rvbar{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom,0px));background:var(--bg);max-width:640px;margin:0 auto;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);z-index:2}
+#recView .rvbar{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom,0px));background:var(--bg);max-width:640px;margin:0 auto;padding:10px 0 max(26px,calc(10px + env(safe-area-inset-bottom,0px)));border-top:1px solid var(--line);z-index:2;justify-content:flex-end;gap:8px}
+#recView .rvbar button{padding:10px 16px}
+@media (max-width:600px){#recView .rvbar .primary{flex:1}}
+/* 卡片上的次要動作（完整編輯／複製／刪除）：小一號、刪除靠右，和底部儲存列區隔 */
+#recView .rec .acts{justify-content:flex-start;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
+#recView .rec .acts .danger{margin-left:auto}#recView .rec .acts button{white-space:nowrap}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
 .picker .pkh input{flex:1}
@@ -1654,6 +1659,7 @@ function recCard(r,c,onEdit){
         await db.collection("records").doc(nid).set(doc);const nr={...doc,id:nid};if(!records.some(x=>x.id===nid))records.push(nr);
         openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存"}
       catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
+    if(onEdit){eb.textContent="完整編輯";eb.title="加照片、改ABCD、對應核對項目"}
     acts.append(eb,cp,db_);el.appendChild(acts);
     if(onEdit)return el;
     // 列表用精簡版：左邊一張縮圖（+N），右邊文字；點縮圖開完整紀錄
@@ -1707,7 +1713,7 @@ function rvQuick(r){
   const msg=document.createElement("div");msg.className="hint";
   const bs=document.createElement("div");bs.className="row";
   const sv=document.createElement("button");sv.type="button";sv.textContent="儲存";
-  const sn=document.createElement("button");sn.type="button";sn.className="primary grow";sn.textContent="儲存並下一筆";
+  const sn=document.createElement("button");sn.type="button";sn.className="primary";sn.textContent="儲存並下一筆";
   const save=async next=>{
     const i=rvShown.findIndex(x=>x.id===r.id),nx=next&&i>=0?rvShown[i+1]:null;
     const u={category:qc,sub:hasSub(qc)?qs:"",struct:qc==="棲地影像"&&qs==="構造物"?qt:"",stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
@@ -1718,7 +1724,7 @@ function rvQuick(r){
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
   const cl=document.createElement("button");cl.type="button";cl.textContent="關閉";cl.onclick=closeRec;
-  bs.className="row rvbar";bs.append(cl,sv,sn);f.append(cb,sb2,row,sp,nt,op,msg,bs);drawCat();
+  bs.className="row rvbar";bs.append(sn,sv,cl);f.append(cb,sb2,row,sp,nt,op,msg,bs);drawCat();
   const snap=()=>JSON.stringify([qc,qs,qt,st.value.trim(),sp.value.trim(),ct.value.trim(),nt.value.trim(),ck.checked]);let init=snap();rvDirty=()=>snap()!==init;
   setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
   return f;
