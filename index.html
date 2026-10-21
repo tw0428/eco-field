@@ -318,7 +318,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <span class="vtitle" id="rvTitle">紀錄</span>
     <button type="button" id="rvPrev" hidden aria-label="上一筆">‹</button>
     <button type="button" id="rvNext" hidden aria-label="下一筆">›</button>
-    <button type="button" id="rvClose" class="primary">關閉</button>
+    <button type="button" id="rvClose" class="primary" hidden>關閉</button>
   </div>
   <div class="rvbody" id="rvBody"></div>
 </div>
@@ -1637,7 +1637,7 @@ function recCard(r,c,onEdit){
     }else if(r.photos&&r.photos.length){const n=document.createElement("span");n.textContent="照片無GPS";m2.appendChild(n)}
     if(m2.childNodes.length)el.appendChild(m2);
     const acts=document.createElement("div");acts.className="acts";
-    const eb=document.createElement("button");eb.type="button";eb.textContent="編輯";eb.onclick=()=>{if(onEdit)onEdit();startEdit(r)};
+    const eb=document.createElement("button");eb.type="button";eb.textContent="編輯";eb.onclick=()=>{if(onEdit&&onEdit()===false)return;startEdit(r)};
     const db_=document.createElement("button");db_.type="button";db_.className="danger";db_.textContent="刪除";
     db_.onclick=async()=>{
       if(db_.dataset.armed!=="1"){db_.dataset.armed="1";db_.textContent="再按一次確認刪除";setTimeout(()=>{db_.dataset.armed="";db_.textContent="刪除"},4000);return}
@@ -1645,7 +1645,7 @@ function recCard(r,c,onEdit){
       try{
         await db.doc("records/"+r.id).delete();
         if(assets)for(const p of (r.photos||[])){if(!photoShared(p,[r.id]))try{await assets.delete(p)}catch(e){}}
-        if(onEdit)onEdit();
+        if(onEdit){rvDirty=null;onEdit()}
       }catch(e){db_.disabled=false;db_.textContent="刪除失敗，再試一次"}
     };
     const cp=document.createElement("button");cp.type="button";cp.textContent="複製到其他分類";
@@ -1712,18 +1712,22 @@ function rvQuick(r){
     const i=rvShown.findIndex(x=>x.id===r.id),nx=next&&i>=0?rvShown[i+1]:null;
     const u={category:qc,sub:hasSub(qc)?qs:"",struct:qc==="棲地影像"&&qs==="構造物"?qt:"",stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
     sv.disabled=sn.disabled=true;msg.textContent="儲存中…";
-    try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
+    try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);init=snap();if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
     catch(e){msg.textContent="沒存成功（"+((e&&e.code)||"網路")+"），再按一次。";sv.disabled=sn.disabled=false}};
   sv.onclick=()=>save(false);sn.onclick=()=>save(true);
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
   const cl=document.createElement("button");cl.type="button";cl.textContent="關閉";cl.onclick=closeRec;
   bs.className="row rvbar";bs.append(cl,sv,sn);f.append(cb,sb2,row,sp,nt,op,msg,bs);drawCat();
+  const snap=()=>JSON.stringify([qc,qs,qt,st.value.trim(),sp.value.trim(),ct.value.trim(),nt.value.trim(),ck.checked]);let init=snap();rvDirty=()=>snap()!==init;
   setTimeout(()=>{if(matchMedia("(pointer:fine)").matches)(r.note?nt:(sp.value?nt:sp)).focus()},0);
   return f;
 }
-function rvGo(d){if(!rvCur)return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
-function closeRec(){$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
+function rvGo(d){if(!rvCur||!rvOk())return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
+// 詳情窗的補說明有改動還沒存：關閉／換筆前先問
+let rvDirty=null;
+const rvOk=()=>!rvDirty||!rvDirty()||confirm("這筆的修改還沒儲存，確定不儲存就離開？");
+function closeRec(){if(!rvOk())return false;rvDirty=null;$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
 $("rvClose").onclick=closeRec;$("rvPrev").onclick=()=>rvGo(-1);$("rvNext").onclick=()=>rvGo(1);
 addEventListener("keydown",e=>{if(!$("viewer").hidden){if(e.key==="Escape"&&!vNav)closeViewer();return}if($("recView").hidden)return;
   const t=e.target;if(t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName))return;
