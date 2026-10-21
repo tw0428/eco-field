@@ -279,7 +279,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvbar button{padding:10px 16px}
 @media (max-width:600px){#recView .rvbar .primary{flex:1}}
 /* 卡片上的次要動作（完整編輯／複製／刪除）：小一號、刪除靠右，和底部儲存列區隔 */
-#recView .rec .acts{justify-content:flex-start;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
+#recView .rec .acts{flex-wrap:wrap;justify-content:flex-start;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px}
 #recView .rec .acts .danger{margin-left:auto}#recView .rec .acts button{white-space:nowrap}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
 .picker .pkh{display:flex;gap:8px;margin-bottom:8px}
@@ -615,6 +615,13 @@ async function deleteMany(col,cid,ids){
   const res=await mutate(`${col}/${cid}.json`,old=>{const m={...(old||{})};ids.forEach(i=>delete m[i]);return m});
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
+}
+// 紀錄搬到同案的其他工區：先寫進目標工區、成功後才從原工區刪（中途斷線頂多兩邊都有，不會不見）
+// 對應核對項目在目標工區沒有同id的就清掉；照片檔不動
+async function moveRecs(from,to,recs){
+  const ok=new Set(((cases.find(x=>x.id===to)||{}).checks||[]).map(i=>i.id)),map={};
+  recs.forEach(r=>{const {id,...d}=r,nd={...d,caseId:to};if(nd.checkId&&!ok.has(nd.checkId))delete nd.checkId;map[id]=nd});
+  await writeMany("records",to,map);await deleteMany("records",from,recs.map(r=>r.id));
 }
 async function write(col,id,kind,d){
   if(col==="cases"){
@@ -1678,7 +1685,17 @@ function recCard(r,c,onEdit){
         openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存"}
       catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
     if(onEdit){eb.textContent="完整編輯";eb.title="加照片、改ABCD、對應核對項目"}
-    acts.append(eb,cp,db_);el.appendChild(acts);
+    acts.append(eb,cp);
+    // 多工區：這筆移到其他工區（點了展開工區按鈕）
+    const zo=onEdit?zoneMates(r.caseId).filter(x=>x.id!==r.caseId):[];
+    if(zo.length){const mv=document.createElement("button");mv.type="button";mv.textContent="移到其他工區";acts.appendChild(mv);
+      mv.onclick=()=>{const row=document.createElement("div");row.className="chips zmove";row.append("移到：");
+        zo.forEach(z=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=zoneInfo(z).zone;
+          b.onclick=async()=>{row.querySelectorAll("button").forEach(x=>x.disabled=true);b.textContent="移動中…";
+            try{await moveRecs(r.caseId,z.id,[r]);rvDirty=null;closeRec();showMsg(`已移到${zoneInfo(z).zone}。`)}
+            catch(e){b.disabled=false;b.textContent=zoneInfo(z).zone+"（失敗，再按一次）"}};row.appendChild(b)});
+        mv.replaceWith(row)}}
+    acts.appendChild(db_);el.appendChild(acts);
     if(onEdit)return el;
     // 列表用精簡版：左邊一張縮圖（+N），右邊文字；點縮圖開完整紀錄
     el.classList.add("compact");
@@ -1926,6 +1943,15 @@ function srtBar(bar,list){
       catch(e){showMsg("合併失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
       srtBusy=false;srtFM=false;renderRecords()};
     bar.appendChild(mg)}
+  // 多工區：勾選的紀錄搬到其他工區（忘了切工區時用）
+  const zo=zoneMates(curCase).filter(c=>c.id!==curCase);
+  if(zo.length){const zr=document.createElement("div");zr.className="chips";const h=document.createElement("span");h.className="hint";h.textContent="移到：";zr.appendChild(h);
+    zo.forEach(c=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=zoneInfo(c).zone;
+      b.onclick=async()=>{bar.querySelectorAll("button").forEach(x=>x.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
+        try{await moveRecs(curCase,c.id,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已把 ${sel.length} 筆移到${zoneInfo(c).zone}。`)}
+        catch(e){showMsg("移動失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+        srtBusy=false;srtFM=false;renderRecords()};zr.appendChild(b)});
+    bar.appendChild(zr)}
   // 刪除勾選的紀錄（連照片）：按兩次確認
   const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除這 ${sel.length} 筆`;
   del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（連照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除這 ${sel.length} 筆`}},4000);return}
