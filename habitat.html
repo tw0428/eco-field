@@ -151,7 +151,15 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 .rpi:has(input:checked) img{border-color:var(--acc)}
 .rpi span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .picker li.on{color:var(--acc);font-weight:600}
-.picker .grp{font-size:12px;color:var(--mute);padding:8px 4px 2px;border:0;cursor:default}padding:2px 8px;font-size:12px;margin-top:2px}
+.picker .grp{font-size:12px;color:var(--mute);padding:8px 4px 2px;border:0;cursor:default}
+.picker li.pkadd{display:flex;gap:6px;align-items:center;margin:6px 0 4px;padding:10px 12px;border:1.5px dashed var(--accent,var(--acc));border-radius:10px;color:var(--accent,var(--acc));font-weight:600;background:var(--soft,var(--accbg));cursor:pointer}
+.picker li.pkadd input{flex:1;min-width:0;font-size:16px}.picker li.pkadd button{white-space:nowrap;padding:6px 10px}
+.picker .trash{color:var(--danger,var(--bad));display:flex;align-items:center;font-size:13px;font-weight:600;white-space:nowrap}
+.picker .trash.armed{background:var(--danger,var(--bad));color:#fff;border-radius:6px;padding:6px 8px}
+.picker li.arming{background:var(--warn-soft,var(--warnbg))}
+.picker li.trashgrp{cursor:pointer;color:var(--danger,var(--bad));margin-top:10px}
+.picker li.trashed .pkname{opacity:.6}.picker li.trashed .restore{flex:none;font-size:13px;padding:4px 12px;margin-right:4px}
+@media (pointer:fine){.picker{inset:5vh auto auto 50%;transform:translateX(-50%);width:min(560px,94vw);height:88vh;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding-top:12px}}
 </style>
 </head>
 <body>
@@ -159,7 +167,7 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./" id="toField">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
 <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto">📤 匯出</a><a href="#" id="shareBtn">分享</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
-<div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
+<div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
 <div class="tabs" id="ptabs"></div>
@@ -333,7 +341,8 @@ async function habFlush(){
 function renderCases(){
  $('caseBar').hidden=!db;if(!db)return;
  const sel=$('caseSel');
- sel.innerHTML=cases.length?cases.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join(''):'<option value="">（尚無案件，請先新增）</option>';
+ const live=cases.filter(c=>!c.trashedAt); // 垃圾桶裡的案件不列，可在案件清單最下面復原
+ sel.innerHTML=live.length?live.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join(''):'<option value="">（尚無案件，請先新增）</option>';
  sel.value=curCase;
 }
 /* ===== GitHub 儲存層（私人專案 eco-field-data，與現場紀錄共用金鑰）=====
@@ -457,11 +466,12 @@ async function initDb(){
  db.collection('cases').orderBy('createdAt').onSnapshot(s=>{
   cases=s.docs.map(d=>({id:d.id,...d.data()}));
   // 從現場紀錄切過來：同id優先、再找同名；沒有的話留在上次的案件，提示可建立同名評估（用同一id，才讀得到現場紀錄照片）
-  const j=cases.length&&takeJump('habitat');
-  if(j){const hit=cases.find(c=>c.id===j.id)||cases.find(c=>c.name===j.name);
+  const live=cases.filter(c=>!c.trashedAt);
+  const j=live.length&&takeJump('habitat');
+  if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name);
    if(hit){curCase=hit.id;S.cur=0;loadCase(true);render();return}
    jumpNote(j)}
-  if(!cases.find(c=>c.id===curCase)){curCase=(cases.find(c=>c.id===pf.c)||cases[0]||{}).id||'';loadCase(true)}else loadCase(false);
+  if(!live.find(c=>c.id===curCase)){curCase=(live.find(c=>c.id===pf.c)||live[0]||{}).id||'';loadCase(true)}else loadCase(false);
   render();
  });
  if(ghToken)hLoadCache();
@@ -963,10 +973,13 @@ function nameEl(el,t){el.textContent="";
   if(tl){const s=document.createElement("span");s.className="nt";s.textContent=tl[0];el.appendChild(s)}}
 // 頂端按鈕：案名完整顯示（最多兩行），不放紀錄數
 const btnName=(btn,t)=>{btn.textContent=t.replace(/（\d+）$/,"")};
-function makePicker(sel,recentKey,metaOf){
-  if(matchMedia("(pointer:fine)").matches)return; // 電腦（滑鼠）維持原本的下拉選單，手機才用全螢幕清單
+// ops：add(name)建立並切到新案件、trash(id)移到垃圾桶、restore(id)復原、trashed()垃圾桶清單[{id,name}]
+// 手機全螢幕、電腦置中面板；第一列「＋新增案件」，每列右邊📌釘選＋紅色垃圾桶（按兩次才移除），垃圾桶在最下面可復原
+const TRASH_SVG='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
+function makePicker(sel,recentKey,metaOf,ops){
+  ops=ops||{};
   const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow act";sel.before(btn);sel.hidden=true;
-  const sync=()=>{const o=sel.options[sel.selectedIndex];btnName(btn,o?o.textContent:"（尚無案件）")};
+  const sync=()=>{const o=sel.options[sel.selectedIndex];btnName(btn,o&&o.value?o.textContent:"（尚無案件，點這裡新增）")};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
@@ -977,24 +990,46 @@ function makePicker(sel,recentKey,metaOf){
   sel.addEventListener("change",()=>{touch(sel.value);sync()});
   setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500); // 程式改value不會觸發事件
   btn.onclick=()=>{
-    const opts=[...sel.options].filter(o=>o.value),rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
+    const rec=recent(),rank=v=>{const i=rec.indexOf(v);return i<0?1e9:i};
     const ov=document.createElement("div");ov.className="picker";
     ov.innerHTML='<div class="pkh"><input type="text" placeholder="搜尋案件名稱" aria-label="搜尋案件"><button type="button" class="act">取消</button></div><div class="pkmode"><span>分組</span><div class="seg"></div></div><ul></ul>';
     const q=ov.querySelector("input"),ul=ov.querySelector("ul"),seg=ov.querySelector(".seg");
-    const close=()=>{ov.remove();document.body.style.overflow=""};
-    ov.querySelector(".pkh button").onclick=close;
+    let addOpen=false,addVal="",trOpen=false,armed=null,armT=null;
+    const onKey=e=>{if(e.key==="Escape")close()};
+    const close=()=>{clearTimeout(armT);ov.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+    ov.querySelector(".pkh button").onclick=close;document.addEventListener("keydown",onKey);
     const draw=()=>{
+      const opts=[...sel.options].filter(o=>o.value);
       const mode=lsGet("eco-pickmode")||"recent";
       seg.innerHTML="";[["recent","最近使用"],["area","地區"],["stage","階段"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
         b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
       const k=q.value.trim().toLowerCase();ul.innerHTML="";
       const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k)),byRank=(a,b)=>rank(a.value)-rank(b.value)||a.textContent.localeCompare(b.textContent,"zh-Hant");
       const head=t=>{const h=document.createElement("li");h.className="grp";h.textContent=t;ul.appendChild(h)};
+      // 第一列：新增案件（點了變成輸入框）
+      if(ops.add&&!k){const li=document.createElement("li");li.className="pkadd";
+        if(!addOpen){li.textContent="＋ 新增案件";li.onclick=()=>{addOpen=true;draw()}}
+        else{const inp=document.createElement("input");inp.type="text";inp.placeholder="輸入案件名稱";inp.value=addVal;inp.oninput=()=>{addVal=inp.value};
+          const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="建立";
+          const cc=document.createElement("button");cc.type="button";cc.textContent="取消";cc.onclick=()=>{addOpen=false;addVal="";draw()};
+          const go=async()=>{const n=inp.value.trim();if(!n){inp.focus();return}ok.disabled=true;ok.textContent="建立中…";
+            try{await ops.add(n);close()}catch(e){ok.disabled=false;ok.textContent="失敗，再按一次"}};
+          ok.onclick=go;inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();go()}};li.append(inp,ok,cc);setTimeout(()=>inp.focus(),0)}
+        ul.appendChild(li)}
       const item=o=>{const li=document.createElement("li");if(o.value===sel.value)li.className="on";
         const nm=document.createElement("span");nm.className="pkname";nameEl(nm,o.textContent);
         const pb=document.createElement("button");pb.type="button";pb.className="pin";const on=isPin(o);pb.textContent=on?"📌":"☆";pb.setAttribute("aria-label",on?"取消釘選":"釘選");
         pb.onclick=e=>{e.stopPropagation();togglePin(o);draw()};
-        li.append(nm,pb);li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}))}};ul.appendChild(li)};
+        li.append(nm,pb);
+        if(ops.trash){const tb=document.createElement("button");tb.type="button";tb.className="pin trash";const arm=armed===o.value;
+          if(arm){tb.classList.add("armed");tb.textContent="移到垃圾桶？";li.classList.add("arming")}else tb.innerHTML=TRASH_SVG;
+          tb.setAttribute("aria-label","移到垃圾桶");
+          tb.onclick=async e=>{e.stopPropagation();clearTimeout(armT);
+            if(!arm){armed=o.value;armT=setTimeout(()=>{armed=null;draw()},4000);draw();return}
+            armed=null;tb.disabled=true;tb.textContent="移除中…";
+            try{await ops.trash(o.value);draw()}catch(_){tb.textContent="失敗";setTimeout(draw,1500)}};
+          li.appendChild(tb)}
+        li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}))}};ul.appendChild(li)};
       const P=hit.filter(isPin).sort(byRank),R=hit.filter(o=>!isPin(o));
       if(P.length){head("📌 釘選");P.forEach(item)}
       if(k){R.sort(byRank).forEach(item)}
@@ -1003,13 +1038,26 @@ function makePicker(sel,recentKey,metaOf){
       else{const key=o=>metaOf(o.value)[mode]||"",keys=[...new Set(R.map(key))];
         keys.sort((a,b)=>!a?1:!b?-1:mode==="stage"?PICK_STAGES.indexOf(a)-PICK_STAGES.indexOf(b):a.localeCompare(b,"zh-Hant"));
         keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定階段"));R.filter(o=>key(o)===g).sort(byRank).forEach(item)})}
-      if(!hit.length)head("找不到符合的案件");
+      if(!hit.length&&k)head("找不到符合的案件");
+      // 垃圾桶：移除的案件資料都還在，點「復原」放回清單
+      const T=ops.trashed?ops.trashed().filter(c=>!k||(c.name||"").toLowerCase().includes(k)):[];
+      if(T.length){const h=document.createElement("li");h.className="grp trashgrp";h.textContent=`${trOpen?"▾":"▸"} 垃圾桶（${T.length}）・可復原`;h.onclick=()=>{trOpen=!trOpen;draw()};ul.appendChild(h);
+        if(trOpen)T.forEach(c=>{const li=document.createElement("li");li.className="trashed";const nm=document.createElement("span");nm.className="pkname";nameEl(nm,c.name||"");
+          const rb=document.createElement("button");rb.type="button";rb.className="restore";rb.textContent="復原";
+          rb.onclick=async e=>{e.stopPropagation();rb.disabled=true;rb.textContent="復原中…";try{await ops.restore(c.id);draw()}catch(_){rb.disabled=false;rb.textContent="失敗，再按一次"}};
+          li.append(nm,rb);ul.appendChild(li)})}
     };
     q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow="hidden";
   };
   sync();
 }
-makePicker($('caseSel'),'eco-recent-habitat',habMeta);
+makePicker($('caseSel'),'eco-recent-habitat',habMeta,{
+ add:async name=>{if(!db)throw new Error('未連線');await flush();const ref=db.collection('cases').doc();await ref.set({name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
+  curCase=ref.id;S.cur=0;S.view='creek';loadCase(true);render()},
+ trash:async id=>{await flush();await db.doc('cases/'+id).update({trashedAt:Date.now()});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=Date.now();
+  if(curCase===id){curCase=(cases.find(x=>!x.trashedAt)||{}).id||'';S.cur=0;loadCase(true)}render()},
+ restore:async id=>{await db.doc('cases/'+id).update({trashedAt:null});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=null;render()},
+ trashed:()=>cases.filter(c=>c.trashedAt).sort((a,b)=>b.trashedAt-a.trashedAt)});
 whoShow();$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
 $('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
