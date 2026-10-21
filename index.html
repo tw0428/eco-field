@@ -1606,6 +1606,8 @@ function renderRecords(){
   shown.forEach(r=>box.appendChild(recCard(r,c)));
 }
 // 一筆紀錄的卡片（列表與照片牆點開共用）
+// 同一張照片可被多筆紀錄共用（複製到其他分類）：刪紀錄時，照片沒有別筆在用才刪檔
+const photoShared=(p,exceptIds)=>records.some(x=>!exceptIds.includes(x.id)&&(x.photos||[]).includes(p));
 function recCard(r,c,onEdit){
     const el=document.createElement("article");el.className="rec "+stgCls(r.stage);
     const head=document.createElement("div");head.className="head";
@@ -1640,18 +1642,24 @@ function recCard(r,c,onEdit){
       db_.disabled=true;
       try{
         await db.doc("records/"+r.id).delete();
-        if(assets)for(const p of (r.photos||[])){try{await assets.delete(p)}catch(e){}}
+        if(assets)for(const p of (r.photos||[])){if(!photoShared(p,[r.id]))try{await assets.delete(p)}catch(e){}}
         if(onEdit)onEdit();
       }catch(e){db_.disabled=false;db_.textContent="刪除失敗，再試一次"}
     };
-    acts.append(eb,db_);el.appendChild(acts);
+    const cp=document.createElement("button");cp.type="button";cp.textContent="複製到其他分類";
+    cp.onclick=async()=>{cp.disabled=true;cp.textContent="複製中…";
+      try{const {id,...rest}=r,nid=newId(),doc={...rest,createdAt:(r.createdAt||Date.now())+1,copyOf:r.id};delete doc.op;
+        await db.collection("records").doc(nid).set(doc);const nr={...doc,id:nid};if(!records.some(x=>x.id===nid))records.push(nr);
+        openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存"}
+      catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
+    acts.append(eb,cp,db_);el.appendChild(acts);
     if(onEdit)return el;
     // 列表用精簡版：左邊一張縮圖（+N），右邊文字；點縮圖開完整紀錄
     el.classList.add("compact");
     const body=document.createElement("div");body.className="body";
     [...el.children].filter(x=>!x.classList.contains("imgs")).forEach(x=>body.appendChild(x));
     const st=[...head.children].find(x=>x.textContent===r.stake);
-    acts.remove();head.appendChild(acts);
+    cp.remove();acts.remove();head.appendChild(acts);
     if(st&&r.stake){st.remove();const ti=body.querySelector(".title");const s=document.createElement("b");s.textContent=r.stake;
       if(ti)ti.prepend(s,"　");else{const t2=document.createElement("div");t2.className="title";t2.appendChild(s);head.after(t2)}}
     el.innerHTML="";
@@ -1779,7 +1787,7 @@ $("recForm").onsubmit=async e=>{
       if(editing.lat==null&&gp){upd.lat=gp.ex.lat;upd.lng=gp.ex.lng;upd.gpsSource=gp.ex.src||"exif";if(gp.ex.acc!=null)upd.gpsAcc=gp.ex.acc}
       if(!editing.takenAt&&tp)upd.takenAt=fmtExifTime(tp.ex.taken);
       await db.doc("records/"+editing.id).update(upd);
-      if(assets)for(const p of removed){try{await assets.delete(p)}catch(e){}}
+      if(assets)for(const p of removed){if(!photoShared(p,[editing.id]))try{await assets.delete(p)}catch(e){}}
       cancelEdit();
     }else{
       showMsg(blobs.length?`上傳照片（${blobs.length} 張）…`:"儲存中…");
@@ -1893,7 +1901,7 @@ function srtBar(bar,list){
     srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
     // 紀錄一次刪掉（畫面立刻消失），照片檔在背景慢慢刪
     try{await deleteMany("records",curCase,sel.map(r=>r.id));sel.forEach(r=>srtSel.delete(r.id));srtBusy=false;srtFM=false;renderRecords();
-      const ps=sel.flatMap(r=>r.photos||[]);let k=0;for(const p of ps){k++;showMsg(`已刪除 ${sel.length} 筆紀錄；背景清除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
+      const ps=sel.flatMap(r=>r.photos||[]).filter(p=>!photoShared(p,sel.map(r=>r.id)));let k=0;for(const p of ps){k++;showMsg(`已刪除 ${sel.length} 筆紀錄；背景清除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
     catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），再試一次。",true);srtBusy=false;srtFM=false;renderRecords()}};
   bar.appendChild(del);
 }
