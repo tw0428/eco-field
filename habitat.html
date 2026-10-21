@@ -124,7 +124,7 @@ select.unf{border-color:var(--warn);border-width:2px}
 .photobtns button{display:flex;align-items:center;justify-content:center;padding:10px 4px;border-radius:8px;border:1.5px dashed var(--acc);color:var(--acc);background:transparent;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
 .photobtns label,.photobtns button{white-space:nowrap;padding:10px 4px;font-size:15px}.photobtns label.cam{background:var(--acc);color:var(--accfg);border-style:solid}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.sub a{color:var(--acc)}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
+.sub a{color:var(--acc)}.sub>*{white-space:nowrap}.sub input{flex:1 1 0;min-width:3em;width:auto!important}#expLink{background:var(--acc);color:var(--accfg);padding:4px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 /* 野溪頁主色＝水藍、坡地頁＝土黃（評分顏色--good等不受影響） */
 body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--acc:#8a5a2b;--accbg:#f1e6d8}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#7fb3d8;--accbg:#1f3240}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#d9a46a;--accbg:#3a2e20}}
@@ -157,7 +157,7 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./" id="toField">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto">匯出</a><a href="#" id="shareBtn">分享給同事</a></div>
+<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto">📤 匯出</a><a href="#" id="shareBtn">分享</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd">新增</button><button class="act danger" id="caseDel">刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -823,11 +823,14 @@ async function habDocx(btn){
   for(const {i,k,x} of list){btn.textContent=`準備照片 ${n+1}/${list.length}…`;
    const blob=await fileBlob(x.id);let w=4,hh=3;try{const bm=await createImageBitmap(blob);w=bm.width;hh=bm.height;bm.close&&bm.close()}catch(e){}
    n++;const rid='rIdImg'+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
-   let cx=4650*635,cy=Math.round(cx*hh/w);const mh=4200*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
+   let cx=4000*635,cy=Math.round(cx*hh/w);const mh=2650*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
    const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="40"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
    const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
-   cells.push(img+P([`照片${n}　${D.cn(i)}｜${KNAME[k]}評估位置`,fmtExifTime(x.taken),ns&&ns.off<=60?'約'+fmtSt(ns.st):x.lat!=null?`${x.lat}, ${x.lng}`:''].filter(Boolean).join('\n'),{sz:20}))}
-  if(cells.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const rows=[];for(let j=0;j<cells.length;j+=2)rows.push([cells[j],cells[j+1]]);body+=tbl([TW/2,TW/2],rows)}
+   const tk=fmtExifTime(x.taken);
+   cells.push({img,cap:P('位置或樁號：'+(ns&&ns.off<=60?'約'+fmtSt(ns.st):''),{sz:20,jc:'both'})+P(`說明：${D.cn(i)}${KNAME[k]}評估位置${tk?'（'+tk+'）':''}`,{sz:20,jc:'both'})})}
+  if(cells.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`,kn=s=>s&&s.replace('<w:pPr>','<w:pPr><w:keepNext/>'),rows=[];
+   for(let j=0;j<cells.length;j+=2){const a=cells[j],b=cells[j+1]||{};rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(kn(a.img))}${tc(kn(b.img))}</w:tr><w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
+   body+=`<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join('')}</w:tbl>`+P('')}
   btn.textContent='組成Word中…';
   zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
   zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
