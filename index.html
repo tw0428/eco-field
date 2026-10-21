@@ -272,6 +272,9 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvbody .rec{max-width:640px;margin:0 auto}
 #recView .rvbody .rec .imgs img{width:100%;height:auto;max-height:60vh;object-fit:contain}
 #recView .rvbody .rec .imgs{flex-direction:column}
+#recView .cpnote{background:var(--accent);color:var(--accent-fg);border-radius:8px;padding:10px 12px;font-weight:600}
+#recView .chips.flash{border-radius:10px;animation:cpflash 1.2s ease-out 3}
+@keyframes cpflash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
 #recView .imgs .splitone{align-self:flex-end;margin:-2px 0 8px;white-space:nowrap}
 #recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 #recView .rvq textarea{resize:vertical}
@@ -1701,7 +1704,10 @@ function recCard(r,c,onEdit){
     cp.onclick=async()=>{cp.disabled=true;cp.textContent="複製中…";
       try{const {id,...rest}=r,nid=newId(),doc={...rest,createdAt:(r.createdAt||Date.now())+1,copyOf:r.id};delete doc.op;
         await db.collection("records").doc(nid).set(doc);const nr={...doc,id:nid};if(!records.some(x=>x.id===nid))records.push(nr);
-        openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存"}
+        openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存";
+        // 明顯提示：分類區上方加綠色提示條、分類按鈕閃一下框，並捲到分類區
+        const q=document.querySelector("#rvBody .rvq");if(q){const t=document.createElement("div");t.className="cpnote";t.textContent="✓ 已複製成新的一筆（照片共用）。請在下面選新的分類，再按儲存。";q.prepend(t);
+          const cb=q.querySelector(".chips");if(cb)cb.classList.add("flash");setTimeout(()=>t.scrollIntoView({block:"start",behavior:"smooth"}),50)}}
       catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
     if(onEdit){eb.textContent="完整編輯";eb.title="加照片、改ABCD、對應核對項目"}
     acts.append(eb,cp);
