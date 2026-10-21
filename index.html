@@ -616,6 +616,13 @@ async function deleteMany(col,cid,ids){
   for(const k of Object.keys(store[col]))if(store[col][k].caseId===cid&&!(k in res))delete store[col][k];
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
 }
+// 拆開（合併的反向）：多張照片的紀錄拆成一張一筆。第一張留在原紀錄，其餘各建一筆，
+// 類別、階段、樁號、說明等文字全部照抄（合併時接起來的說明無法分回去，拆完再各自修）
+async function splitRec(r){
+  const ps=r.photos||[];if(ps.length<2)return 0;const {id,...d}=r,map={[id]:{...d,photos:[ps[0]]}};
+  ps.slice(1).forEach((p,i)=>{map[newId()]={...d,photos:[p],createdAt:(d.createdAt||Date.now())+i+1}});
+  await writeMany("records",r.caseId,map);return ps.length;
+}
 // 紀錄搬到同案的其他工區：先寫進目標工區、成功後才從原工區刪（中途斷線頂多兩邊都有，不會不見）
 // 對應核對項目在目標工區沒有同id的就清掉；照片檔不動
 async function moveRecs(from,to,recs){
@@ -1695,6 +1702,12 @@ function recCard(r,c,onEdit){
             try{await moveRecs(r.caseId,z.id,[r]);rvDirty=null;closeRec();showMsg(`已移到${zoneInfo(z).zone}。`)}
             catch(e){b.disabled=false;b.textContent=zoneInfo(z).zone+"（失敗，再按一次）"}};row.appendChild(b)});
         mv.replaceWith(row)}}
+    if(onEdit&&(r.photos||[]).length>1){const sp_=document.createElement("button");sp_.type="button";sp_.textContent=`拆成單張（${r.photos.length}筆）`;
+      sp_.onclick=async()=>{if(sp_.dataset.armed!=="1"){sp_.dataset.armed="1";sp_.textContent=`再按一次：拆成 ${r.photos.length} 筆`;setTimeout(()=>{if(sp_.isConnected&&!sp_.disabled){sp_.dataset.armed="";sp_.textContent=`拆成單張（${r.photos.length}筆）`}},4000);return}
+        sp_.disabled=true;sp_.textContent="拆開中…";
+        try{const n=await splitRec(r);rvDirty=null;closeRec();showMsg(`已拆成 ${n} 筆，說明文字每筆都先照抄，請再各自修改。`)}
+        catch(e){sp_.disabled=false;sp_.dataset.armed="";sp_.textContent="拆開失敗，再試一次"}};
+      acts.appendChild(sp_)}
     acts.appendChild(db_);el.appendChild(acts);
     if(onEdit)return el;
     // 列表用精簡版：左邊一張縮圖（+N），右邊文字；點縮圖開完整紀錄
@@ -1949,6 +1962,15 @@ function srtBar(bar,list){
       catch(e){showMsg("合併失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
       srtBusy=false;srtFM=false;renderRecords()};
     bar.appendChild(mg)}
+  // 拆開：勾選的紀錄裡有多張照片的，各拆成一張一筆
+  const multiPh=sel.filter(r=>(r.photos||[]).length>1);
+  if(multiPh.length){const sb=document.createElement("button");sb.type="button";sb.className="mini";sb.style.alignSelf="flex-start";
+    const np=multiPh.reduce((s,r)=>s+r.photos.length,0);sb.textContent=`拆成單張（${multiPh.length}筆→${np}筆）`;
+    sb.onclick=async()=>{bar.querySelectorAll("button").forEach(b=>b.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
+      try{for(const r of multiPh)await splitRec(r);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已拆成 ${np} 筆，說明文字每筆都先照抄，請再各自修改。`)}
+      catch(e){showMsg("拆開失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+      srtBusy=false;srtFM=false;renderRecords()};
+    bar.appendChild(sb)}
   // 多工區：勾選的紀錄搬到其他工區（忘了切工區時用）
   const zo=zoneMates(curCase).filter(c=>c.id!==curCase);
   if(zo.length){const zr=document.createElement("div");zr.className="chips";const h=document.createElement("span");h.className="hint";h.textContent="移到：";zr.appendChild(h);
