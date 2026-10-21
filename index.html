@@ -1661,7 +1661,8 @@ function recCard(r,c,onEdit){
     const body=document.createElement("div");body.className="body";
     [...el.children].filter(x=>!x.classList.contains("imgs")).forEach(x=>body.appendChild(x));
     const st=[...head.children].find(x=>x.textContent===r.stake);
-    cp.remove();acts.remove();head.appendChild(acts);
+    // 列表的「編輯」開同一個彈出視窗（不跳回上方表單）；要加照片等完整編輯再按視窗內的「編輯」
+    cp.remove();eb.onclick=()=>openRec(r);acts.remove();head.appendChild(acts);
     if(st&&r.stake){st.remove();const ti=body.querySelector(".title");const s=document.createElement("b");s.textContent=r.stake;
       if(ti)ti.prepend(s,"　");else{const t2=document.createElement("div");t2.className="title";t2.appendChild(s);head.after(t2)}}
     el.innerHTML="";
