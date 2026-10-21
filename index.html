@@ -173,6 +173,8 @@ a{color:var(--accent)}
 .photobtns.two2{grid-template-columns:1fr 1fr}
 .photobtns label.cam{background:var(--accent);color:var(--accent-fg);border-style:solid}
 .sub{font-size:13px;margin-top:-6px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sub>*{white-space:nowrap}.sub input{flex:1 1 0;min-width:3em;width:auto!important}
+#expLink{background:var(--accent);color:var(--accent-fg);padding:4px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}
 .sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 /* 階段配色：提報／設計／開工前～完工 */
 :root{--stg-a:#3b6ea8;--stg-b:#8a5a9e;--stg-c:var(--accent)}
@@ -322,7 +324,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <div class="wrap">
   <div class="pagehead" id="pagehead">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html" id="toHab">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-  <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink">匯出</a><a href="#" id="shareBtn">分享給同事</a></div>
+  <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink">📤 匯出</a><a href="#" id="shareBtn">分享</a></div>
   <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
   <div class="row">
     <select id="caseSel" class="grow" aria-label="案件"><option value="">（尚無案件，請先新增）</option></select>
@@ -2064,25 +2066,29 @@ async function makeDocx(day,btn){
     const tbl=(ws,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${TW}" w:type="dxa"/>${BD}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${ws.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>`+
       rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${ws[i]}" w:type="dxa"/></w:tcPr>${cell||P("")}</w:tc>`).join("")}</w:tr>`).join("")+`</w:tbl>`;
     const hdr=H=>H.map(h=>P(h,{b:true,sz:20,jc:"center"}));
+    const photoTbl=cells=>{const W=4277,tc=(x,h)=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P("")}</w:tc>`,rows=[];
+      for(let i=0;i<cells.length;i+=2){const a=cells[i],b=cells[i+1]||{};
+        rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(a.img.replace("<w:pPr>","<w:pPr><w:keepNext/>"))}${tc(b.img&&b.img.replace("<w:pPr>","<w:pPr><w:keepNext/>"))}</w:tr>`,
+          `<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
+      return `<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join("")}</w:tbl>`};
     const zip=new JSZip(),rels=[];let n=0,body="";
     body+=P((c.name||"")+"　現場紀錄",{b:true,sz:32,jc:"center"});
     body+=P((day?"日期："+day:"全部日期")+"　　共 "+recs.length+" 筆紀錄",{sz:22,jc:"center"});
     if(day&&R2.length){body+=P("一、核對結果",{b:true,sz:26});
       body+=tbl([1300,600,3838,1300,1100,1500],[hdr(H2),...R2.map(r=>r.map(v=>P(v,{sz:20})))])+P("")}
-    // 照片：每格寬約8.2cm，直式照片限高，避免一格太長跨頁
+    // 照片表照檢核表格式：2欄（各4277）、照片列高2778、下方說明列「位置或樁號：」「說明：」
     const cells=[],total=recs.reduce((s,r)=>s+(r.photos||[]).length,0);
     for(const r of recs)for(const id of (r.photos||[])){
       btn.textContent=`準備照片 ${n+1}/${total}…`;
       const blob=await withExif(await fileBlob(id),r.lat,r.lng,exifDt(r));let w=4,h=3;
       try{const bm=await createImageBitmap(blob);w=bm.width;h=bm.height;bm.close&&bm.close()}catch(e){}
       n++;const rid="rIdImg"+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
-      let cx=4650*635,cy=Math.round(cx*h/w);const maxH=4200*635;if(cy>maxH){cx=Math.round(cx*maxH/cy);cy=maxH}
+      let cx=4000*635,cy=Math.round(cx*h/w);const maxH=2650*635;if(cy>maxH){cx=Math.round(cx*maxH/cy);cy=maxH}
       const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="40"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
-      const cap=[`照片${n}　${r.takenAt||fmtMs(r.createdAt)}`,[r.stake,catText(r),r.species,r.count].filter(Boolean).join("｜"),r.note||""].filter(Boolean).join("\n");
-      cells.push(img+P(cap,{sz:20}));
+      const desc=[day?"":recDay(r),catText(r),[r.species,r.count].filter(Boolean).join(" "),r.note].filter(Boolean).join("；");
+      cells.push({img,cap:P("位置或樁號："+(r.stake||""),{sz:20,jc:"both"})+P("說明："+desc,{sz:20,jc:"both"})});
     }
-    if(cells.length){body+=P((day&&R2.length?"二、":"一、")+"現場照片",{b:true,sz:26});
-      const rows=[];for(let i=0;i<cells.length;i+=2)rows.push([cells[i],cells[i+1]]);body+=tbl([TW/2,TW/2],rows)+P("")}
+    if(cells.length){body+=P((day&&R2.length?"二、":"一、")+"現場照片",{b:true,sz:26});body+=photoTbl(cells)+P("")}
     const np=recs.filter(r=>!(r.photos&&r.photos.length));
     if(np.length){body+=P("無照片紀錄",{b:true,sz:26});
       body+=tbl([1700,1400,1400,5138],[hdr(["時間","樁號","類別","說明"]),...np.map(r=>[r.takenAt||fmtMs(r.createdAt),r.stake,catText(r),[r.species,r.note].filter(Boolean).join("：")].map(v=>P(v,{sz:20})))])}
