@@ -272,6 +272,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .rvbody .rec{max-width:640px;margin:0 auto}
 #recView .rvbody .rec .imgs img{width:100%;height:auto;max-height:60vh;object-fit:contain}
 #recView .rvbody .rec .imgs{flex-direction:column}
+#recView .imgs .splitone{align-self:flex-end;margin:-2px 0 8px;white-space:nowrap}
 #recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 #recView .rvq textarea{resize:vertical}
 /* 關閉／儲存固定在畫面底部，看照片時也按得到 */
@@ -622,6 +623,11 @@ async function splitRec(r){
   const ps=r.photos||[];if(ps.length<2)return 0;const {id,...d}=r,map={[id]:{...d,photos:[ps[0]]}};
   ps.slice(1).forEach((p,i)=>{map[newId()]={...d,photos:[p],createdAt:(d.createdAt||Date.now())+i+1}});
   await writeMany("records",r.caseId,map);return ps.length;
+}
+// 只拆出其中一張：原紀錄拿掉這張，另建一筆只有這張（文字照抄）
+async function splitOne(r,p){
+  const {id,...d}=r,i=(d.photos||[]).indexOf(p);if(i<0||d.photos.length<2)return;
+  await writeMany("records",r.caseId,{[id]:{...d,photos:d.photos.filter(x=>x!==p)},[newId()]:{...d,photos:[p],createdAt:(d.createdAt||Date.now())+i}});
 }
 // 紀錄搬到同案的其他工區：先寫進目標工區、成功後才從原工區刪（中途斷線頂多兩邊都有，不會不見）
 // 對應核對項目在目標工區沒有同id的就清掉；照片檔不動
@@ -1661,7 +1667,11 @@ function recCard(r,c,onEdit){
     if(r.note){const n=document.createElement("div");n.className="note";n.textContent=r.note;el.appendChild(n)}
     if(r.photos&&r.photos.length){
       const im=document.createElement("div");im.className="imgs";
-      r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a)});
+      r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a);
+        // 詳情窗：多張時每張下面可「拆出這張」成獨立一筆
+        if(onEdit&&r.photos.length>1){const b=document.createElement("button");b.type="button";b.className="mini splitone";b.textContent="拆出這張（另成一筆）";
+          b.onclick=async()=>{b.disabled=true;b.textContent="拆出中…";try{await splitOne(r,p);rvDirty=null;closeRec();showMsg("已拆出成獨立一筆，說明文字先照抄，請再修改。")}catch(e){b.disabled=false;b.textContent="失敗，再按一次"}};
+          im.appendChild(b)}});
       el.appendChild(im);
     }
     // 次要資訊（紀錄者、核對項、定位）縮成一行小字
