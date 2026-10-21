@@ -160,6 +160,9 @@ body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--
 .picker li.trashgrp{cursor:pointer;color:var(--danger,var(--bad));margin-top:10px}
 .picker li.trashed .pkname{opacity:.6}.picker li.trashed .restore{flex:none;font-size:13px;padding:4px 12px;margin-right:4px}
 @media (pointer:fine){.picker{inset:5vh auto auto 50%;transform:translateX(-50%);width:min(560px,94vw);height:88vh;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding-top:12px}}
+.zonebar{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+.zonebar button{border:1px solid var(--line);background:var(--surface,var(--card));color:inherit;border-radius:999px;padding:5px 14px;font-size:14px;cursor:pointer}
+.zonebar button[aria-pressed="true"]{background:var(--accent,var(--acc));color:var(--accent-fg,var(--accfg));border-color:var(--accent,var(--acc));font-weight:600}
 </style>
 </head>
 <body>
@@ -808,7 +811,7 @@ function renderExpSheet(){
  const box=$('expBody');if(!box||!S.p)return;const D=exportData(),ex=S.exp==='design'?'design':'build';
  const nPh=D.cIdx.reduce((s,i)=>s+phGet(S.p[i],'creek').length+phGet(S.p[i],'slope').length,0);
  box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（前中後）</button></div></div>
- <div class="mut">坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
+ <div class="mut">${zoneMates(curCase).length>1?`Word一次匯出${zoneMates(curCase).length}個工區（依工區分節）；下面的數量、複製和CSV只含目前的${esc(zoneInfo(cases.find(x=>x.id===curCase)).zone)}：`:''}坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
  <div class="expbtns"><button class="act primary" data-xw="1">📄 下載Word（含照片）</button>
  <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
  <a href="#" data-xcmp="1">修改前言草稿 →</a></div>`;
@@ -816,39 +819,52 @@ function renderExpSheet(){
 function openExpSheet(){if(!S.p)return;$('expSheet').hidden=false;renderExpSheet()}
 async function habDocx(btn){
  const o=btn.textContent;btn.disabled=true;
- try{await loadZip();const D=exportData(),c=cases.find(x=>x.id===curCase)||{};
+ try{await loadZip();await flush();
   const X=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const RPR=(b,sz)=>`<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="標楷體"/>${b?'<w:b/>':''}<w:sz w:val="${sz||24}"/><w:szCs w:val="${sz||24}"/></w:rPr>`;
   const P=(t,{b,sz,jc}={})=>`<w:p><w:pPr><w:spacing w:before="0" w:after="60"/>${jc?`<w:jc w:val="${jc}"/>`:''}</w:pPr>${String(t==null?'':t).split('\n').map((s,i)=>`<w:r>${RPR(b,sz)}${i?'<w:br/>':''}<w:t xml:space="preserve">${X(s)}</w:t></w:r>`).join('')}</w:p>`;
+  const kn=s=>s&&s.replace('<w:pPr>','<w:pPr><w:keepNext/>');
   const BD=`<w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`).join('')}</w:tblBorders>`,TW=9638;
   const tbl=(ws,rows)=>`<w:tbl><w:tblPr><w:tblW w:w="${TW}" w:type="dxa"/>${BD}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${ws.map(w=>`<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`+rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${ws[i]}" w:type="dxa"/></w:tcPr>${cell||P('')}</w:tc>`).join('')}</w:tr>`).join('')+`</w:tbl>`;
   const T=t=>{const n=t.head.length,w0=2600,wr=Math.floor((TW-w0)/(n-1)),ws=[w0,...Array(n-1).fill(wr)];ws[n-1]+=TW-ws.reduce((a,b)=>a+b,0);
    return tbl(ws,[t.head.map(x=>P(x,{b:true,sz:20,jc:'center'})),...t.rows.map(r=>r.map((x,i)=>P(x,{sz:20,jc:i?'center':''}))),...(t.foot?[t.foot.map(x=>P(x,{b:true,sz:20,jc:'center'}))]:[])])};
-  const zip=new JSZip(),rels=[];let n=0,sec=0,body=P((c.name||'')+'　棲地評估',{b:true,sz:32,jc:'center'});
-  const NUM='一二三四五';
-  if(hasSlope(D)){body+=P(NUM[sec++]+'、坡地棲地評估',{b:true,sz:26})+P(($('dS')||{}).value||draftSlope(D))+T(D.slope)+(memoText(D,'slope')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'slope'),{sz:22}):'')+P('')}
-  if(hasCreek(D)){body+=P(NUM[sec++]+'、野溪治理工程生態回復追蹤評估',{b:true,sz:26})+P(($('dC')||{}).value||draftCreek(D))+T(D.creek)+(memoText(D,'creek')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'creek'),{sz:22}):'')+P('')}
-  const list=[];['slope','creek'].forEach(k=>D.cIdx.forEach(i=>phGet(S.p[i],k).forEach(x=>list.push({i,k,x}))));
-  const grp=[];
-  for(const {i,k,x} of list){let g=grp[grp.length-1];if(!g||g.k!==k)grp.push(g={k,subs:[]});let s=g.subs[g.subs.length-1];if(!s||s.i!==i)g.subs.push(s={i,cells:[]});const cells=s.cells;btn.textContent=`準備照片 ${n+1}/${list.length}…`;
-   const blob=await fileBlob(x.id);let w=4,hh=3;try{const bm=await createImageBitmap(blob);w=bm.width;hh=bm.height;bm.close&&bm.close()}catch(e){}
-   n++;const rid='rIdImg'+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
-   let cx=4000*635,cy=Math.round(cx*hh/w);const mh=2650*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
-   const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
-   const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
-   const tk=fmtExifTime(x.taken);
-   cells.push({img,cap:(P('位置或樁號：'+(ns&&ns.off<=60?'約'+fmtSt(ns.st):''),{sz:20,jc:'both'})+P(`說明：${tk?'拍攝時間 '+tk:''}`,{sz:20,jc:'both'})).replace(/w:after="60"/g,'w:after="0"')})}
-  if(grp.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`,kn=s=>s&&s.replace('<w:pPr>','<w:pPr><w:keepNext/>');
-   grp.forEach((g,gi)=>{body+=kn(P(`（${'一二三'[gi]}）${KNAME[g.k]}評估位置`,{b:true,sz:24}));
-    g.subs.forEach((s,si)=>{const cells=s.cells,rows=[];body+=P(`${si+1}. ${D.cn(s.i)}`,{sz:22});
-     for(let j=0;j<cells.length;j+=2){const a=cells[j],b=cells[j+1]||{};rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(kn(a.img))}${tc(kn(b.img))}</w:tr><w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
-     body+=`<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join('')}</w:tbl>`+P('')})})}
+  // 複數工區：一次匯出整案，依工區分節。各工區的評分、樁號要切到該工區才算得出來，
+  // 所以先「同步」暫時切換 curCase／S.p 算完文字與照片清單，馬上切回，再非同步下載照片（避免背景更新撞到切換中的狀態）
+  const cur=cases.find(x=>x.id===curCase)||{},zs=zoneMates(curCase),multi=zs.length>1,list=multi?zs:[cur],keepC=curCase,keepP=S.p,parts=[];
+  try{for(const zc of list){curCase=zc.id;S.p=zc.id===keepC?keepP:(zc.p&&zc.p.length===3?JSON.parse(JSON.stringify(zc.p)).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')]);
+    const D=exportData(),own=zc.id===keepC,pt={zc,secs:[],ph:[]};
+    if(hasSlope(D))pt.secs.push(['坡地棲地評估',P((own&&($('dS')||{}).value)||draftSlope(D))+T(D.slope)+(memoText(D,'slope')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'slope'),{sz:22}):'')+P('')]);
+    if(hasCreek(D))pt.secs.push(['野溪治理工程生態回復追蹤評估',P((own&&($('dC')||{}).value)||draftCreek(D))+T(D.creek)+(memoText(D,'creek')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'creek'),{sz:22}):'')+P('')]);
+    ['slope','creek'].forEach(k=>D.cIdx.forEach(i=>phGet(S.p[i],k).forEach(x=>{const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
+     pt.ph.push({k,i,cn:D.cn(i),x,st:ns&&ns.off<=60?'約'+fmtSt(ns.st):''})})));
+    parts.push(pt)}}
+  finally{curCase=keepC;S.p=keepP}
+  const title=multi?zoneInfo(zs[0]).base:(cur.name||''),total=parts.reduce((s,p)=>s+p.ph.length,0);
+  const zip=new JSZip(),rels=[];let n=0,body=P(title+'　棲地評估',{b:true,sz:32,jc:'center'});
+  const NUM='一二三四五',W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`;
+  for(const pt of parts){let sec=0;
+   if(multi){body+=kn(P(zoneInfo(pt.zc).zone,{b:true,sz:30}));if(!pt.secs.length&&!pt.ph.length){body+=P('本工區尚無評分與照片',{sz:22})+P('');continue}}
+   pt.secs.forEach(([h,x])=>{body+=kn(P(NUM[sec++]+'、'+h,{b:true,sz:26}))+x});
+   const grp=[];
+   for(const {k,i,cn,x,st} of pt.ph){let g=grp[grp.length-1];if(!g||g.k!==k)grp.push(g={k,subs:[]});let s=g.subs[g.subs.length-1];if(!s||s.i!==i)g.subs.push(s={i,cn,cells:[]});
+    btn.textContent=`準備照片 ${n+1}/${total}…`;
+    const blob=await fileBlob(x.id);let w=4,hh=3;try{const bm=await createImageBitmap(blob);w=bm.width;hh=bm.height;bm.close&&bm.close()}catch(e){}
+    n++;const rid='rIdImg'+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
+    let cx=4000*635,cy=Math.round(cx*hh/w);const mh=2650*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
+    const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const tk=fmtExifTime(x.taken);
+    s.cells.push({img,cap:(P('位置或樁號：'+st,{sz:20,jc:'both'})+P(`說明：${tk?'拍攝時間 '+tk:''}`,{sz:20,jc:'both'})).replace(/w:after="60"/g,'w:after="0"')})}
+   if(grp.length){body+=kn(P(NUM[sec++]+'、評估位置照片',{b:true,sz:26}));
+    grp.forEach((g,gi)=>{body+=kn(P(`（${'一二三'[gi]}）${KNAME[g.k]}評估位置`,{b:true,sz:24}));
+     g.subs.forEach((s,si)=>{const cells=s.cells,rows=[];body+=kn(P(`${si+1}. ${s.cn}`,{sz:22}));
+      for(let j=0;j<cells.length;j+=2){const a=cells[j],b=cells[j+1]||{};rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(kn(a.img))}${tc(kn(b.img))}</w:tr><w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
+      body+=`<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join('')}</w:tbl>`+P('')})})}}
   btn.textContent='組成Word中…';
   zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
   zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
   zip.file('word/_rels/document.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
   zip.file('word/document.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`);
-  saveFile(safeName(c.name||'案件')+'_棲地評估'+(S.exp==='design'?'_設計階段':'_施工階段')+'.docx',await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
+  saveFile(safeName(title||'案件')+'_棲地評估'+(S.exp==='design'?'_設計階段':'_施工階段')+'.docx',await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}));
   btn.textContent='已下載'}
  catch(e){btn.textContent='失敗（'+(e.message||'網路')+'）'}
  finally{btn.disabled=false;setTimeout(()=>btn.textContent=o,2500)}
@@ -915,7 +931,7 @@ function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement
 // 選單分組用：地區、階段在現場紀錄設定，這裡讀手機上現場紀錄的暫存（同id、再找同名）；棲地自己不存
 function habMeta(id){const c=cases.find(x=>x.id===id)||{};let fid=null,f=null;
  try{const all=(JSON.parse(lsGet('eco-cache-field')||'null')||{}).cases||{};if(all[id]){fid=id;f=all[id]}else{fid=Object.keys(all).find(k=>all[k].name===c.name)||null;f=fid?all[fid]:null}}catch(e){}
- return {name:c.name||'',area:(f&&f.area)||'',stage:(fid&&lsGet('eco-stage-'+fid))||(f&&f.stage)||'施工中'}} // 沒選過階段＝現場紀錄預設的施工中
+ const z=zoneInfo(c);return {name:c.name||'',area:(f&&f.area)||'',stage:(fid&&lsGet('eco-stage-'+fid))||(f&&f.stage)||'施工中',group:z&&zoneMates(id).length>1?z.base:''}} // 沒選過階段＝現場紀錄預設的施工中
 $('toField').onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet('eco-jump',JSON.stringify({to:'field',id:c.id,name:c.name,t:Date.now()}))};
 async function addCase(){
  const name=$('caseName').value.trim();if(!name||!db)return;
@@ -973,20 +989,33 @@ function nameEl(el,t){el.textContent="";
   if(tl){const s=document.createElement("span");s.className="nt";s.textContent=tl[0];el.appendChild(s)}}
 // 頂端按鈕：案名完整顯示（最多兩行），不放紀錄數
 const btnName=(btn,t)=>{btn.textContent=t.replace(/（\d+）$/,"")};
+// 複數工區：同一案的工區在清單合併成一列，選進去後案名下方切換工區；資料仍各工區一份
+// 同案判斷：案件有 group（匯入時標）就用它，否則看案名結尾「（工區X）」
+const ZRE=/^(.*?)\s*[（(]\s*(工區[^）)]*)\s*[）)]\s*$/,ZNUM="一二三四五六七八九十";
+function zoneInfo(c){if(!c)return null;if(c.group)return {base:c.group,zone:c.zone||c.name};const m=ZRE.exec(c.name||"");return m?{base:m[1].trim(),zone:m[2]}:null}
+const zoneNo=z=>{const m=/工區\s*([一二三四五六七八九十]|\d+)/.exec(z||"");return m?(/\d/.test(m[1])?+m[1]:ZNUM.indexOf(m[1])+1):99};
+function zoneMates(id){const c=cases.find(x=>x.id===id),z=zoneInfo(c);if(!z)return c&&!c.trashedAt?[c]:[];
+  return cases.filter(x=>!x.trashedAt&&(zoneInfo(x)||{}).base===z.base).sort((a,b)=>zoneNo(zoneInfo(a).zone)-zoneNo(zoneInfo(b).zone)||(a.name||"").localeCompare(b.name||"","zh-Hant"))}
 // ops：add(name)建立並切到新案件、trash(id)移到垃圾桶、restore(id)復原、trashed()垃圾桶清單[{id,name}]
 // 手機全螢幕、電腦置中面板；第一列「＋新增案件」，每列右邊📌釘選＋紅色垃圾桶（按兩次才移除），垃圾桶在最下面可復原
 const TRASH_SVG='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
 function makePicker(sel,recentKey,metaOf,ops){
   ops=ops||{};
   const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow act";sel.before(btn);sel.hidden=true;
-  const sync=()=>{const o=sel.options[sel.selectedIndex];btnName(btn,o&&o.value?o.textContent:"（尚無案件，點這裡新增）")};
+  const zbar=document.createElement("div");zbar.className="zonebar";zbar.hidden=true;btn.parentElement.after(zbar);
+  const pick=v=>{if(sel.value!==v){sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}))}};
+  const sync=()=>{const o=sel.options[sel.selectedIndex],m=o&&o.value?metaOf(o.value):{};
+    btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，點這裡新增）");
+    const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.innerHTML="";zbar.hidden=zs.length<2;
+    if(zs.length>1)zs.forEach(c=>{const b=document.createElement("button");b.type="button";b.textContent=zoneInfo(c).zone;
+      b.setAttribute("aria-pressed",String(c.id===sel.value));b.onclick=()=>pick(c.id);zbar.appendChild(b)})};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
   const pins=()=>{try{return JSON.parse(lsGet("eco-pins")||"[]")}catch(e){return []}};
-  const isPin=o=>{const nm=metaOf(o.value).name;return pins().some(p=>p.id===o.value||(nm&&p.name===nm))};
-  const togglePin=o=>{const nm=metaOf(o.value).name,l=pins(),hit=x=>x.id===o.value||(nm&&x.name===nm);
-    lsSet("eco-pins",JSON.stringify(l.some(hit)?l.filter(x=>!hit(x)):[...l,{id:o.value,name:nm}]))};
+  const pinHit=v=>{const nm=metaOf(v).name;return x=>x.id===v||(nm&&x.name===nm)};
+  const isPin=e=>e.ids.some(v=>pins().some(pinHit(v)));
+  const togglePin=e=>{let l=pins();if(isPin(e))e.ids.forEach(v=>{l=l.filter(x=>!pinHit(v)(x))});else l=[...l,{id:e.rep.value,name:metaOf(e.rep.value).name}];lsSet("eco-pins",JSON.stringify(l))};
   sel.addEventListener("change",()=>{touch(sel.value);sync()});
   setInterval(()=>{if(btn.dataset.v!==sel.value){btn.dataset.v=sel.value;sync()}},500); // 程式改value不會觸發事件
   btn.onclick=()=>{
@@ -999,12 +1028,18 @@ function makePicker(sel,recentKey,metaOf,ops){
     const close=()=>{clearTimeout(armT);ov.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
     ov.querySelector(".pkh button").onclick=close;document.addEventListener("keydown",onKey);
     const draw=()=>{
-      const opts=[...sel.options].filter(o=>o.value);
+      // 同案的工區併成一列（rep＝最近用過的那個工區，點了切到它）
+      const ents=[],byG={};
+      [...sel.options].filter(o=>o.value).forEach(o=>{const g=metaOf(o.value).group;
+        if(g&&byG[g]){byG[g].opts.push(o);return}const e={key:g||o.value,label:g||o.textContent,opts:[o]};if(g)byG[g]=e;ents.push(e)});
+      ents.forEach(e=>{e.ids=e.opts.map(o=>o.value);e.rep=e.opts.find(o=>o.value===sel.value)||[...e.opts].sort((a,b)=>rank(a.value)-rank(b.value))[0];e.value=e.rep.value;
+        e.text=e.opts.map(o=>o.textContent).join(" ").toLowerCase()});
       const mode=lsGet("eco-pickmode")||"recent";
       seg.innerHTML="";[["recent","最近使用"],["area","地區"],["stage","階段"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
         b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
       const k=q.value.trim().toLowerCase();ul.innerHTML="";
-      const hit=opts.filter(o=>!k||o.textContent.toLowerCase().includes(k)),byRank=(a,b)=>rank(a.value)-rank(b.value)||a.textContent.localeCompare(b.textContent,"zh-Hant");
+      const er=e=>Math.min(...e.ids.map(rank));
+      const hit=ents.filter(e=>!k||e.text.includes(k)),byRank=(a,b)=>er(a)-er(b)||a.label.localeCompare(b.label,"zh-Hant");
       const head=t=>{const h=document.createElement("li");h.className="grp";h.textContent=t;ul.appendChild(h)};
       // 第一列：新增案件（點了變成輸入框）
       if(ops.add&&!k){const li=document.createElement("li");li.className="pkadd";
@@ -1016,35 +1051,36 @@ function makePicker(sel,recentKey,metaOf,ops){
             try{await ops.add(n);close()}catch(e){ok.disabled=false;ok.textContent="失敗，再按一次"}};
           ok.onclick=go;inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();go()}};li.append(inp,ok,cc);setTimeout(()=>inp.focus(),0)}
         ul.appendChild(li)}
-      const item=o=>{const li=document.createElement("li");if(o.value===sel.value)li.className="on";
-        const nm=document.createElement("span");nm.className="pkname";nameEl(nm,o.textContent);
-        const pb=document.createElement("button");pb.type="button";pb.className="pin";const on=isPin(o);pb.textContent=on?"📌":"☆";pb.setAttribute("aria-label",on?"取消釘選":"釘選");
-        pb.onclick=e=>{e.stopPropagation();togglePin(o);draw()};
+      const item=e=>{const li=document.createElement("li");if(e.ids.includes(sel.value))li.className="on";
+        const nm=document.createElement("span");nm.className="pkname";nameEl(nm,e.label);
+        if(e.opts.length>1){const z=document.createElement("span");z.className="nc";z.textContent=`${e.opts.length}個工區`;nm.appendChild(z)}
+        const pb=document.createElement("button");pb.type="button";pb.className="pin";const on=isPin(e);pb.textContent=on?"📌":"☆";pb.setAttribute("aria-label",on?"取消釘選":"釘選");
+        pb.onclick=ev=>{ev.stopPropagation();togglePin(e);draw()};
         li.append(nm,pb);
-        if(ops.trash){const tb=document.createElement("button");tb.type="button";tb.className="pin trash";const arm=armed===o.value;
-          if(arm){tb.classList.add("armed");tb.textContent="移到垃圾桶？";li.classList.add("arming")}else tb.innerHTML=TRASH_SVG;
+        if(ops.trash){const tb=document.createElement("button");tb.type="button";tb.className="pin trash";const arm=armed===e.key;
+          if(arm){tb.classList.add("armed");tb.textContent=e.opts.length>1?`${e.opts.length}個工區都移到垃圾桶？`:"移到垃圾桶？";li.classList.add("arming")}else tb.innerHTML=TRASH_SVG;
           tb.setAttribute("aria-label","移到垃圾桶");
-          tb.onclick=async e=>{e.stopPropagation();clearTimeout(armT);
-            if(!arm){armed=o.value;armT=setTimeout(()=>{armed=null;draw()},4000);draw();return}
+          tb.onclick=async ev=>{ev.stopPropagation();clearTimeout(armT);
+            if(!arm){armed=e.key;armT=setTimeout(()=>{armed=null;draw()},4000);draw();return}
             armed=null;tb.disabled=true;tb.textContent="移除中…";
-            try{await ops.trash(o.value);draw()}catch(_){tb.textContent="失敗";setTimeout(draw,1500)}};
+            try{for(const v of e.ids)await ops.trash(v);draw()}catch(_){tb.textContent="失敗";setTimeout(draw,1500)}};
           li.appendChild(tb)}
-        li.onclick=()=>{close();if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}))}};ul.appendChild(li)};
-      const P=hit.filter(isPin).sort(byRank),R=hit.filter(o=>!isPin(o));
+        li.onclick=()=>{close();pick(e.value)};ul.appendChild(li)};
+      const P=hit.filter(isPin).sort(byRank),R=hit.filter(e=>!isPin(e));
       if(P.length){head("📌 釘選");P.forEach(item)}
       if(k){R.sort(byRank).forEach(item)}
-      else if(mode==="recent"){const r=R.filter(o=>rank(o.value)<1e9).sort(byRank),rest=R.filter(o=>rank(o.value)>=1e9).sort(byRank);
+      else if(mode==="recent"){const r=R.filter(e=>er(e)<1e9).sort(byRank),rest=R.filter(e=>er(e)>=1e9).sort(byRank);
         if(r.length){head("最近使用");r.forEach(item)}if(rest.length){head("其他案件");rest.forEach(item)}}
-      else{const key=o=>metaOf(o.value)[mode]||"",keys=[...new Set(R.map(key))];
+      else{const key=e=>metaOf(e.value)[mode]||"",keys=[...new Set(R.map(key))];
         keys.sort((a,b)=>!a?1:!b?-1:mode==="stage"?PICK_STAGES.indexOf(a)-PICK_STAGES.indexOf(b):a.localeCompare(b,"zh-Hant"));
-        keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定階段"));R.filter(o=>key(o)===g).sort(byRank).forEach(item)})}
+        keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定階段"));R.filter(e=>key(e)===g).sort(byRank).forEach(item)})}
       if(!hit.length&&k)head("找不到符合的案件");
       // 垃圾桶：移除的案件資料都還在，點「復原」放回清單
       const T=ops.trashed?ops.trashed().filter(c=>!k||(c.name||"").toLowerCase().includes(k)):[];
       if(T.length){const h=document.createElement("li");h.className="grp trashgrp";h.textContent=`${trOpen?"▾":"▸"} 垃圾桶（${T.length}）・可復原`;h.onclick=()=>{trOpen=!trOpen;draw()};ul.appendChild(h);
         if(trOpen)T.forEach(c=>{const li=document.createElement("li");li.className="trashed";const nm=document.createElement("span");nm.className="pkname";nameEl(nm,c.name||"");
           const rb=document.createElement("button");rb.type="button";rb.className="restore";rb.textContent="復原";
-          rb.onclick=async e=>{e.stopPropagation();rb.disabled=true;rb.textContent="復原中…";try{await ops.restore(c.id);draw()}catch(_){rb.disabled=false;rb.textContent="失敗，再按一次"}};
+          rb.onclick=async ev=>{ev.stopPropagation();rb.disabled=true;rb.textContent="復原中…";try{await ops.restore(c.id);draw()}catch(_){rb.disabled=false;rb.textContent="失敗，再按一次"}};
           li.append(nm,rb);ul.appendChild(li)})}
     };
     q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow="hidden";
