@@ -818,19 +818,21 @@ async function habDocx(btn){
   const NUM='一二三四五';
   if(hasSlope(D)){body+=P(NUM[sec++]+'、坡地棲地評估',{b:true,sz:26})+P(($('dS')||{}).value||draftSlope(D))+T(D.slope)+(memoText(D,'slope')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'slope'),{sz:22}):'')+P('')}
   if(hasCreek(D)){body+=P(NUM[sec++]+'、野溪治理工程生態回復追蹤評估',{b:true,sz:26})+P(($('dC')||{}).value||draftCreek(D))+T(D.creek)+(memoText(D,'creek')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'creek'),{sz:22}):'')+P('')}
-  const list=[];D.cIdx.forEach(i=>['slope','creek'].forEach(k=>phGet(S.p[i],k).forEach(x=>list.push({i,k,x}))));
-  const cells=[];
-  for(const {i,k,x} of list){btn.textContent=`準備照片 ${n+1}/${list.length}…`;
+  const list=[];['slope','creek'].forEach(k=>D.cIdx.forEach(i=>phGet(S.p[i],k).forEach(x=>list.push({i,k,x}))));
+  const grp=[];
+  for(const {i,k,x} of list){let g=grp[grp.length-1];if(!g||g.k!==k)grp.push(g={k,subs:[]});let s=g.subs[g.subs.length-1];if(!s||s.i!==i)g.subs.push(s={i,cells:[]});const cells=s.cells;btn.textContent=`準備照片 ${n+1}/${list.length}…`;
    const blob=await fileBlob(x.id);let w=4,hh=3;try{const bm=await createImageBitmap(blob);w=bm.width;hh=bm.height;bm.close&&bm.close()}catch(e){}
    n++;const rid='rIdImg'+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
    let cx=4000*635,cy=Math.round(cx*hh/w);const mh=2650*635;if(cy>mh){cx=Math.round(cx*mh/cy);cy=mh}
    const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
    const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
    const tk=fmtExifTime(x.taken);
-   cells.push({img,cap:(P('位置或樁號：'+(ns&&ns.off<=60?'約'+fmtSt(ns.st):''),{sz:20,jc:'both'})+P(`說明：${D.cn(i)}${KNAME[k]}評估位置${tk?'（'+tk+'）':''}`,{sz:20,jc:'both'})).replace(/w:after="60"/g,'w:after="0"')})}
-  if(cells.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`,kn=s=>s&&s.replace('<w:pPr>','<w:pPr><w:keepNext/>'),rows=[];
-   for(let j=0;j<cells.length;j+=2){const a=cells[j],b=cells[j+1]||{};rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(kn(a.img))}${tc(kn(b.img))}</w:tr><w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
-   body+=`<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join('')}</w:tbl>`+P('')}
+   cells.push({img,cap:(P('位置或樁號：'+(ns&&ns.off<=60?'約'+fmtSt(ns.st):''),{sz:20,jc:'both'})+P(`說明：${tk?'拍攝時間 '+tk:''}`,{sz:20,jc:'both'})).replace(/w:after="60"/g,'w:after="0"')})}
+  if(grp.length){body+=P(NUM[sec++]+'、評估位置照片',{b:true,sz:26});const W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`,kn=s=>s&&s.replace('<w:pPr>','<w:pPr><w:keepNext/>');
+   grp.forEach((g,gi)=>{body+=kn(P(`（${'一二三'[gi]}）${KNAME[g.k]}評估位置`,{b:true,sz:24}));
+    g.subs.forEach((s,si)=>{const cells=s.cells,rows=[];body+=P(`${si+1}. ${D.cn(s.i)}`,{sz:22});
+     for(let j=0;j<cells.length;j+=2){const a=cells[j],b=cells[j+1]||{};rows.push(`<w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="2778"/></w:trPr>${tc(kn(a.img))}${tc(kn(b.img))}</w:tr><w:tr><w:trPr><w:cantSplit/><w:trHeight w:val="520"/></w:trPr>${tc(a.cap)}${tc(b.cap)}</w:tr>`)}
+     body+=`<w:tbl><w:tblPr><w:tblW w:w="${W*2}" w:type="dxa"/><w:jc w:val="center"/>${BD}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="${W}"/><w:gridCol w:w="${W}"/></w:tblGrid>${rows.join('')}</w:tbl>`+P('')})})}
   btn.textContent='組成Word中…';
   zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
   zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
