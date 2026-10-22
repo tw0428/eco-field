@@ -389,7 +389,24 @@ h1{font-weight:700}
 .fab .ic{width:28px;height:28px}
 .picker .pin .ic-starf{color:#d4961a}.picker .pin .ic{width:1.3em;height:1.3em}
 .wall a .zoom .ic{width:16px;height:16px;vertical-align:middle}
-</style>
+/* ===== 輕量化：少框線，用淡灰底與細分隔線分層；按鈕只有主要動作才實心 ===== */
+:root{--field:#eef0f1;--tone:#e8ebed;--hair:rgba(20,28,32,.10)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--field:#272b2e;--tone:#2d3236;--hair:rgba(255,255,255,.10)}}
+:root[data-theme="dark"]{--field:#272b2e;--tone:#2d3236;--hair:rgba(255,255,255,.10)}.panel,.rec,.chkgrp,.chk{border-color:var(--hair)}
+.panel,.rec{box-shadow:0 1px 2px rgba(20,28,32,.05)}
+select,input[type=text],input[type=number],input[type=password],textarea,.wsel-btn{background:var(--field);border-color:transparent}
+select:focus,input[type=text]:focus,input[type=number]:focus,input[type=password]:focus,textarea:focus{background:var(--surface)}
+button{background:var(--tone);border-color:transparent;box-shadow:none}
+button.primary{box-shadow:none}
+button.danger{background:transparent;border-color:transparent}
+.thumb button{background:var(--surface)}
+.chip,.zonebar button{background:var(--tone);border-color:transparent}
+.chip[aria-pressed="true"]{box-shadow:none}
+.seg{border-color:var(--hair);background:var(--tone)}.seg button{background:transparent}
+.chkgrp{background:var(--soft);padding:0 6px 6px}
+.chkgroup{background:transparent;color:var(--accent);border-radius:0;border-bottom:1px solid var(--hair);margin:0 0 4px;padding:7px 4px 5px}
+.chkgroup:has(.mv) button{color:var(--accent)}
+.pagehead{box-shadow:none}</style>
 </head>
 <body>
 
