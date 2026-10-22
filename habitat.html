@@ -471,7 +471,7 @@ async function initDb(){
   // 從現場紀錄切過來：同id優先、再找同名；沒有的話留在上次的案件，提示可建立同名評估（用同一id，才讀得到現場紀錄照片）
   const live=cases.filter(c=>!c.trashedAt);
   const j=live.length&&takeJump('habitat');
-  if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name);
+  if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name)||live.find(c=>c.group&&c.group===j.name);
    if(hit){curCase=hit.id;S.cur=0;loadCase(true);render();return}
    jumpNote(j)}
   if(!live.find(c=>c.id===curCase)){curCase=(live.find(c=>c.id===pf.c)||live[0]||{}).id||'';loadCase(true)}else loadCase(false);
@@ -930,9 +930,9 @@ function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement
  $('caseMsg').after(b)}
 // 選單分組用：地區、階段在現場紀錄設定，這裡讀手機上現場紀錄的暫存（同id、再找同名）；棲地自己不存
 function habMeta(id){const c=cases.find(x=>x.id===id)||{};let fid=null,f=null;
- try{const all=(JSON.parse(lsGet('eco-cache-field')||'null')||{}).cases||{};if(all[id]){fid=id;f=all[id]}else{fid=Object.keys(all).find(k=>all[k].name===c.name)||null;f=fid?all[fid]:null}}catch(e){}
+ try{const all=(JSON.parse(lsGet('eco-cache-field')||'null')||{}).cases||{};if(all[id]){fid=id;f=all[id]}else{fid=Object.keys(all).find(k=>all[k].name===(c.group||c.name))||null;f=fid?all[fid]:null}}catch(e){}
  const z=zoneInfo(c);return {name:c.name||'',area:(f&&f.area)||'',stage:(fid&&lsGet('eco-stage-'+fid))||(f&&f.stage)||'施工中',group:z&&zoneMates(id).length>1?z.base:''}} // 沒選過階段＝現場紀錄預設的施工中
-$('toField').onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet('eco-jump',JSON.stringify({to:'field',id:c.id,name:c.name,t:Date.now()}))};
+$('toField').onclick=()=>{const c=cases.find(x=>x.id===curCase);if(c)lsSet('eco-jump',JSON.stringify({to:'field',id:c.id,name:c.group||c.name,t:Date.now()}))};
 async function addCase(){
  const name=$('caseName').value.trim();if(!name||!db)return;
  try{await flush();const ref=db.collection('cases').doc();const p=[blank('施工前'),blank('施工中'),blank('完工')];
