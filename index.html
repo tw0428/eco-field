@@ -221,6 +221,10 @@ html,body{overflow-x:clip}
 .wall a.sel::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.35;z-index:1;pointer-events:none}
 .wall a.sel::after{content:"✓";background:var(--accent);color:var(--accent-fg);font-size:17px;font-weight:700;line-height:22px;text-align:center}
 .wall a .zoom{z-index:3}.wall a span{z-index:2}
+/* 已合成一筆（同一筆紀錄有多張照片）：同一筆用同一個顏色的框＋「第幾張/共幾張」角標 */
+.wall a.multi{box-shadow:inset 0 0 0 3px var(--g)}
+.wall a .grp{position:absolute;top:4px;right:4px;z-index:3;background:var(--g);color:#fff;font-size:12px;font-weight:700;line-height:1;padding:3px 6px;border-radius:10px;text-shadow:0 0 2px rgba(0,0,0,.5)}
+.wall.picking a .grp{right:38px}
 .srtbar{position:sticky;bottom:0;z-index:41;background:var(--surface);border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .wall span{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:1px 4px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:40;width:60px;height:60px;border-radius:50%;background:var(--accent);color:var(--accent-fg);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}
@@ -2138,9 +2142,12 @@ function renderWall(box,list,all){
       if(srtOn){const b=document.createElement("button");b.type="button";b.className="mini";const all=()=>recs.every(r=>srtSel.has(r.id));b.textContent=all()?"取消選此日":"選此日";
         b.onclick=()=>{if(srtBusy)return;const al=all();recs.forEach(r=>al?srtSel.delete(r.id):srtSel.add(r.id));srtFM=false;srtPick=null;renderRecords()};h.appendChild(b)}
       box.appendChild(h)}
+  let gi=0;
   recs.forEach(r=>{
-    r.photos.forEach(p=>{
-      const a=document.createElement("a");a.href="#";a.className=stgCls(r.stage)+(srtOn&&srtSel.has(r.id)?" sel":"");a.dataset.rid=r.id;
+    const multi=r.photos.length>1,gc=multi?`hsl(${(gi++*67+15)%360} 70% 42%)`:"";
+    r.photos.forEach((p,pi)=>{
+      const a=document.createElement("a");a.href="#";a.className=stgCls(r.stage)+(multi?" multi":"")+(srtOn&&srtSel.has(r.id)?" sel":"");a.dataset.rid=r.id;
+      if(multi){a.style.setProperty("--g",gc);const g=document.createElement("b");g.className="grp";g.textContent=`${pi+1}/${r.photos.length}`;a.appendChild(g)}
       a.onclick=ev=>{ev.preventDefault();if(!srtOn){openRec(r);return}if(srtBusy)return;
         srtSel.has(r.id)?srtSel.delete(r.id):srtSel.add(r.id);box.querySelectorAll(`a[data-rid="${r.id}"]`).forEach(x=>x.classList.toggle("sel",srtSel.has(r.id)));srtFM=false;srtPick=null;srtBar(bar,list)};
       const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
