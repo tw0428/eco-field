@@ -232,7 +232,27 @@ button{font-weight:500}
 button.primary,button.act.primary{font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 1px 2px rgba(0,0,0,.22)}
 .chip,.tab,.zonebar button{font-weight:500}
 .pill,.badge{font-weight:600;letter-spacing:.02em}
-.status,.hint,.mut,.meta{letter-spacing:.01em}</style>
+.status,.hint,.mut,.meta{letter-spacing:.01em}/* ===== 自然柔霧玻璃（參考 uitest #03 毛玻璃、#19 柔和UI、#42 有機自然、#55 空間UI）：奶油底＋苔綠、半透明卡片、大圓角、柔和陰影 ===== */
+:root{--bg:#f1eee4;--card:#fcfbf7;--ink:#2a3323;--mute:#5f6a55;--acc:#4d6a3a;--line:#d3d0c1;--field:#f4f2ea;--tone:#e9e6da;--hair:rgba(62,74,50,.14);--r-ctl:12px;--r-card:20px;--r-sheet:26px;--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8);
+  --sh-card:0 1px 2px rgba(62,74,50,.06),0 12px 30px -14px rgba(62,74,50,.28)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151912;--card:#20261c;--ink:#e8ecdf;--mute:#a3ad98;--acc:#8fbc8f;--line:#3a4333;--field:#272e22;--tone:#2d3528;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--bg:#151912;--card:#20261c;--ink:#e8ecdf;--mute:#a3ad98;--acc:#8fbc8f;--line:#3a4333;--field:#272e22;--tone:#2d3528;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(60vmax 50vmax at 8% -5%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),
+  radial-gradient(55vmax 45vmax at 100% 30%,color-mix(in srgb,var(--accent) 12%,#d9c9a3 30%),transparent 70%),
+  radial-gradient(50vmax 40vmax at 0% 100%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%)}
+.panel,.card,.rec{background:var(--glass);border:1px solid var(--glass-edge);border-radius:var(--r-card);box-shadow:var(--sh-card)}
+.panel,.card{-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)} /* 長列表的紀錄卡不加模糊，避免手機捲動變卡 */
+.rec.stg-a,.rec.stg-b,.rec.stg-c{border-left-width:4px}
+.chkgrp{border-radius:var(--r-card)}.chk{border-radius:14px}
+.sheetbody{background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);border-radius:var(--r-sheet) var(--r-sheet) 0 0}
+.fab{box-shadow:0 8px 22px -4px color-mix(in srgb,var(--accent) 55%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
+button,.tab,.chip,.photobtns label{transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .15s ease,border-color .15s ease,box-shadow .2s ease}
+button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale(.94)}
+@media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(62,74,50,.08),0 16px 36px -14px rgba(62,74,50,.34)}}
+@keyframes vpopc{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
+.chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
+</style>
 </head>
 <body>
 <header>
