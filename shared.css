@@ -1,0 +1,152 @@
+/* 現場紀錄(index.html)與棲地評估(habitat.html)共用的外觀：兩頁都只引用這一份，改這裡兩頁一起變。
+   頁面各自的版面（欄位、卡片內容排列）留在各自的檔案裡。 */
+:root{--eco-ver:"4d365001be"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
+
+/* ===== 設計變數（唯一一份）：色票取自大地色系；階段色 提報＝灰藍青、設計＝赤陶褐、施工＝苔綠 ===== */
+:root{
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
+  --bg:#f3ede3;--surface:#fdfbf7;--fg:#2d291d;--muted:#675f4f;--line:#d9d0c0;
+  --accent:#657359;--accent-fg:#ffffff;
+  --field:#f5f0e6;--tone:#ebe3d4;--hair:rgba(45,41,29,.14);
+  --warn:#9a5b12;--warn-soft:#f6ead8;--danger:#a33a2c;--good:#5f7551;--mid:#9e8d3d;
+  --stg-a:#40798c;--stg-b:#8a5640;--stg-c:var(--accent);
+  --r-ctl:12px;--r-card:20px;--r-sheet:26px;
+  --glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8);
+  --sh1:0 1px 2px rgba(18,36,28,.10),0 0 0 .5px rgba(18,36,28,.04);--sh2:0 8px 28px rgba(18,36,28,.22);
+  --sh-card:0 1px 2px rgba(45,41,29,.06),0 12px 30px -14px rgba(45,41,29,.28)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1a1812;--surface:#25221a;--fg:#ece4d6;--muted:#aaa28f;--line:#3d382b;--accent:#9fb08f;--accent-fg:#0f1712;--field:#2c2920;--tone:#322e24;--hair:rgba(255,255,255,.10);--warn:#e2a95a;--warn-soft:#3a2e1d;--danger:#ec8576;--good:#6fb592;--mid:#d8c65a;--stg-a:#86b3c2;--stg-b:#d09a84;--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1a1812;--surface:#25221a;--fg:#ece4d6;--muted:#aaa28f;--line:#3d382b;--accent:#9fb08f;--accent-fg:#0f1712;--field:#2c2920;--tone:#322e24;--hair:rgba(255,255,255,.10);--warn:#e2a95a;--warn-soft:#3a2e1d;--danger:#ec8576;--good:#6fb592;--mid:#d8c65a;--stg-a:#86b3c2;--stg-b:#d09a84;--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7);color-scheme:dark}
+/* 在 body 上才算：頁面主色（--accent，提報藍／設計褐／野溪藍／坡地棕）一換，淡底跟著換；
+   棲地評估舊名稱（--card --ink --mute --acc …）也從這裡對應到新名稱，所以那頁換主色只要改 --accent */
+body{--soft:color-mix(in srgb,var(--accent) 13%,var(--surface));
+  --card:var(--surface);--ink:var(--fg);--mute:var(--muted);--acc:var(--accent);--accfg:var(--accent-fg);--accbg:var(--soft);--warnbg:var(--warn-soft);--bad:var(--danger)}
+
+/* ===== 線條圖示（<i class="ic ic-名稱">，顏色吃文字色） ===== */
+.ic{display:inline-block;width:1.12em;height:1.12em;vertical-align:-.2em;margin-right:.32em;background:currentColor;-webkit-mask:var(--i) center/contain no-repeat;mask:var(--i) center/contain no-repeat;flex:none}
+.ic:only-child{margin-right:0}
+.ic-cam{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z'/><circle cx='12' cy='13' r='3.2'/></svg>")}
+.ic-pin{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z'/><circle cx='12' cy='10' r='3'/></svg>")}
+.ic-file{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z'/><path d='M14 2v6h6M8 13h8M8 17h8'/></svg>")}
+.ic-up{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='M17 8l-5-5-5 5M12 3v12'/></svg>")}
+.ic-down{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='M7 10l5 5 5-5M12 15V3'/></svg>")}
+.ic-img{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='18' height='18' rx='2'/><circle cx='9' cy='9' r='2'/><path d='M21 15l-3.1-3.1a2 2 0 0 0-2.8 0L6 21'/></svg>")}
+.ic-layers{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2l10 5-10 5L2 7z'/><path d='M2 17l10 5 10-5M2 12l10 5 10-5'/></svg>")}
+.ic-search{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7.5'/><path d='M21 21l-4.3-4.3'/></svg>")}
+.ic-save{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'/><path d='M17 21v-8H7v8M7 3v5h8'/></svg>")}
+.ic-check{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6L9 17l-5-5'/></svg>")}
+.ic-star{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2.5l3 6.3 6.9.9-5 4.8 1.2 6.9L12 18l-6.1 3.4 1.2-6.9-5-4.8 6.9-.9z'/></svg>")}
+.ic-starf{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2.5l3 6.3 6.9.9-5 4.8 1.2 6.9L12 18l-6.1 3.4 1.2-6.9-5-4.8 6.9-.9z'/></svg>")}
+.ic-trash{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6'/></svg>")}
+
+/* ===== 自訂下拉（選項會換行；選單浮在畫面上不被容器裁掉）===== */
+.wsel{position:relative}.wsel[hidden]{display:none}.subrow .wsel{width:auto;flex:none;max-width:100%}.subrow .wsel-btn{width:auto;max-width:100%}
+.wsel-btn{width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 30px 8px 10px;position:relative;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.wsel-btn::after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.wsel-btn.ph{color:var(--muted)}
+.wsel-pop{position:fixed;z-index:70;box-sizing:border-box;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:4px}
+.wsel-grp{font-size:12px;color:var(--muted);padding:8px 10px 2px}
+.wsel-it{padding:9px 10px;border-radius:6px;line-height:1.4;cursor:pointer;white-space:normal;word-break:break-word}
+.wsel-it:hover{background:var(--soft)}.wsel-it.on{background:var(--soft);color:var(--accent);font-weight:600}
+.wsrc{display:none!important}.subrow .wsel-btn{padding:5px 28px 5px 10px}
+.wsel-btn.on{border-color:var(--accent);border-width:2px;font-weight:600}.wsel-btn.unf{border:2px solid var(--warn)}
+.res .wsel{width:auto;flex:none}.res .wsel-btn{width:auto}
+
+/* ===== 案件挑選器、工區切換列 ===== */
+.pickbtn{text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pickbtn::after{content:" ▾";color:var(--muted)}
+.picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
+.picker .pkh{display:flex;gap:8px;margin-bottom:8px}
+.picker .pkh input{flex:1}
+.picker ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
+.picker li{padding:11px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;cursor:pointer}
+/* 案件選單：長名中間省略（保留結尾工區編號）、右側釘選鈕、分組切換 */
+.pickbtn{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.3;font-size:15px;padding-top:6px;padding-bottom:6px}
+.nc{flex:none;font-size:12px;color:var(--muted,var(--mute));margin-left:4px}
+.nh{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nt{flex:none;white-space:nowrap}
+.picker li:not(.grp){display:flex;align-items:center;gap:6px;padding:4px 0 4px 4px}
+.pkname{flex:1;min-width:0;display:flex;padding:7px 0}
+.picker .pin{flex:none;border:0;background:none;font-size:18px;padding:6px 10px;color:var(--muted,var(--mute));cursor:pointer}
+.pkmode{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;color:var(--muted,var(--mute))}
+.picker li.on{color:var(--accent);font-weight:600}
+.picker .grp{font-size:12px;color:var(--muted);padding:8px 4px 2px;border:0;cursor:default}
+.picker li.pkadd{display:flex;gap:6px;align-items:center;margin:6px 0 4px;padding:10px 12px;border:1.5px dashed var(--accent,var(--acc));border-radius:10px;color:var(--accent,var(--acc));font-weight:600;background:var(--soft,var(--accbg));cursor:pointer}
+.picker li.pkadd input{flex:1;min-width:0;font-size:16px}.picker li.pkadd button{white-space:nowrap;padding:6px 10px}
+.picker .trash{color:var(--danger,var(--bad));display:flex;align-items:center;font-size:13px;font-weight:600;white-space:nowrap}
+.picker .trash.armed{background:var(--danger,var(--bad));color:#fff;border-radius:6px;padding:6px 8px}
+.picker li.arming{background:var(--warn-soft,var(--warnbg))}
+.picker li.trashgrp{cursor:pointer;color:var(--danger,var(--bad));margin-top:10px}
+.picker li.trashed .pkname{opacity:.6}.picker li.trashed .restore{flex:none;font-size:13px;padding:4px 12px;margin-right:4px}
+@media (pointer:fine){.picker{inset:5vh auto auto 50%;transform:translateX(-50%);width:min(560px,94vw);height:88vh;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding-top:12px}}
+.zonebar{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+.zonebar button{border:1px solid var(--line);background:var(--surface,var(--card));color:inherit;border-radius:999px;padding:5px 14px;font-size:14px;cursor:pointer}
+.zonebar button[aria-pressed="true"]{background:var(--accent,var(--acc));color:var(--accent-fg,var(--accfg));border-color:var(--accent,var(--acc));font-weight:600}
+
+/* ===== 動效 ===== */
+button,.chip,.seg button,.fab,.photobtns label,.zonebar button{transition:transform .08s ease,background-color .15s ease,border-color .15s ease,box-shadow .15s ease}
+button:not(:disabled):active,.fab:active,.photobtns label:active{transform:scale(.96)}
+@keyframes vfade{from{opacity:0}to{opacity:1}}
+@keyframes vup{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@keyframes vpop{from{transform:scale(.97);opacity:0}to{transform:none;opacity:1}}
+.sheet{animation:vfade .18s ease}.sheetbody{animation:vup .22s cubic-bezier(.2,.8,.3,1)}
+#recView:not([hidden]),.viewer:not([hidden]){animation:vfade .16s ease}
+.picker:not([hidden]){animation:vfade .14s ease}.wsel-pop{animation:vpop .14s ease}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ===== 元件外觀（先後順序有意義，後面的蓋掉前面的） ===== */
+select,input[type=text],input[type=number],input[type=date],input[type=password],textarea{border-radius:var(--r-ctl);border-color:color-mix(in srgb,var(--line) 70%,var(--fg))}
+select:focus,input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,input[type=password]:focus,textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent)}
+button{border-radius:var(--r-ctl);border-color:color-mix(in srgb,var(--line) 70%,var(--fg));box-shadow:var(--sh1)}
+button.danger{background:transparent;color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--line));box-shadow:none}
+.seg button,.chip,.zonebar button,.mini{box-shadow:none}
+.tab.on{box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sheetbody,.picker,.wsel-pop{box-shadow:var(--sh2)}
+.picker .pin .ic-starf{color:#d4961a}.picker .pin .ic{width:1.3em;height:1.3em}
+.fab .ic{width:28px;height:28px}.wall a .zoom .ic{width:16px;height:16px;vertical-align:middle}
+/* 淡灰底、少框線 */
+.panel,.card,.rec,.chkgrp,.chk{border-color:var(--hair)}
+select,input[type=text],input[type=number],input[type=date],input[type=password],textarea,.wsel-btn{background:var(--field);border-color:transparent}
+select:focus,input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,input[type=password]:focus,textarea:focus{background:var(--surface)}
+button{background:var(--tone);border-color:transparent;box-shadow:none}
+button.primary{box-shadow:none}
+button.act.primary{background:var(--accent);box-shadow:none}
+button.danger{background:transparent;border-color:transparent}
+button.act{border-radius:var(--r-ctl);background:var(--tone);border-color:transparent;box-shadow:none}
+button.act.danger{background:transparent;border-color:color-mix(in srgb,var(--danger) 45%,var(--line))}
+.thumb button{background:var(--surface)}
+.chip,.tab,.zonebar button{background:var(--tone);border-color:transparent}
+.chip[aria-pressed="true"]{box-shadow:none}
+.seg{border-color:var(--hair);background:var(--tone)}.seg button{background:transparent}
+.chkgrp{background:var(--soft);padding:0 6px 6px;box-shadow:var(--sh1)}
+.chkgroup{background:transparent;color:var(--accent);border-radius:0;border-bottom:1px solid var(--hair);margin:0 0 4px;padding:7px 4px 5px}
+.chkgroup:has(.mv) button{color:var(--accent)}
+.pagehead,header{box-shadow:none}
+/* 字級粗細、圓角、頁首 */
+body{font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1{font-size:19px;font-weight:600;letter-spacing:.02em}
+.panel h2,.card h3,.sectionhead h2{font-size:15px;font-weight:600;letter-spacing:.02em}
+.pagehead,header{background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:saturate(1.5) blur(14px);backdrop-filter:saturate(1.5) blur(14px);border-bottom:1px solid var(--hair)}
+button{font-weight:500}
+button.primary,button.act.primary{font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 1px 2px rgba(0,0,0,.22)}
+.chip,.tab,.zonebar button{font-weight:500}
+.pill,.badge{font-weight:600;letter-spacing:.02em}
+.status,.hint,.mut,.meta{letter-spacing:.01em}
+/* 毛玻璃卡片、柔霧背景 */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(60vmax 50vmax at 8% -5%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),
+  radial-gradient(55vmax 45vmax at 100% 30%,color-mix(in srgb,var(--accent) 12%,#d7c9be 30%),transparent 70%),
+  radial-gradient(50vmax 40vmax at 0% 100%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%)}
+.panel,.card,.rec{background:var(--glass);border:1px solid var(--glass-edge);border-radius:var(--r-card);box-shadow:var(--sh-card)}
+.panel,.card{-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)} /* 長列表的紀錄卡不加模糊，避免手機捲動變卡 */
+.rec.stg-a,.rec.stg-b,.rec.stg-c{border-left-width:4px}
+.chkgrp{border-radius:var(--r-card)}.chk{border-radius:14px}
+.sheetbody{background:color-mix(in srgb,var(--bg) 88%,transparent);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);border-radius:var(--r-sheet) var(--r-sheet) 0 0}
+.fab{box-shadow:0 8px 22px -4px color-mix(in srgb,var(--accent) 55%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
+button,.tab,.chip,.photobtns label{transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .15s ease,border-color .15s ease,box-shadow .2s ease}
+button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale(.94)}
+@media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(45,41,29,.08),0 16px 36px -14px rgba(45,41,29,.34)}}
+@keyframes vpopc{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
+.chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
+/* 置頂區內所有子元素（含工區切換列）置中在 640px 內容欄；棲地評估主區同寬 */
+.pagehead>.zonebar,header>.zonebar{width:100%;max-width:640px;margin:6px auto 2px;box-sizing:border-box}
+main{max-width:672px}
