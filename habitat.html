@@ -266,6 +266,8 @@ main{max-width:672px}
 .wsel-it{padding:9px 10px;border-radius:6px;line-height:1.4;cursor:pointer;white-space:normal;word-break:break-word}
 .wsel-it:hover{background:var(--soft)}.wsel-it.on{background:var(--soft);color:var(--accent);font-weight:600}
 .wsrc{display:none!important}.res .wsel{width:auto;flex:none}.res .wsel-btn{width:auto}.wsel-btn{background:var(--field);border-color:transparent}.wsel-btn.unf{border:2px solid var(--warn)}.wsel-btn.on{border-color:var(--accent);border-width:2px;font-weight:600}
+/* 別名要在 body 上重新指向，野溪／坡地換 --acc 時才會跟著變（放在 :root 會被固定成綠色） */
+body{--accent:var(--acc);--accent-fg:var(--accfg);--soft:var(--accbg)}
 </style>
 </head>
 <body>
