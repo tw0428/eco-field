@@ -1130,8 +1130,8 @@ function makePicker(sel,recentKey,metaOf,ops){
         if(g&&byG[g]){byG[g].opts.push(o);return}const e={key:g||o.value,label:g||o.textContent,opts:[o]};if(g)byG[g]=e;ents.push(e)});
       ents.forEach(e=>{e.ids=e.opts.map(o=>o.value);e.rep=e.opts.find(o=>o.value===sel.value)||[...e.opts].sort((a,b)=>rank(a.value)-rank(b.value))[0];e.value=e.rep.value;
         e.text=e.opts.map(o=>o.textContent).join(" ").toLowerCase()});
-      const mode=lsGet("eco-pickmode")||"recent";
-      seg.innerHTML="";[["recent","最近使用"],["area","地區"],["stage","階段"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
+      let mode=lsGet("eco-pickmode")||"recent";if(mode==="stage")mode="recent"; /* 階段分組拿掉：依上次開啟判斷不準 */
+      seg.innerHTML="";[["recent","最近使用"],["area","地區"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
         b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
       const k=q.value.trim().toLowerCase();ul.innerHTML="";
       const er=e=>Math.min(...e.ids.map(rank));
