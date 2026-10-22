@@ -257,6 +257,15 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
 main{max-width:672px}
 /* 置頂區內所有子元素（含工區切換列）都置中在 640px 內容欄 */
 .pagehead>.zonebar,header>.zonebar{width:100%;max-width:640px;margin:6px auto 2px;box-sizing:border-box}
+.wsel{position:relative}.wsel[hidden]{display:none}.subrow .wsel{width:auto;flex:none;max-width:100%}.subrow .wsel-btn{width:auto;max-width:100%}
+.wsel-btn{width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 30px 8px 10px;position:relative;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.wsel-btn::after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.wsel-btn.ph{color:var(--muted)}
+.wsel-pop{position:fixed;z-index:70;box-sizing:border-box;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:4px}
+.wsel-grp{font-size:12px;color:var(--muted);padding:8px 10px 2px}
+.wsel-it{padding:9px 10px;border-radius:6px;line-height:1.4;cursor:pointer;white-space:normal;word-break:break-word}
+.wsel-it:hover{background:var(--soft)}.wsel-it.on{background:var(--soft);color:var(--accent);font-weight:600}
+.wsrc{display:none!important}.res .wsel{width:auto;flex:none}.res .wsel-btn{width:auto}.wsel-btn{background:var(--field);border-color:transparent}.wsel-btn.unf{border:2px solid var(--warn)}.wsel-btn.on{border-color:var(--accent);border-width:2px;font-weight:600}
 </style>
 </head>
 <body>
@@ -615,6 +624,38 @@ function slopeEval(p){
 const $=id=>document.getElementById(id);
 const ic=n=>{const i=document.createElement('i');i.className='ic ic-'+n;i.setAttribute('aria-hidden','true');return i};
 const setBt=(e,n,t)=>{e.textContent='';e.append(ic(n),t==null?'':t);return e};
+// 浮動選單（固定定位，不被捲動容器裁掉；選項文字會換行）。rows：{grp:"標題"} 或 {text,on,fn}
+function popList(anchor,rows){
+  if(anchor._pop&&anchor._pop.isConnected){anchor._pop.remove();anchor._pop=null;return}
+  document.querySelectorAll(".wsel-pop").forEach(x=>x.remove());
+  const pop=document.createElement("div");pop.className="wsel-pop";anchor._pop=pop;
+  const close=()=>{pop.remove();document.removeEventListener("pointerdown",away,true);document.removeEventListener("scroll",onScroll,true);removeEventListener("resize",close)};
+  const away=e=>{if(!pop.contains(e.target)&&!anchor.contains(e.target))close()},onScroll=e=>{if(!pop.contains(e.target))close()};
+  rows.forEach(r=>{const d=document.createElement("div");if(r.grp){d.className="wsel-grp";d.textContent=r.grp}else{d.className="wsel-it"+(r.on?" on":"");d.textContent=r.text;d.onclick=()=>{close();r.fn()}}pop.appendChild(d)});
+  document.body.appendChild(pop);
+  const a=anchor.getBoundingClientRect(),vh=innerHeight,w=Math.min(Math.max(a.width,280),innerWidth-16),below=vh-a.bottom-12,above=a.top-12,down=below>=240||below>=above;
+  pop.style.width=w+"px";pop.style.left=Math.max(8,Math.min(a.left,innerWidth-w-8))+"px";pop.style.maxHeight=Math.max(160,Math.min(440,down?below:above))+"px";
+  if(down)pop.style.top=a.bottom+4+"px";else pop.style.bottom=vh-a.top+4+"px";
+  const on=pop.querySelector(".on");if(on)pop.scrollTop=Math.max(0,on.offsetTop-40);
+  setTimeout(()=>{document.addEventListener("pointerdown",away,true);document.addEventListener("scroll",onScroll,true);addEventListener("resize",close)},0);
+}
+// 把 <select> 換成按鈕＋浮動選單（原 select 留著當資料來源，value／change事件照舊）；回傳要插進畫面的元素
+function wrapSelect(sel,mirror){
+  const w=document.createElement("div"),b=document.createElement("button");w.className="wsel";
+  b.type="button";b.className="wsel-btn";w.appendChild(b);if(!mirror)sel.hidden=true;
+  const sync=()=>{const o=sel.options[sel.selectedIndex];b.textContent=(o&&o.textContent)||"（選擇）";b.classList.toggle("ph",!sel.value);if(mirror){b.classList.toggle("on",sel.classList.contains("on"));b.classList.toggle("unf",sel.classList.contains("unf"));w.hidden=sel.hidden}};
+  if(mirror){sel.classList.add("wsrc");new MutationObserver(sync).observe(sel,{attributes:true,attributeFilter:["hidden","class"]})} // mirror：原select仍由程式控制顯示與樣式，畫面只顯示這個按鈕
+  const pick=o=>{sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}));sync()};
+  b.onclick=()=>{const rows=[];[...sel.children].forEach(ch=>{if(ch.tagName==="OPTGROUP"){rows.push({grp:ch.label});[...ch.children].forEach(o=>rows.push({text:o.textContent,on:o.value===sel.value,fn:()=>pick(o)}))}
+      else rows.push({text:ch.textContent,on:ch.value===sel.value,fn:()=>pick(ch)})});popList(b,rows)};
+  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});sync();return w;
+}
+// 樁號▾：點了開浮動清單（跟核對事項選單同一種），選到就填進輸入框
+
+// 棲地評估：每次畫面重畫後，把主區所有 select 換成同款浮動選單
+const wrapAll=()=>document.querySelectorAll("main select:not(.wsrc)").forEach(s=>{s.after(wrapSelect(s,1))});
+{const m=document.querySelector("main");if(m){new MutationObserver(wrapAll).observe(m,{childList:true,subtree:true});wrapAll()}}
+
 function render(){
  renderCases();
  if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
