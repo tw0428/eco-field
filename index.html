@@ -447,6 +447,7 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
 .chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
 /* 置頂區內所有子元素（含工區切換列）都置中在 640px 內容欄 */
 .pagehead>.zonebar,header>.zonebar{width:100%;max-width:640px;margin:6px auto 2px;box-sizing:border-box}
+.wsrc{display:none!important}.subrow .wsel-btn{padding:5px 28px 5px 10px}.wsel-btn.on{border-color:var(--accent);border-width:2px;font-weight:600}
 </style>
 </head>
 <body>
@@ -917,6 +918,7 @@ function fillSel(s,ph,opts,v){s.innerHTML="";[["",ph],...opts.map(o=>[o,o])].for
 // 友善措施只選措施種類，不再選ABCD（填表時依種類判斷）；舊紀錄的abcd保留顯示
 $("subSel").onchange=e=>{sub=e.target.value;abcd="";renderChips()};
 $("structSel").onchange=e=>{struct=e.target.value;renderChips()};
+$("subSel").after(wrapSelect($("subSel"),1));$("structSel").after(wrapSelect($("structSel"),1));{const fw=wrapSelect($("filtSel"),1);fw.classList.add("grow");$("filtSel").after(fw)}
 function renderChips(){
   // 一次選兩張以上（批次）多一個「未分類」：先全部存上去，之後在照片牆「整理分類」慢慢分
   const many=pending.length>=2&&!editing,base=[...(CATS_BY[curStage()]||CATS_BY["施工中"]),...(many?["未分類"]:[])];
@@ -1228,10 +1230,11 @@ function popList(anchor,rows){
   setTimeout(()=>{document.addEventListener("pointerdown",away,true);document.addEventListener("scroll",onScroll,true);addEventListener("resize",close)},0);
 }
 // 把 <select> 換成按鈕＋浮動選單（原 select 留著當資料來源，value／change事件照舊）；回傳要插進畫面的元素
-function wrapSelect(sel){
+function wrapSelect(sel,mirror){
   const w=document.createElement("div"),b=document.createElement("button");w.className="wsel";
-  b.type="button";b.className="wsel-btn";w.appendChild(b);sel.hidden=true;
-  const sync=()=>{const o=sel.options[sel.selectedIndex];b.textContent=(o&&o.textContent)||"（選擇）";b.classList.toggle("ph",!sel.value)};
+  b.type="button";b.className="wsel-btn";w.appendChild(b);if(!mirror)sel.hidden=true;
+  const sync=()=>{const o=sel.options[sel.selectedIndex];b.textContent=(o&&o.textContent)||"（選擇）";b.classList.toggle("ph",!sel.value);if(mirror){b.classList.toggle("on",sel.classList.contains("on"));w.hidden=sel.hidden}};
+  if(mirror){sel.classList.add("wsrc");new MutationObserver(sync).observe(sel,{attributes:true,attributeFilter:["hidden","class"]})} // mirror：原select仍由程式控制顯示與樣式，畫面只顯示這個按鈕
   const pick=o=>{sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}));sync()};
   b.onclick=()=>{const rows=[];[...sel.children].forEach(ch=>{if(ch.tagName==="OPTGROUP"){rows.push({grp:ch.label});[...ch.children].forEach(o=>rows.push({text:o.textContent,on:o.value===sel.value,fn:()=>pick(o)}))}
       else rows.push({text:ch.textContent,on:ch.value===sel.value,fn:()=>pick(ch)})});popList(b,rows)};
@@ -2670,8 +2673,8 @@ function makePicker(sel,recentKey,metaOf,ops){
         if(g&&byG[g]){byG[g].opts.push(o);return}const e={key:g||o.value,label:g||o.textContent,opts:[o]};if(g)byG[g]=e;ents.push(e)});
       ents.forEach(e=>{e.ids=e.opts.map(o=>o.value);e.rep=e.opts.find(o=>o.value===sel.value)||[...e.opts].sort((a,b)=>rank(a.value)-rank(b.value))[0];e.value=e.rep.value;
         e.text=e.opts.map(o=>o.textContent).join(" ").toLowerCase()});
-      const mode=lsGet("eco-pickmode")||"recent";
-      seg.innerHTML="";[["recent","最近使用"],["area","地區"],["stage","階段"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
+      let mode=lsGet("eco-pickmode")||"recent";if(mode==="stage")mode="recent"; /* 階段分組拿掉：依上次開啟判斷不準 */
+      seg.innerHTML="";[["recent","最近使用"],["area","地區"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
         b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
       const k=q.value.trim().toLowerCase();ul.innerHTML="";
       const er=e=>Math.min(...e.ids.map(rank));
