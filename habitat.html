@@ -205,7 +205,17 @@ button:not(:disabled):active,.fab:active,.photobtns label:active{transform:scale
 #recView:not([hidden]),.viewer:not([hidden]){animation:vfade .16s ease}
 .picker:not([hidden]){animation:vfade .14s ease}.wsel-pop{animation:vpop .14s ease}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
-</style>
+/* ===== 輕量化：少框線，用淡灰底與細分隔線分層；按鈕只有主要動作才實心 ===== */
+:root{--field:#eef0f1;--tone:#e8ebed;--hair:rgba(20,28,32,.10)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--field:#272b2e;--tone:#2d3236;--hair:rgba(255,255,255,.10)}}
+:root[data-theme="dark"]{--field:#272b2e;--tone:#2d3236;--hair:rgba(255,255,255,.10)}.card{border-color:var(--hair);box-shadow:0 1px 2px rgba(20,28,32,.05)}
+input[type=number],input[type=text],input[type=date],input[type=password],select,textarea{background:var(--field);border-color:transparent}
+input[type=number]:focus,input[type=text]:focus,input[type=date]:focus,input[type=password]:focus,select:focus,textarea:focus{background:var(--card)}
+button.act{background:var(--tone);border-color:transparent;box-shadow:none}
+button.act.primary{background:var(--acc);box-shadow:none}
+button.act.danger{background:transparent}
+.tab{background:var(--tone);border-color:transparent}
+header{box-shadow:none}</style>
 </head>
 <body>
 <header>
