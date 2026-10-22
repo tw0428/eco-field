@@ -1711,7 +1711,14 @@ function renderRecords(){
   if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
   if(listMode()==="wall"){renderWall(box,shown,list);return}
   if(!shown.length){box.innerHTML='<div class="empty">這個篩選沒有紀錄。</div>';return}
-  shown.forEach(r=>box.appendChild(recCard(r,c)));
+  // 拍攝日期跨兩天以上：依日期分段（新的在上），每段有標題與筆數
+  const dm=new Map();shown.forEach(r=>{const d=recDay(r);if(!dm.has(d))dm.set(d,[]);dm.get(d).push(r)});
+  if(dm.size<2){shown.forEach(r=>box.appendChild(recCard(r,c)));return}
+  const days=[...dm].sort((a,b)=>b[0].localeCompare(a[0]));rvShown=days.flatMap(x=>x[1]); // 小窗 ‹ › 換筆順序跟畫面分段一致
+  days.forEach(([d,rs])=>{
+    const h=document.createElement("div");h.className="dayhead";const t=document.createElement("span");t.textContent=d;
+    const n=document.createElement("span");n.className="n";n.textContent=`${rs.length} 筆`;h.append(t,n);box.appendChild(h);
+    rs.forEach(r=>box.appendChild(recCard(r,c)))});
 }
 // 一筆紀錄的卡片（列表與照片牆點開共用）
 // 同一張照片可被多筆紀錄共用（複製到其他分類）：刪紀錄時，照片沒有別筆在用才刪檔
@@ -2123,7 +2130,8 @@ function renderWall(box,list,all){
   // 依拍攝日期分組：跨兩天以上才顯示日期標題（整理模式下每天有「選此日」）
   const withPh=list.filter(r=>r.photos&&r.photos.length),none=list.length-withPh.length,dayMap=new Map();
   withPh.forEach(r=>{const d=recDay(r);if(!dayMap.has(d))dayMap.set(d,[]);dayMap.get(d).push(r)});
-  for(const [day,recs] of dayMap){
+  const dayList=[...dayMap].sort((a,b)=>b[0].localeCompare(a[0]));rvShown=dayList.flatMap(x=>x[1]);
+  for(const [day,recs] of dayList){
     const w=document.createElement("div");w.className="wall"+(srtOn?" picking":"");
     if(dayMap.size>1){const h=document.createElement("div");h.className="dayhead";const t=document.createElement("span");t.textContent=day;
       const n=document.createElement("span");n.className="n";n.textContent=`${recs.reduce((s,r)=>s+r.photos.length,0)} 張`;h.append(t,n);
