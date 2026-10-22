@@ -126,9 +126,9 @@ select.unf{border-color:var(--warn);border-width:2px}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sub a{color:var(--acc)}.sub>*{white-space:nowrap}.sub input{flex:1 1 0;min-width:3em;width:auto!important}#expLink{background:var(--acc);color:var(--accfg);padding:4px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 /* 野溪頁主色＝水藍、坡地頁＝土黃（評分顏色--good等不受影響） */
-body[data-view="creek"]{--acc:#2f6a8f;--accbg:#dce9f1}body[data-view="slope"]{--acc:#8a5a2b;--accbg:#f1e6d8}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#7fb3d8;--accbg:#1f3240}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#d9a46a;--accbg:#3a2e20}}
-:root[data-theme="dark"] body[data-view="creek"]{--acc:#7fb3d8;--accbg:#1f3240}:root[data-theme="dark"] body[data-view="slope"]{--acc:#d9a46a;--accbg:#3a2e20}
+body[data-view="creek"]{--acc:#4f7480;--accbg:#e1eaed}body[data-view="slope"]{--acc:#86694a;--accbg:#eee6da}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#8fb4be;--accbg:#243137}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#c9a67c;--accbg:#352e22}}
+:root[data-theme="dark"] body[data-view="creek"]{--acc:#8fb4be;--accbg:#243137}:root[data-theme="dark"] body[data-view="slope"]{--acc:#c9a67c;--accbg:#352e22}
 .pickbtn{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .pickbtn::after{content:" ▾";color:var(--mute)}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
@@ -216,7 +216,7 @@ button.act.primary{background:var(--acc);box-shadow:none}
 button.act.danger{background:transparent}
 .tab{background:var(--tone);border-color:transparent}
 header{box-shadow:none}:root{--card:#fff;--ink:#121719;--mute:#5a646a;--acc:#1f5a43;--surface:var(--card);--fg:var(--ink);--muted:var(--mute);--accent:var(--acc);--accent-fg:var(--accfg);--soft:var(--accbg)}/* ===== 質感規格（兩頁共用）：字級與粗細、圓角、卡片深度、半透明頁首、深色主色 ===== */
-:root{--r-ctl:10px;--r-card:14px;--r-sheet:18px;--bg:#f2f3f4;--line:#cdd2d5;--stg-a:#2f5f96;--stg-b:#76508a;
+:root{--r-ctl:10px;--r-card:14px;--r-sheet:18px;--bg:#f2f3f4;--line:#cdd2d5;--stg-a:#5a7681;--stg-b:#7b6674;
   --sh-card:0 1px 2px rgba(18,24,28,.05),0 8px 18px -10px rgba(18,24,28,.16)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-card:0 1px 2px rgba(0,0,0,.5),0 8px 18px -10px rgba(0,0,0,.7)}}
 :root[data-theme="dark"]{--sh-card:0 1px 2px rgba(0,0,0,.5),0 8px 18px -10px rgba(0,0,0,.7)}
