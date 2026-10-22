@@ -254,6 +254,8 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
 .chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
 /* 內容欄寬與頁首一致（兩頁都是 640px 內容寬） */
 main{max-width:672px}
+/* 置頂區內所有子元素（含工區切換列）都置中在 640px 內容欄 */
+.pagehead>.zonebar,header>.zonebar{width:100%;max-width:640px;margin:6px auto 2px;box-sizing:border-box}
 </style>
 </head>
 <body>
