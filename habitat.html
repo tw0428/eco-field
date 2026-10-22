@@ -38,7 +38,7 @@ async function appUpd(){
 </script>
 <style>
 /* 配色、字型、按鈕與現場紀錄(index.html)一致：數值同其 --bg/--surface/--fg/--muted/--line/--accent/--soft/--warn/--danger */
-:root{--bg:#eef1ee;--card:#fff;--ink:#1d2621;--mute:#5d6b63;--line:#cfd8d2;--acc:#2f6b4f;--accfg:#fff;--accbg:#dfeae3;--warn:#9a5b12;--warnbg:#f6ead8;--good:#2f6b4f;--mid:#8a7a1f;--bad:#a33a2c}
+:root{--bg:#eef1ee;--card:#fff;--ink:#1d2621;--mute:#5d6b63;--line:#cfd8d2;--acc:#2f6b4f;--accfg:#fff;--accbg:#dfeae3;--warn:#9a5b12;--warnbg:#f6ead8;--good:#5f7551;--mid:#9e8d3d;--bad:#a33a2c}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a17;--card:#1d2521;--ink:#e4ebe6;--mute:#9aa8a0;--line:#34413a;--acc:#6fb592;--accfg:#0f1712;--accbg:#24352c;--warn:#e2a95a;--warnbg:#3a2e1d;--good:#6fb592;--mid:#d8c65a;--bad:#ec8576;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#141a17;--card:#1d2521;--ink:#e4ebe6;--mute:#9aa8a0;--line:#34413a;--acc:#6fb592;--accfg:#0f1712;--accbg:#24352c;--warn:#e2a95a;--warnbg:#3a2e1d;--good:#6fb592;--mid:#d8c65a;--bad:#ec8576;color-scheme:dark}
 *{box-sizing:border-box}
@@ -126,9 +126,9 @@ select.unf{border-color:var(--warn);border-width:2px}
 .sub{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sub a{color:var(--acc)}.sub>*{white-space:nowrap}.sub input{flex:1 1 0;min-width:3em;width:auto!important}#expLink{background:var(--acc);color:var(--accfg);padding:4px 12px;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap}.sub input{width:8em;padding:2px 8px;font-size:16px;border-radius:6px}
 /* 野溪頁主色＝水藍、坡地頁＝土黃（評分顏色--good等不受影響） */
-body[data-view="creek"]{--acc:#4f7480;--accbg:#e1eaed}body[data-view="slope"]{--acc:#86694a;--accbg:#eee6da}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#8fb4be;--accbg:#243137}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#c9a67c;--accbg:#352e22}}
-:root[data-theme="dark"] body[data-view="creek"]{--acc:#8fb4be;--accbg:#243137}:root[data-theme="dark"] body[data-view="slope"]{--acc:#c9a67c;--accbg:#352e22}
+body[data-view="creek"]{--acc:#40798c;--accbg:#e0e9eb}body[data-view="slope"]{--acc:#7d6a50;--accbg:#ece6dc}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-view="creek"]{--acc:#86b3c2;--accbg:#22323a}:root:not([data-theme="light"]) body[data-view="slope"]{--acc:#cbb497;--accbg:#342d22}}
+:root[data-theme="dark"] body[data-view="creek"]{--acc:#86b3c2;--accbg:#22323a}:root[data-theme="dark"] body[data-view="slope"]{--acc:#cbb497;--accbg:#342d22}
 .pickbtn{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .pickbtn::after{content:" ▾";color:var(--mute)}
 .picker{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 16px}
@@ -216,7 +216,7 @@ button.act.primary{background:var(--acc);box-shadow:none}
 button.act.danger{background:transparent}
 .tab{background:var(--tone);border-color:transparent}
 header{box-shadow:none}:root{--card:#fff;--ink:#121719;--mute:#5a646a;--acc:#1f5a43;--surface:var(--card);--fg:var(--ink);--muted:var(--mute);--accent:var(--acc);--accent-fg:var(--accfg);--soft:var(--accbg)}/* ===== 質感規格（兩頁共用）：字級與粗細、圓角、卡片深度、半透明頁首、深色主色 ===== */
-:root{--r-ctl:10px;--r-card:14px;--r-sheet:18px;--bg:#f2f3f4;--line:#cdd2d5;--stg-a:#5a7681;--stg-b:#7b6674;
+:root{--r-ctl:10px;--r-card:14px;--r-sheet:18px;--bg:#f2f3f4;--line:#cdd2d5;--stg-a:#40798c;--stg-b:#8a5640;
   --sh-card:0 1px 2px rgba(18,24,28,.05),0 8px 18px -10px rgba(18,24,28,.16)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-card:0 1px 2px rgba(0,0,0,.5),0 8px 18px -10px rgba(0,0,0,.7)}}
 :root[data-theme="dark"]{--sh-card:0 1px 2px rgba(0,0,0,.5),0 8px 18px -10px rgba(0,0,0,.7)}
@@ -233,13 +233,13 @@ button.primary,button.act.primary{font-weight:600;box-shadow:inset 0 1px 0 rgba(
 .chip,.tab,.zonebar button{font-weight:500}
 .pill,.badge{font-weight:600;letter-spacing:.02em}
 .status,.hint,.mut,.meta{letter-spacing:.01em}/* ===== 自然柔霧玻璃（參考 uitest #03 毛玻璃、#19 柔和UI、#42 有機自然、#55 空間UI）：奶油底＋苔綠、半透明卡片、大圓角、柔和陰影 ===== */
-:root{--bg:#f1eee4;--card:#fcfbf7;--ink:#2a3323;--mute:#5f6a55;--acc:#4d6a3a;--line:#d3d0c1;--field:#f4f2ea;--tone:#e9e6da;--hair:rgba(62,74,50,.14);--r-ctl:12px;--r-card:20px;--r-sheet:26px;--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8);
-  --sh-card:0 1px 2px rgba(62,74,50,.06),0 12px 30px -14px rgba(62,74,50,.28)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151912;--card:#20261c;--ink:#e8ecdf;--mute:#a3ad98;--acc:#8fbc8f;--line:#3a4333;--field:#272e22;--tone:#2d3528;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}}
-:root[data-theme="dark"]{--bg:#151912;--card:#20261c;--ink:#e8ecdf;--mute:#a3ad98;--acc:#8fbc8f;--line:#3a4333;--field:#272e22;--tone:#2d3528;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}
+:root{--bg:#f3ede3;--card:#fdfbf7;--ink:#2d291d;--mute:#675f4f;--acc:#657359;--line:#d9d0c0;--field:#f5f0e6;--tone:#ebe3d4;--hair:rgba(45,41,29,.14);--r-ctl:12px;--r-card:20px;--r-sheet:26px;--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8);
+  --sh-card:0 1px 2px rgba(45,41,29,.06),0 12px 30px -14px rgba(45,41,29,.28)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1a1812;--card:#25221a;--ink:#ece4d6;--mute:#aaa28f;--acc:#9fb08f;--line:#3d382b;--field:#2c2920;--tone:#322e24;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--bg:#1a1812;--card:#25221a;--ink:#ece4d6;--mute:#aaa28f;--acc:#9fb08f;--line:#3d382b;--field:#2c2920;--tone:#322e24;--hair:rgba(255,255,255,.10);--glass:rgba(255,255,255,.07);--glass-edge:rgba(255,255,255,.12);--sh-card:0 1px 2px rgba(0,0,0,.5),0 12px 30px -14px rgba(0,0,0,.7)}
 body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
   radial-gradient(60vmax 50vmax at 8% -5%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),
-  radial-gradient(55vmax 45vmax at 100% 30%,color-mix(in srgb,var(--accent) 12%,#d9c9a3 30%),transparent 70%),
+  radial-gradient(55vmax 45vmax at 100% 30%,color-mix(in srgb,var(--accent) 12%,#d7c9be 30%),transparent 70%),
   radial-gradient(50vmax 40vmax at 0% 100%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%)}
 .panel,.card,.rec{background:var(--glass);border:1px solid var(--glass-edge);border-radius:var(--r-card);box-shadow:var(--sh-card)}
 .panel,.card{-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4)} /* 長列表的紀錄卡不加模糊，避免手機捲動變卡 */
@@ -249,7 +249,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .fab{box-shadow:0 8px 22px -4px color-mix(in srgb,var(--accent) 55%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
 button,.tab,.chip,.photobtns label{transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .15s ease,border-color .15s ease,box-shadow .2s ease}
 button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale(.94)}
-@media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(62,74,50,.08),0 16px 36px -14px rgba(62,74,50,.34)}}
+@media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(45,41,29,.08),0 16px 36px -14px rgba(45,41,29,.34)}}
 @keyframes vpopc{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
 .chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
 /* 內容欄寬與頁首一致（兩頁都是 640px 內容寬） */
