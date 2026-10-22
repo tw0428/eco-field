@@ -276,6 +276,20 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .chips.flash{border-radius:10px;animation:cpflash 1.2s ease-out 3}
 @keyframes cpflash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
 #recView .imgs .splitone{align-self:flex-end;margin:-2px 0 8px;white-space:nowrap}
+/* 照片牆日期分組標題；整理分類工具列往下捲時固定在置頂區下方，不用回到頂端按「完成整理」 */
+.dayhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-weight:600;font-size:14px}
+.dayhead .n{font-weight:400;color:var(--muted);font-size:12px}.dayhead button{margin-left:auto}
+.srttools{position:sticky;top:var(--headh,0px);z-index:35;background:var(--bg);padding:6px 0;margin-bottom:6px}
+/* 自訂下拉（選項會換行；選單浮在畫面上不被容器裁掉）：核對事項、平面圖清單用 */
+.wsel{position:relative}.wsel[hidden]{display:none}
+.wsel-btn{width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 30px 8px 10px;position:relative;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.wsel-btn::after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.wsel-btn.ph{color:var(--muted)}
+.wsel-pop{position:fixed;z-index:70;box-sizing:border-box;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:4px}
+.wsel-grp{font-size:12px;color:var(--muted);padding:8px 10px 2px}
+.wsel-it{padding:9px 10px;border-radius:6px;line-height:1.4;cursor:pointer;white-space:normal;word-break:break-word}
+.wsel-it:hover{background:var(--soft)}.wsel-it.on{background:var(--soft);color:var(--accent);font-weight:600}
+#viewer.over{z-index:55}
 #recView .rvq{max-width:640px;margin:12px auto 0;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 #recView .rvq textarea{resize:vertical}
 /* 關閉／儲存固定在畫面底部，看照片時也按得到 */
@@ -333,6 +347,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <button type="button" id="vPrev" hidden aria-label="上一張">‹</button>
     <button type="button" id="vNext" hidden aria-label="下一張">›</button>
     <button type="button" id="vPick" hidden>☐ 勾選</button>
+    <button type="button" id="vTab">↗ 新分頁</button>
     <button type="button" id="vSave" hidden>下載</button>
     <button type="button" id="vClose" class="primary">關閉</button>
   </div>
@@ -350,6 +365,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <div id="recView" class="viewer" hidden>
   <div class="vbar">
     <span class="vtitle" id="rvTitle">紀錄</span>
+    <button type="button" id="rvPlan" hidden>📄 平面圖</button>
     <button type="button" id="rvPrev" hidden aria-label="上一筆">‹</button>
     <button type="button" id="rvNext" hidden aria-label="下一筆">›</button>
     <button type="button" id="rvClose" class="primary" hidden>關閉</button>
@@ -1080,6 +1096,31 @@ function fillStakeSel(ss,vals){ss.innerHTML="";
   const o0=document.createElement("option");o0.value="";o0.textContent="（選樁號）";ss.appendChild(o0);
   vals.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;ss.appendChild(o)})}
 // 任一文字欄加上樁號▾選單（同新增紀錄的樁號欄）
+// 浮動選單（固定定位，不被捲動容器裁掉；選項文字會換行）。rows：{grp:"標題"} 或 {text,on,fn}
+function popList(anchor,rows){
+  if(anchor._pop&&anchor._pop.isConnected){anchor._pop.remove();anchor._pop=null;return}
+  document.querySelectorAll(".wsel-pop").forEach(x=>x.remove());
+  const pop=document.createElement("div");pop.className="wsel-pop";anchor._pop=pop;
+  const close=()=>{pop.remove();document.removeEventListener("pointerdown",away,true);document.removeEventListener("scroll",onScroll,true);removeEventListener("resize",close)};
+  const away=e=>{if(!pop.contains(e.target)&&!anchor.contains(e.target))close()},onScroll=e=>{if(!pop.contains(e.target))close()};
+  rows.forEach(r=>{const d=document.createElement("div");if(r.grp){d.className="wsel-grp";d.textContent=r.grp}else{d.className="wsel-it"+(r.on?" on":"");d.textContent=r.text;d.onclick=()=>{close();r.fn()}}pop.appendChild(d)});
+  document.body.appendChild(pop);
+  const a=anchor.getBoundingClientRect(),vh=innerHeight,w=Math.min(Math.max(a.width,280),innerWidth-16),below=vh-a.bottom-12,above=a.top-12,down=below>=240||below>=above;
+  pop.style.width=w+"px";pop.style.left=Math.max(8,Math.min(a.left,innerWidth-w-8))+"px";pop.style.maxHeight=Math.max(160,Math.min(440,down?below:above))+"px";
+  if(down)pop.style.top=a.bottom+4+"px";else pop.style.bottom=vh-a.top+4+"px";
+  const on=pop.querySelector(".on");if(on)pop.scrollTop=Math.max(0,on.offsetTop-40);
+  setTimeout(()=>{document.addEventListener("pointerdown",away,true);document.addEventListener("scroll",onScroll,true);addEventListener("resize",close)},0);
+}
+// 把 <select> 換成按鈕＋浮動選單（原 select 留著當資料來源，value／change事件照舊）；回傳要插進畫面的元素
+function wrapSelect(sel){
+  const w=document.createElement("div"),b=document.createElement("button");w.className="wsel";
+  b.type="button";b.className="wsel-btn";w.appendChild(b);sel.hidden=true;
+  const sync=()=>{const o=sel.options[sel.selectedIndex];b.textContent=(o&&o.textContent)||"（選擇）";b.classList.toggle("ph",!sel.value)};
+  const pick=o=>{sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}));sync()};
+  b.onclick=()=>{const rows=[];[...sel.children].forEach(ch=>{if(ch.tagName==="OPTGROUP"){rows.push({grp:ch.label});[...ch.children].forEach(o=>rows.push({text:o.textContent,on:o.value===sel.value,fn:()=>pick(o)}))}
+      else rows.push({text:ch.textContent,on:ch.value===sel.value,fn:()=>pick(ch)})});popList(b,rows)};
+  new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});sync();return w;
+}
 function stakeField(inp,c){
   const w=document.createElement("div");w.className="stkwrap grow";w.appendChild(inp);
   const vals=stakeVals(c);if(!vals.length)return w;
@@ -1139,7 +1180,8 @@ function loadPdfJs(){
 }
 async function openViewer(id,type,title){
   vCur={id,type,title};$("vSave").hidden=!downloads;
-  const tok=++vToken;$("vTitle").textContent=title;$("viewer").hidden=false;document.body.style.overflow="hidden";
+  // 從紀錄小窗打開時，大圖／平面圖要蓋在小窗上面（關掉後回到小窗）
+  const tok=++vToken;$("vTitle").textContent=title;$("viewer").classList.toggle("over",!$("recView").hidden);$("viewer").hidden=false;document.body.style.overflow="hidden";
   const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];vImg=null;box.style.margin="";
   $("vFit").textContent=type==="application/pdf"?"符合寬度":"整張";
   try{
@@ -1162,7 +1204,7 @@ async function openViewer(id,type,title){
     }
   }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟這個檔案（'+(e.message||"載入失敗")+'）。</div>'}
 }
-function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow="";
+function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow=$("recView").hidden?"":"hidden";
   if(vNav){vNav=null;["vPrev","vNext","vPick"].forEach(k=>$(k).hidden=true);renderRecords()}}
 // 整理分類看大圖：‹ › 換張（鍵盤←→）、勾選（空白鍵），關閉後照片牆的勾選同步
 let vNav=null;
@@ -1177,6 +1219,11 @@ addEventListener("keydown",e=>{if(!vNav||$("viewer").hidden)return;
   if(e.key==="ArrowLeft"){e.preventDefault();vNavGo(-1)}else if(e.key==="ArrowRight"){e.preventDefault();vNavGo(1)}
   else if(e.key===" "){e.preventDefault();$("vPick").click()}else if(e.key==="Escape")closeViewer()});
 $("vClose").onclick=closeViewer;
+// 平面圖／照片在新分頁開（電腦可並排看）：先同步開空白分頁避免被擋，檔案備好再導過去
+$("vTab").onclick=async()=>{if(!vCur)return;const b=$("vTab"),o=b.textContent,w=window.open("about:blank","_blank");
+  if(!w){b.textContent="彈出視窗被擋住";setTimeout(()=>b.textContent=o,2500);return}
+  try{b.textContent="開啟中…";const bl=await fileBlob(vCur.id,vCur.type);w.location.href=URL.createObjectURL(new Blob([bl],{type:vCur.type||bl.type}))}
+  catch(e){w.close();b.textContent="開啟失敗"}finally{setTimeout(()=>b.textContent=o,1800)}};
 $("vIn").onclick=()=>vSetZoom(vZoom*1.5);
 $("vOut").onclick=()=>vSetZoom(vZoom/1.5);
 $("vFit").onclick=vFit;
@@ -1587,6 +1634,7 @@ function renderLinkSel(){
   sel.value=linkCheck&&items.find(i=>i.id===linkCheck)?linkCheck:"";
 }
 function setLink(id){linkCheck=id||null;renderLinkSel();impUpd()}
+$("chkLinkSel").after(wrapSelect($("chkLinkSel")));
 $("chkLinkSel").onchange=e=>{linkCheck=e.target.value||null;
   const c=cases.find(x=>x.id===curCase),it=linkCheck&&c&&(c.checks||[]).find(i=>i.id===linkCheck);
   if(it&&!editing){if(!isFM(cat)&&(CATS_BY[curStage()]||[]).includes("生態友善措施")){cat="生態友善措施"}if(isFM(cat)&&!abcd)abcd=it.abcd||"";renderChips();if(it.stake&&!$("stakeIn").value.trim())$("stakeIn").value=it.stake}};
@@ -1765,6 +1813,7 @@ function openRec(r){
   const c=cases.find(x=>x.id===curCase);if(!c)return;rvCur=r;
   $("rvTitle").textContent=recTitle(r);
   const b=$("rvBody");b.innerHTML="";b.appendChild(recCard(r,c,closeRec));b.appendChild(rvQuick(r));const bar=b.querySelector(".rvbar");if(bar&&!RV_WIDE.matches)b.appendChild(bar);b.scrollTop=0;
+  $("rvPlan").hidden=!(c.plans||[]).length;
   const i=rvShown.findIndex(x=>x.id===r.id);$("rvPrev").hidden=$("rvNext").hidden=i<0||rvShown.length<2;
   if(i>=0){$("rvPrev").disabled=i===0;$("rvNext").disabled=i===rvShown.length-1;$("rvTitle").textContent=`${i+1}/${rvShown.length}　`+recTitle(r)}
   $("recView").hidden=false;document.body.style.overflow="hidden";
@@ -1790,12 +1839,13 @@ function rvQuick(r){
     sb2.hidden=!sb2.childNodes.length;
     const showSp=qc==="生態保護對象"||qs==="生態保護對象"||!!sp.value.trim()||!!ct.value.trim();ct.hidden=sp.hidden=!showSp;row.classList.toggle("one",!showSp)};
   // 對應核對事項（同新增紀錄那一欄：依分組列出本案核對清單，可改成「不連結」）
-  const items=(cases.find(x=>x.id===r.caseId)||{}).checks||[],lk=document.createElement("select");lk.setAttribute("aria-label","對應核對事項");lk.hidden=!items.length;
+  const items=(cases.find(x=>x.id===r.caseId)||{}).checks||[],lk=document.createElement("select");lk.setAttribute("aria-label","對應核對事項");
   {const o0=document.createElement("option");o0.value="";o0.textContent="對應核對事項：（不連結）";lk.appendChild(o0);
    [...new Set(items.map(i=>i.group||""))].forEach(g=>{const par=g?document.createElement("optgroup"):lk;if(g){par.label=g;lk.appendChild(par)}
      items.filter(i=>(i.group||"")===g).forEach(i=>{const o=document.createElement("option");o.value=i.id;o.textContent=(i.abcd?i.abcd+" ":"")+i.text;par.appendChild(o)})});
    lk.value=r.checkId&&items.find(i=>i.id===r.checkId)?r.checkId:"";
    lk.onchange=()=>{const it=items.find(i=>i.id===lk.value);if(it&&it.stake&&!st.value.trim())st.value=it.stake}}
+  const lkw=wrapSelect(lk);lkw.hidden=!items.length;
   const msg=document.createElement("div");msg.className="hint";
   const bs=document.createElement("div");bs.className="row";
   const sv=document.createElement("button");sv.type="button";sv.textContent="儲存";
@@ -1811,7 +1861,7 @@ function rvQuick(r){
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
   const cl=document.createElement("button");cl.type="button";cl.textContent="關閉";cl.onclick=closeRec;
-  bs.className="row rvbar";bs.append(sn,sv,cl);f.append(cb,sb2,row,sp,lk,nt,op,msg,bs);drawCat();
+  bs.className="row rvbar";bs.append(sn,sv,cl);f.append(cb,sb2,row,sp,lkw,nt,op,msg,bs);drawCat();
   const snap=()=>JSON.stringify([qc,qs,qt,st.value.trim(),sp.value.trim(),ct.value.trim(),nt.value.trim(),ck.checked,lk.value]);let init=snap();rvDirty=()=>snap()!==init;
   // 電腦寬螢幕：照片在左、編輯在右，不用捲，游標直接放進說明欄。
   // 其他（手機、窄視窗）：捲到編輯區；照片是陸續載入、載完卡片才變高，
@@ -1829,6 +1879,14 @@ function rvGo(d){if(!rvCur||!rvOk())return;const i=rvShown.findIndex(x=>x.id===r
 let rvDirty=null;
 const rvOk=()=>!rvDirty||!rvDirty()||confirm("這筆的修改還沒儲存，確定不儲存就離開？");
 function closeRec(){if(!rvOk())return false;rvDirty=null;$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
+// 編輯中看平面圖：只有一張直接開，多張列清單（設計圖在前、意見原文在後）；看完關掉回到小窗原位
+$("rvPlan").onclick=()=>{const c=cases.find(x=>x.id===(rvCur&&rvCur.caseId||curCase));const ps=(c&&c.plans)||[];if(!ps.length)return;
+  const open=p=>openViewer(p.id,p.type,p.title||"平面圖");if(ps.length===1){open(ps[0]);return}
+  const isOp=p=>/^意見原文[：:]/.test(p.title||""),clean=p=>(p.title||"平面圖").replace(/^意見原文[：:]\s*/,"");
+  const dz=ps.filter(p=>!isOp(p)),op=ps.filter(isOp),rows=[];
+  if(dz.length){if(op.length)rows.push({grp:"設計圖"});dz.forEach(p=>rows.push({text:clean(p),fn:()=>open(p)}))}
+  if(op.length){rows.push({grp:"意見原文"});op.forEach(p=>rows.push({text:clean(p),fn:()=>open(p)}))}
+  popList($("rvPlan"),rows)};
 $("rvClose").onclick=closeRec;$("rvPrev").onclick=()=>rvGo(-1);$("rvNext").onclick=()=>rvGo(1);
 addEventListener("keydown",e=>{if(!$("viewer").hidden){if(e.key==="Escape"&&!vNav)closeViewer();return}if($("recView").hidden)return;
   const t=e.target;if(t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName))return;
@@ -2062,13 +2120,21 @@ function renderWall(box,list,all){
   box.appendChild(tb);
   if(srtOn&&!list.length){const e=document.createElement("div");e.className="empty";e.textContent="這個篩選沒有照片了。";box.appendChild(e)}
   const bar=document.createElement("div");bar.className="srtbar";
-  const w=document.createElement("div");w.className="wall"+(srtOn?" picking":"");let none=0;
-  list.forEach(r=>{
-    if(!r.photos||!r.photos.length){none++;return}
+  // 依拍攝日期分組：跨兩天以上才顯示日期標題（整理模式下每天有「選此日」）
+  const withPh=list.filter(r=>r.photos&&r.photos.length),none=list.length-withPh.length,dayMap=new Map();
+  withPh.forEach(r=>{const d=recDay(r);if(!dayMap.has(d))dayMap.set(d,[]);dayMap.get(d).push(r)});
+  for(const [day,recs] of dayMap){
+    const w=document.createElement("div");w.className="wall"+(srtOn?" picking":"");
+    if(dayMap.size>1){const h=document.createElement("div");h.className="dayhead";const t=document.createElement("span");t.textContent=day;
+      const n=document.createElement("span");n.className="n";n.textContent=`${recs.reduce((s,r)=>s+r.photos.length,0)} 張`;h.append(t,n);
+      if(srtOn){const b=document.createElement("button");b.type="button";b.className="mini";const all=()=>recs.every(r=>srtSel.has(r.id));b.textContent=all()?"取消選此日":"選此日";
+        b.onclick=()=>{if(srtBusy)return;const al=all();recs.forEach(r=>al?srtSel.delete(r.id):srtSel.add(r.id));srtFM=false;srtPick=null;renderRecords()};h.appendChild(b)}
+      box.appendChild(h)}
+  recs.forEach(r=>{
     r.photos.forEach(p=>{
       const a=document.createElement("a");a.href="#";a.className=stgCls(r.stage)+(srtOn&&srtSel.has(r.id)?" sel":"");a.dataset.rid=r.id;
       a.onclick=ev=>{ev.preventDefault();if(!srtOn){openRec(r);return}if(srtBusy)return;
-        srtSel.has(r.id)?srtSel.delete(r.id):srtSel.add(r.id);w.querySelectorAll(`a[data-rid="${r.id}"]`).forEach(x=>x.classList.toggle("sel",srtSel.has(r.id)));srtFM=false;srtPick=null;srtBar(bar,list)};
+        srtSel.has(r.id)?srtSel.delete(r.id):srtSel.add(r.id);box.querySelectorAll(`a[data-rid="${r.id}"]`).forEach(x=>x.classList.toggle("sel",srtSel.has(r.id)));srtFM=false;srtPick=null;srtBar(bar,list)};
       const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
       const s=document.createElement("span");s.textContent=[r.stake,r.struct||r.sub||r.category].filter(Boolean).join(" ");
       a.append(i,s);w.appendChild(a);
@@ -2079,7 +2145,7 @@ function renderWall(box,list,all){
         z.onclick=open;a.ondblclick=open;a.appendChild(z)}
     });
   });
-  box.appendChild(w);
+    box.appendChild(w)}
   if(srtOn){srtBar(bar,list);box.appendChild(bar)}
   if(none&&!srtOn){const n=document.createElement("div");n.className="empty";n.textContent=`另有 ${none} 筆沒有照片的紀錄，切到「列表」查看。`;box.appendChild(n)}
 }
@@ -2240,7 +2306,7 @@ async function makeDocx(day,btn){
       n++;const rid="rIdImg"+n;zip.file(`word/media/img${n}.jpg`,blob);rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${n}.jpg"/>`);
       let cx=4000*635,cy=Math.round(cx*h/w);const maxH=2650*635;if(cy>maxH){cx=Math.round(cx*maxH/cy);cy=maxH}
       const img=`<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="照片${n}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="img${n}.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
-      const desc=[day?"":recDay(r),[r.species,r.count].filter(Boolean).join(" "),r.note].filter(Boolean).join("；");
+      const desc=[recDay(r),[r.species,r.count].filter(Boolean).join(" "),r.note].filter(Boolean).join("；");
       cells.push({img,cap:(P("位置或樁號："+(r.stake||""),{sz:20,jc:"both"})+P("說明："+desc,{sz:20,jc:"both"})).replace(/w:after="60"/g,'w:after="0"')});
     }
     if(groups.length){body+=P((day&&R2.length?"二、":"一、")+"現場照片",{b:true,sz:26});const CN="一二三四五六七八九十";
