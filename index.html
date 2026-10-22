@@ -2674,7 +2674,7 @@ function makePicker(sel,recentKey,metaOf,ops){
       ents.forEach(e=>{e.ids=e.opts.map(o=>o.value);e.rep=e.opts.find(o=>o.value===sel.value)||[...e.opts].sort((a,b)=>rank(a.value)-rank(b.value))[0];e.value=e.rep.value;
         e.text=e.opts.map(o=>o.textContent).join(" ").toLowerCase()});
       let mode=lsGet("eco-pickmode")||"recent";if(mode==="stage")mode="recent"; /* 階段分組拿掉：依上次開啟判斷不準 */
-      seg.innerHTML="";[["recent","最近使用"],["area","地區"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
+      seg.innerHTML="";[["recent","最近使用"],["area","地區"],["plan","計畫編號"]].forEach(([m,t])=>{const b=document.createElement("button");b.type="button";b.textContent=t;
         b.className=m===mode?"on":"";b.setAttribute("aria-pressed",String(m===mode));b.onclick=()=>{lsSet("eco-pickmode",m);draw()};seg.appendChild(b)});
       const k=q.value.trim().toLowerCase();ul.innerHTML="";
       const er=e=>Math.min(...e.ids.map(rank));
@@ -2711,8 +2711,8 @@ function makePicker(sel,recentKey,metaOf,ops){
       else if(mode==="recent"){const r=R.filter(e=>er(e)<1e9).sort(byRank),rest=R.filter(e=>er(e)>=1e9).sort(byRank);
         if(r.length){head("最近使用");r.forEach(item)}if(rest.length){head("其他案件");rest.forEach(item)}}
       else{const key=e=>metaOf(e.value)[mode]||"",keys=[...new Set(R.map(key))];
-        keys.sort((a,b)=>!a?1:!b?-1:mode==="stage"?PICK_STAGES.indexOf(a)-PICK_STAGES.indexOf(b):a.localeCompare(b,"zh-Hant"));
-        keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定階段"));R.filter(e=>key(e)===g).sort(byRank).forEach(item)})}
+        keys.sort((a,b)=>!a?1:!b?-1:mode==="plan"?b.localeCompare(a):a.localeCompare(b,"zh-Hant"));
+        keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定計畫編號"));R.filter(e=>key(e)===g).sort(byRank).forEach(item)})}
       if(!hit.length&&k)head("找不到符合的案件");
       // 垃圾桶：移除的案件資料都還在，點「復原」放回清單
       const T=ops.trashed?ops.trashed().filter(c=>!k||(c.name||"").toLowerCase().includes(k)):[];
@@ -2727,7 +2727,7 @@ function makePicker(sel,recentKey,metaOf,ops){
   sync();
 }
 // 階段沒選過＝畫面上預設的施工中（同curStage），分組也照這個
-makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",stage:lsGet("eco-stage-"+id)||c.stage||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
+makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan?`${c.plan}（${c.planTab||""}）`:"",stage:lsGet("eco-stage-"+id)||c.stage||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
   add:async name=>{if(!db)throw new Error("未連線");const ref=db.collection("cases").doc();await ref.set({name,createdAt:Date.now()});
     curCase=ref.id;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()},
   trash:async id=>{await db.doc("cases/"+id).update({trashedAt:Date.now()});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=Date.now();
