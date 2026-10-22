@@ -563,18 +563,18 @@ function photosHtml(p,kind){
  if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
  return h+`</div>`;
 }/* 樁號推估：案件doc有 stakes:[{label,st,note,lat,lng}] 時，把GPS投影到設計中心線（同現場紀錄App） */
-function fmtSt(st){const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
+function fmtSt(st,r){if(r)return `${r}+${String(Math.round(st)).padStart(3,"0")}`;const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
 function nearestStation(lat,lng){
  const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(!Array.isArray(s)||s.length<2||lat==null)return null;
  const lat0=s[0].lat,kx=Math.cos(lat0*Math.PI/180)*111320,ky=110540;
  const P=p=>[(p.lng-s[0].lng)*kx,(p.lat-lat0)*ky];const q=P({lat,lng});let best=null;
- for(let i=0;i<s.length-1;i++){const a=P(s[i]),b=P(s[i+1]),dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
+ for(let i=0;i<s.length-1;i++){if(s[i].r!==s[i+1].r)continue;const a=P(s[i]),b=P(s[i+1]),dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;
   let t=((q[0]-a[0])*dx+(q[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));
   const d=Math.hypot(q[0]-(a[0]+t*dx),q[1]-(a[1]+t*dy));
-  if(!best||d<best.off)best={st:s[i].st+t*(s[i+1].st-s[i].st),off:d}}
+  if(!best||d<best.off)best={st:s[i].st+t*(s[i+1].st-s[i].st),off:d,r:s[i].r}}
  return best;
 }
-function stationText(r){return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st)}（距中心線${Math.round(r.off)}m）`}
+function stationText(r){return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st,r.r)}（距中心線${Math.round(r.off)}m）`}
 /* EXIF（JPEG）拍攝時間與GPS：同現場紀錄App */
 async function readExif(file){
  try{const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
@@ -749,7 +749,7 @@ function tblHtml(t,word){
 function tblTsv(t){return [t.head,...t.rows,...(t.foot?[t.foot]:[])].map(r=>r.join('\t')).join('\n')}
 function locText(i,kind){
  const ph=[...phGet(S.p[i],kind),...(S.p[i].photos||[])].find(x=>x.lat!=null);if(!ph)return '＿＿＿';
- const ns=nearestStation(ph.lat,ph.lng);return ns&&ns.off<=60?fmtSt(ns.st)+'附近':`（${ph.lat}, ${ph.lng}）`;
+ const ns=nearestStation(ph.lat,ph.lng);return ns&&ns.off<=60?fmtSt(ns.st,ns.r)+'附近':`（${ph.lat}, ${ph.lng}）`;
 }
 function draftCreek(D){
  const out=[],ix=D.cIdx.filter(i=>creekTotal(S.p[i]).n>0);
@@ -836,7 +836,7 @@ async function habDocx(btn){
     if(hasSlope(D))pt.secs.push(['坡地棲地評估',P((own&&($('dS')||{}).value)||draftSlope(D))+T(D.slope)+(memoText(D,'slope')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'slope'),{sz:22}):'')+P('')]);
     if(hasCreek(D))pt.secs.push(['野溪治理工程生態回復追蹤評估',P((own&&($('dC')||{}).value)||draftCreek(D))+T(D.creek)+(memoText(D,'creek')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'creek'),{sz:22}):'')+P('')]);
     ['slope','creek'].forEach(k=>D.cIdx.forEach(i=>phGet(S.p[i],k).forEach(x=>{const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
-     pt.ph.push({k,i,cn:D.cn(i),x,st:ns&&ns.off<=60?'約'+fmtSt(ns.st):''})})));
+     pt.ph.push({k,i,cn:D.cn(i),x,st:ns&&ns.off<=60?'約'+fmtSt(ns.st,ns.r):''})})));
     parts.push(pt)}}
   finally{curCase=keepC;S.p=keepP}
   const title=multi?zoneInfo(zs[0]).base:(cur.name||''),total=parts.reduce((s,p)=>s+p.ph.length,0);
