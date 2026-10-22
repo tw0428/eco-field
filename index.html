@@ -1398,7 +1398,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       sel.onchange=()=>{chkVisit=sel.value;chkEditId=null;chkSort=null;sel.blur();renderChecks()};
       const nb=document.createElement("button");nb.type="button";nb.textContent="＋新增一次現勘";nb.style.cssText="padding:5px 10px;font-size:13px";
       nb.disabled=!vs.some(([k])=>k===rid);nb.onclick=()=>{chkVisit=curCase+"_施工中_"+Date.now().toString(36);chkEditId=null;chkSort=null;renderChecks()};
-      sel.className="grow";nb.style.whiteSpace="nowrap";const vr=document.createElement("div");vr.className="row chkday";vr.append(sel,nb);list.appendChild(vr)}
+      sel.className="grow";nb.style.whiteSpace="nowrap";const vr=document.createElement("div");vr.className="row chkday";const sw=wrapSelect(sel);sw.classList.add("grow");vr.append(sw,nb);list.appendChild(vr)}
     if(!sv){const m=document.createElement("span");m.className="hint";m.textContent="（今天，開始核對時存入）";dr.appendChild(m)}
     list.appendChild(dr)}
   // 有 group（工區）時依群組首次出現順序分組並加標題
