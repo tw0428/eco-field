@@ -248,8 +248,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 /* 樁號欄：右側▾按鈕（透明select蓋在上面，點了直接開手機原生選單） */
 .stkwrap{position:relative}
 .stkwrap input{padding-right:40px}
-.stkbtn{position:absolute;right:1px;top:1px;bottom:1px;width:38px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:18px;border-left:1px solid var(--line);border-radius:0 8px 8px 0;background:var(--surface);pointer-events:none}
-.stkwrap select{position:absolute;right:0;top:0;bottom:0;width:40px;opacity:0;padding:0;border:0;cursor:pointer}
+.stkbtn{position:absolute;right:4px;top:4px;bottom:4px;width:36px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:16px;border:0;border-radius:8px;background:var(--tone,var(--surface));padding:0;cursor:pointer}
+.stkbtn[hidden]{display:none}
 /* 紀錄卡：精簡排版 */
 .rec.compact{flex-direction:row;align-items:flex-start;gap:10px;padding:8px 10px}
 .rec.compact .ph{position:relative;flex:none;display:block;width:76px;height:76px}
@@ -287,7 +287,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 .dayhead .n{font-weight:400;color:var(--muted);font-size:12px}.dayhead button{margin-left:auto}
 .srttools{position:sticky;top:var(--headh,0px);z-index:35;background:var(--bg);padding:6px 0;margin-bottom:6px}
 /* 自訂下拉（選項會換行；選單浮在畫面上不被容器裁掉）：核對事項、平面圖清單用 */
-.wsel{position:relative}.wsel[hidden]{display:none}
+.wsel{position:relative}.wsel[hidden]{display:none}.subrow .wsel{width:auto;flex:none;max-width:100%}.subrow .wsel-btn{width:auto;max-width:100%}
 .wsel-btn{width:100%;text-align:left;white-space:normal;line-height:1.4;padding:8px 30px 8px 10px;position:relative;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;cursor:pointer}
 .wsel-btn::after{content:"▾";position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
 .wsel-btn.ph{color:var(--muted)}
@@ -562,7 +562,7 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
     </div>
 
     <div class="two" id="stkRow">
-      <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><span class="stkbtn" id="stakeArrow" hidden>▾</span><select id="stakeSel" aria-label="從樁號清單選" hidden></select></div><div class="hint" id="stakeHint" hidden></div></div>
+      <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><button type="button" class="stkbtn" id="stakeArrow" aria-label="從樁號清單選" hidden>▾</button></div><div class="hint" id="stakeHint" hidden></div></div>
       <div id="countWrap"><label class="sr" for="countIn">數量</label><input type="text" id="countIn" placeholder="數量（3隻、1株）"></div>
     </div>
     <div id="spWrap"><label class="sr" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="物種／對象（臺灣白魚、胸徑60cm榕樹）"></div>
@@ -1201,8 +1201,8 @@ function renderCases(){
   if(cand){ap.append("工區跨鄉鎮界，選實務上的：");cand.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
     b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區沒存上（"+(e.code||"網路")+"），有訊號時再點一次。",true)}};ap.appendChild(b)})}
   $("areaList").innerHTML="";[...new Set(cases.map(x=>x.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant")).forEach(a=>{const o=document.createElement("option");o.value=a;$("areaList").appendChild(o)});
-  const vals=stakeVals(c),ss=$("stakeSel");fillStakeSel(ss,vals);
-  ss.hidden=$("stakeArrow").hidden=!vals.length;
+  const vals=stakeVals(c);$("stakeArrow").hidden=!vals.length;
+  stakePick($("stakeArrow"),$("stakeIn"),vals,()=>{$("stakeHint").hidden=true});
 }
 // 有設計樁號就只列樁號；沒有樁號的案子（管線、水塔等）才列工區與構造物
 function stakeVals(c){const st=(c&&Array.isArray(c.stakes)?c.stakes:[]).filter(s=>s&&s.st!=null);
@@ -1237,15 +1237,16 @@ function wrapSelect(sel){
       else rows.push({text:ch.textContent,on:ch.value===sel.value,fn:()=>pick(ch)})});popList(b,rows)};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});sync();return w;
 }
+// 樁號▾：點了開浮動清單（跟核對事項選單同一種），選到就填進輸入框
+function stakePick(btn,inp,vals,after){
+  btn.onclick=()=>popList(btn.parentElement,vals.map(v=>({text:v,on:inp.value===v,fn:()=>{inp.value=v;inp.dispatchEvent(new Event("input",{bubbles:true}));if(after)after()}})));
+}
 function stakeField(inp,c){
   const w=document.createElement("div");w.className="stkwrap grow";w.appendChild(inp);
   const vals=stakeVals(c);if(!vals.length)return w;
-  const a=document.createElement("span");a.className="stkbtn";a.textContent="▾";
-  const s=document.createElement("select");s.setAttribute("aria-label","從樁號清單選");fillStakeSel(s,vals);s.dataset.chk="new";
-  s.onchange=()=>{if(s.value)inp.value=s.value;s.value=""};
-  w.append(a,s);return w;
+  const a=document.createElement("button");a.type="button";a.className="stkbtn";a.setAttribute("aria-label","從樁號清單選");a.textContent="▾";
+  stakePick(a,inp,vals);w.append(a);return w;
 }
-$("stakeSel").onchange=e=>{if(e.target.value){$("stakeIn").value=e.target.value;$("stakeHint").hidden=true}e.target.value=""};
 $("caseSel").onchange=e=>{curCase=e.target.value;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()};
 /* ---------- 頁內檢視器：圖片／PDF，可縮放、雙指縮放 ---------- */
 let vZoom=1,vBase=[],vToken=0;
@@ -1955,10 +1956,10 @@ function rvQuick(r){
     const cl=[...(CATS_BY[r.stage||"施工中"]||CATS_BY["施工中"])];if(!cl.includes(qc))cl.unshift(qc);
     cl.forEach(c=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=c;b.setAttribute("aria-pressed",String(c===qc));
       b.onclick=()=>{if(c!==qc){qc=c;qs="";qt=""}drawCat()};cb.appendChild(b)});
-    if(isFM(qc)){const s=document.createElement("select");fillSel(s,"措施種類…",FM_SUBS,qs);s.onchange=()=>{qs=s.value;drawCat()};sb2.appendChild(s)}
+    if(isFM(qc)){const s=document.createElement("select");fillSel(s,"措施種類…",FM_SUBS,qs);s.onchange=()=>{qs=s.value;drawCat()};sb2.appendChild(wrapSelect(s))}
     else if(qc==="棲地影像"){HAB_SUBS.forEach(h=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=h;b.setAttribute("aria-pressed",String(h===qs));
         b.onclick=()=>{qs=qs===h?"":h;if(qs!=="構造物")qt="";drawCat()};sb2.appendChild(b)});
-      if(qs==="構造物"){const s=document.createElement("select");fillSel(s,"構造物種類…",STRUCTS,qt);s.onchange=()=>{qt=s.value;drawCat()};sb2.appendChild(s)}}
+      if(qs==="構造物"){const s=document.createElement("select");fillSel(s,"構造物種類…",STRUCTS,qt);s.onchange=()=>{qt=s.value;drawCat()};sb2.appendChild(wrapSelect(s))}}
     sb2.hidden=!sb2.childNodes.length;
     const showSp=qc==="生態保護對象"||qs==="生態保護對象"||!!sp.value.trim()||!!ct.value.trim();ct.hidden=sp.hidden=!showSp;row.classList.toggle("one",!showSp)};
   // 對應核對事項（同新增紀錄那一欄：依分組列出本案核對清單，可改成「不連結」）
