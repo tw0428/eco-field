@@ -1,9 +1,9 @@
 // 網頁存手機：開啟時直接用手機上的副本（秒開、沒訊號也能開），背景再抓新版；
 // 新版和副本不同時通知頁面顯示「有新版本」提示條。只管兩個網頁本身，GitHub資料與照片另有暫存。
-const CACHE = "eco-pages-v3"; // 改這個檔的邏輯時要升版號
+const CACHE = "eco-pages-v4"; // 改這個檔的邏輯時要升版號（shared.js 的 ECO_PAGES_CACHE 要同名）
 // 離線包：圖磚由頁面「下載離線包」寫進 eco-tiles；地圖/PDF元件（cdnjs，網址含版號不會變）第一次用到就存
 const TILES = "eco-tiles", LIBS = "eco-libs";
-const PAGES = ["index.html", "habitat.html"];
+const PAGES = ["index.html", "habitat.html", "shared.css", "shared.js"]; // 兩個頁面＋兩個頁面共用的樣式與程式
 
 self.addEventListener("install", e => {
   // cache:"reload" 略過瀏覽器HTTP快取，確保存到的是GitHub上最新的
