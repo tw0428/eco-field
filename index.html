@@ -54,7 +54,8 @@ body{margin:0}
   --accent:#6fb592; --accent-fg:#0f1712; --soft:#24352c; --warn:#e2a95a; --warn-soft:#3a2e1d; --danger:#ec8576; color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.5}
 /* 頂端固定實色標題列（同棲地評估）：內容捲上去時藏在它底下，不會跑到狀態列被iOS模糊 */
-.pagehead{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.pagehead{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.pagehead>*{width:100%;max-width:640px;margin-inline:auto;box-sizing:border-box}
 .wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:0 48px;display:flex;flex-direction:column;gap:10px}
 h1{font-size:20px;margin:0;letter-spacing:.02em}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
@@ -482,8 +483,7 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
   <div class="rvbody" id="rvBody"></div>
 </div>
 <label for="camIn" id="fab" class="fab" hidden aria-label="拍照"><i class="ic ic-cam"></i></label>
-<div class="wrap">
-  <div class="pagehead" id="pagehead">
+<div class="pagehead" id="pagehead">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html" id="toHab">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
   <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
@@ -498,7 +498,7 @@ button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale
     <button class="primary" id="caseSaveBtn" type="button">建立</button>
   </div>
   </div>
-
+<div class="wrap">
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
     <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
     <div class="hint" style="color:var(--muted)">金鑰只存在這支手機，用來讀寫私人資料專案 eco-field-data。建立方式見使用說明。</div>
