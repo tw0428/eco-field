@@ -8,6 +8,7 @@
 <link rel="icon" href="icon-field.png">
 <link rel="apple-touch-icon" href="icon-field.png">
 <title>生態現場紀錄</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
 <script>
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -43,7 +44,7 @@ body{margin:0}
 :root{
   --bg:#eef1ee; --surface:#ffffff; --fg:#1d2621; --muted:#5d6b63; --line:#cfd8d2;
   --accent:#2f6b4f; --accent-fg:#ffffff; --soft:#dfeae3; --warn:#9a5b12; --warn-soft:#f6ead8; --danger:#a33a2c;
-  --font:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
