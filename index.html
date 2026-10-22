@@ -341,9 +341,11 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 /* ===== 視覺統一層（兩頁共用的規則：圓角3級、陰影2級、線條圖示、按下回饋、淡入動效） ===== */
 :root{--r-ctl:8px;--r-card:12px;--r-sheet:16px;
   --sh1:0 1px 2px rgba(18,36,28,.10),0 0 0 .5px rgba(18,36,28,.04);--sh2:0 8px 28px rgba(18,36,28,.22);
-  --bg:#e8eeea;--line:#c2cec7;--fg:#141e19;--muted:#4d5d54;--accent:#23654a;--soft:#d9e8df}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--bg:#111714;--surface:#1b241f;--line:#35443c}}
-:root[data-theme="dark"]{--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--bg:#111714;--surface:#1b241f;--line:#35443c}
+  --bg:#ebedee;--line:#c9ced1;--fg:#161a1c;--muted:#525b61;--accent:#23654a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--bg:#121416;--surface:#1c1f22;--line:#393e42;--fg:#e7eaec;--muted:#9ea6ab}}
+:root[data-theme="dark"]{--sh1:0 1px 2px rgba(0,0,0,.45);--sh2:0 8px 28px rgba(0,0,0,.6);--bg:#121416;--surface:#1c1f22;--line:#393e42;--fg:#e7eaec;--muted:#9ea6ab}
+/* 背景用中性灰；淺色底（--soft）從「目前階段的主色」調出來，所以提報藍、設計紫、施工綠各自配得上 */
+body{--soft:color-mix(in srgb,var(--accent) 13%,var(--surface))}
 .ic{display:inline-block;width:1.12em;height:1.12em;vertical-align:-.2em;margin-right:.32em;background:currentColor;-webkit-mask:var(--i) center/contain no-repeat;mask:var(--i) center/contain no-repeat;flex:none}
 .ic:only-child{margin-right:0}
 .ic-cam{--i:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z'/><circle cx='12' cy='13' r='3.2'/></svg>")}
