@@ -1763,7 +1763,7 @@ function rvQuick(r){
   const ns=!r.stake&&r.lat!=null?fillOf(nearestStation(r.lat,r.lng)):"";
   const st=mk("樁號／位置",r.stake||ns),sp=mk("物種／對象",r.species),ct=mk("數量",r.count),nt=mk("說明：現況、建議、待確認事項",r.note,true);
   const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,"★ 寫進意見");
-  const row=document.createElement("div");row.className="two";row.append(st,ct);  // 分類（同新增紀錄：類別鈕＋細項選單／棲地鈕＋構造物選單），依這筆紀錄的階段列類別
+  const row=document.createElement("div");row.className="two";row.append(stakeField(st,cases.find(x=>x.id===r.caseId)),ct);  // 分類（同新增紀錄：類別鈕＋細項選單／棲地鈕＋構造物選單），依這筆紀錄的階段列類別
   let qc=r.category||"其他",qs=r.sub||"",qt=r.struct||"";
   const cb=document.createElement("div"),sb2=document.createElement("div");cb.className="chips";sb2.className="row subrow";
   const drawCat=()=>{cb.innerHTML="";sb2.innerHTML="";
