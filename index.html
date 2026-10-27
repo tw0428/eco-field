@@ -1424,6 +1424,15 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       const gi=items.filter(i=>(i.group||"")===lastG);
       const h=document.createElement("div");h.className="chkgroup";h.textContent=`${lastG||"其他"}（${gi.filter(i=>st[i.id]).length}/${gi.length}）`;
       if(sorting){const g=lastG,gi_=gOrder.indexOf(g);h.appendChild(mvBtns(gi_>0,gi_<gOrder.length-1,d=>mvGrp(g,d)))}
+      else if(c&&lastG){const g=lastG,cnt=h.textContent,rb=document.createElement("button");rb.type="button";rb.className="mini";rb.textContent="✎ 改名";rb.style.marginLeft="8px";
+        rb.onclick=()=>{h.textContent="";const ip=document.createElement("input");ip.type="text";ip.value=g;ip.dataset.chk="grp";ip.style.cssText="flex:1;min-width:0;margin-right:6px";
+          const ok=document.createElement("button");ok.type="button";ok.className="mini primary";ok.textContent="儲存";const cn=document.createElement("button");cn.type="button";cn.className="mini";cn.textContent="取消";cn.style.marginLeft="6px";
+          cn.onclick=()=>{ip.blur();renderChecks()};
+          ok.onclick=async()=>{const nv=ip.value.trim();if(!nv||nv===g){renderChecks();return}ok.disabled=true;ip.blur();
+            const ids=new Set(items.filter(i=>(i.group||"")===g).map(i=>i.id));
+            if(!await saveChecks((c.checks||[]).map(i=>ids.has(i.id)?{...i,group:nv}:i)))ok.disabled=false;renderChecks()};
+          h.style.display="flex";h.style.alignItems="center";h.append(ip,ok,cn);ip.focus()};
+        h.appendChild(rb)}
       dest=document.createElement("div");dest.className="chkgrp";dest.appendChild(h);list.appendChild(dest)}
     const el=document.createElement("div");el.className="chk"+(st[it.id]?" done":"");
     if(chkEditId===it.id){el.appendChild(chkEditForm(c,it,gOrder.filter(Boolean)));dest.appendChild(el);return}
