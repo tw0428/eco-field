@@ -1319,12 +1319,14 @@ $("offSheet").onclick=e=>{if(e.target.id==="offSheet")$("offSheet").hidden=true}
 /* ---------- 階段（每案記在本機，新紀錄帶 stage） ---------- */
 const STAGES=["提報","設計","開工前","施工中","完工"];
 // 本次階段：這支手機選過的優先，其次是案件上存的（別支手機選的），都沒有預設施工中
-function curStage(){return lsGet("eco-stage-"+curCase)||((cases.find(x=>x.id===curCase)||{}).stage)||"施工中"}
+function curStage(){return lsGet("eco-stage-"+curCase)||zoneMates(curCase).map(z=>lsGet("eco-stage-"+z.id)).find(Boolean)||((cases.find(x=>x.id===curCase)||{}).stage)||"施工中"}
 function renderStage(){
   $("stageBox").hidden=!curCase;document.body.dataset.stg=curCase?stgCls(curStage()):"";renderChips();if(!curCase)return;
-  chips($("stageChips"),STAGES.map(s=>[s,s]),curStage,v=>{if(v){lsSet("eco-stage-"+curCase,v);renderStage();renderChecks();
+  chips($("stageChips"),STAGES.map(s=>[s,s]),curStage,v=>{if(v){
+    // 階段是整個案件的：同案所有工區一起換
+    const ids=[...new Set([curCase,...zoneMates(curCase).map(z=>z.id)])];ids.forEach(id=>lsSet("eco-stage-"+id,v));renderStage();renderChecks();
     // 也存到案件上，案件選單「依階段分組」時兩支手機一致；沒訊號存不上就算了，下次再點會補
-    const c=cases.find(x=>x.id===curCase);if(c&&c.stage!==v&&db)db.doc("cases/"+curCase).update({stage:v}).catch(()=>{})}});
+    ids.forEach(id=>{const c=cases.find(x=>x.id===id);if(c&&c.stage!==v&&db)db.doc("cases/"+id).update({stage:v}).catch(()=>{})})}});
 }
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
