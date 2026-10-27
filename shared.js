@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="170b4d6ba4"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="a46e186cba"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v4"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -11,6 +11,9 @@ else{const m=location.hash.match(/[#&]k=([^&]+)/);if(m){try{localStorage.setItem
 // 網頁存手機（sw.js）：有新版時顯示提示條，點了才換新版（避免表單填一半被重新整理）；頁面可設 window.ecoBeforeReload 在重整前先存檔
 if("serviceWorker" in navigator&&location.protocol==="https:"){
   navigator.serviceWorker.onmessage=e=>{if(!e.data||e.data.type!=="update"||document.getElementById("updBar"))return;
+    // 剛打開（8 秒內）、還沒動手輸入：直接換新版，不用再按一次（30 秒內只自動換一次，避免連續重整）
+    try{const t=+sessionStorage.getItem("eco-autoupd")||0,ae=document.activeElement,typing=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&ae.value;
+      if(performance.now()<8000&&!typing&&Date.now()-t>30000){sessionStorage.setItem("eco-autoupd",String(Date.now()));location.reload();return}}catch(_){}
     const b=document.createElement("button");b.id="updBar";b.type="button";b.textContent="有新版本，點這裡更新";
     b.style.cssText="position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99;padding:14px;border-radius:10px;border:0;background:#657359;color:#fff;font:inherit;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3)";
     b.onclick=()=>{Promise.resolve(window.ecoBeforeReload?window.ecoBeforeReload():0).catch(()=>0).finally(()=>location.reload())};document.body.appendChild(b)};
