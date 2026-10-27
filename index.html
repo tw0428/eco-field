@@ -2468,7 +2468,7 @@ function fabUpd(){const r=document.querySelector("#recForm .photobtns").getBound
 addEventListener("scroll",fabUpd,{passive:true});addEventListener("resize",fabUpd);headH();
 
 // 階段沒選過＝畫面上預設的施工中（同curStage），分組也照這個
-makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan?`${c.plan}（${c.planTab||""}）`:"",stage:stageOf(id)||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
+makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan||"",stage:stageOf(id)||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
   stages:STAGES,
   add:async (name,extra)=>{if(!db)throw new Error("未連線");const ref=db.collection("cases").doc();await ref.set({name,createdAt:Date.now(),...(extra||{})});
     if(extra&&extra.stage)lsSet("eco-stage-"+ref.id,extra.stage);
