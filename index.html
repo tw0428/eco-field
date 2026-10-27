@@ -1494,11 +1494,19 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
 }
 /* 現場／會議新增核對事項：存回案件 checks，phase 依目前階段（設計→report、開工前→design、施工中/完工→start；預計提出意見→propose） */
 const chkAddAbcdBy={},chkAddGrpBy={};
-/* 分類選單：清單已有分類時才出現，再按一次取消（＝歸「其他」） */
+/* 分類選單：列出本清單已有的分類＋「＋新分類」（自己打名稱）；再按一次取消（＝歸「其他」）。新增、編輯核對事項都用這個 */
 function grpChips(groups,get,set){
+  const all=[...groups];if(get()&&!all.includes(get()))all.push(get());
   const g=document.createElement("div");g.className="chips";
-  chips(g,groups.map(x=>[x,x]),get,v=>{set(get()===v?"":v);[...g.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(groups[i]===get())))});
-  const w=document.createElement("div");const l=document.createElement("span");l.className="lbl";l.style.margin="0";l.textContent="分類（不選＝其他）";w.append(l,g);return w;
+  const ip=document.createElement("input");ip.type="text";ip.placeholder="新分類名稱";ip.dataset.chk="grp";ip.hidden=true;
+  const mark=()=>[...g.querySelectorAll("[data-v]")].forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===get())));
+  all.forEach(x=>{const b=document.createElement("button");b.type="button";b.className="chip";b.dataset.v=x;b.textContent=x;
+    b.onclick=()=>{set(get()===x?"":x);ip.value="";mark()};g.appendChild(b)});
+  const nb=document.createElement("button");nb.type="button";nb.className="chip";nb.textContent="＋新分類";
+  nb.onclick=()=>{ip.hidden=false;ip.focus()};g.appendChild(nb);
+  ip.oninput=()=>{set(ip.value.trim());mark()};
+  mark();
+  const w=document.createElement("div");const l=document.createElement("span");l.className="lbl";l.style.margin="0";l.textContent="分類（不選＝其他）";w.append(l,g,ip);return w;
 }
 function chkAddForm(c,phase,label,groups=[]){
   const f=document.createElement("div");f.className="chkadd";
@@ -1520,8 +1528,7 @@ function chkAddForm(c,phase,label,groups=[]){
     ok.disabled=false;return null;
   };
   sk.className="";row.append(stakeField(sk,c),ok);
-  if(groups.length&&!groups.includes(chkAddGrpBy[phase]))chkAddGrpBy[phase]="";
-  f.append(h,ab);if(groups.length)f.append(grpChips(groups,()=>chkAddGrpBy[phase]||"",v=>{chkAddGrpBy[phase]=v}));
+  f.append(h,ab,grpChips(groups,()=>chkAddGrpBy[phase]||"",v=>{chkAddGrpBy[phase]=v}));
   f.append(tx,row);return f;
 }
 function chkEditForm(c,it,groups=[]){
@@ -1541,7 +1548,7 @@ function chkEditForm(c,it,groups=[]){
   dx.onclick=async()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
     dx.disabled=true;ok.disabled=true;tx.blur();sk.blur();
     if(await saveChecks((c.checks||[]).filter(i=>i.id!==it.id)))chkEditId=null;else{dx.disabled=false;ok.disabled=false}renderChecks()};
-  row.append(stakeField(sk,c),cn,ok);f.append(ab);if(groups.length)f.append(grpChips(groups,()=>gr_,v=>{gr_=v}));f.append(tx,row,dx);dx.style.alignSelf="flex-end";return f;
+  row.append(stakeField(sk,c),cn,ok);f.append(ab,grpChips(groups,()=>gr_,v=>{gr_=v}),tx,row,dx);dx.style.alignSelf="flex-end";return f;
 }
 async function saveChecks(checks){
   const c=cases.find(x=>x.id===curCase);if(!c||!db)return false;
