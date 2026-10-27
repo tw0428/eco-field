@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="icon-field.png">
+<title>資料管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
+<script src="shared.js"></script>
+<style>
+/* 資料管理（後台）：直接編輯案件檔 cases/<id>.json 裡 Claude 自動建立的內容（基本資料、核對清單、樁號、工區點、圖說、疊圖）。
+   版面元件照抄 index.html，外觀由 shared.css 統一 */
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.5}
+[hidden]{display:none!important}
+.pagehead{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.pagehead>*{width:100%;max-width:640px;margin-inline:auto;box-sizing:border-box}
+.wrap{max-width:640px;margin:0 auto;padding:10px 16px 48px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:20px;margin:0;letter-spacing:.02em}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.status{font-size:13px;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.lbl{font-size:13px;color:var(--muted);display:block;margin-bottom:2px}
+select,input[type=text],input[type=number],input[type=password],textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+textarea{min-height:0;resize:vertical}
+button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:8px 12px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.5}
+.mini{font-size:13px;padding:4px 9px}
+.row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.grow{flex:1}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{padding:5px 12px;font-size:14px;border-radius:999px}
+.tab.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.hint{font-size:13px;color:var(--muted)}
+.item{border:1px solid var(--hair);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--glass)}
+.item.del{opacity:.45}
+.item .row select{width:auto}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kv{display:grid;grid-template-columns:5.5em 1fr;gap:6px 8px;align-items:center}
+.kv label{font-size:14px;color:var(--muted)}
+.mv{display:flex;gap:2px;margin-left:auto}.mv button{padding:2px 8px;font-size:13px}
+.stk{display:grid;grid-template-columns:4.2em 7.5em 1fr auto;gap:4px 6px;align-items:center;font-size:14px}
+.stk input{padding:4px 7px;font-size:14px}
+.stk .h{font-size:12px;color:var(--muted)}
+.dirty{color:var(--warn);font-weight:600}
+#saveBar{display:flex;gap:8px;align-items:center}
+</style>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="pagehead">
+  <div class="top"><h1>資料管理</h1><span class="status"><a href="index.html">現場紀錄</a>｜<a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
+  <div class="row"><select id="caseSel" class="grow"></select></div>
+  <div id="saveBar"><button type="button" class="primary" id="saveBtn" disabled>儲存</button><button type="button" id="undoBtn" disabled>放棄修改</button><span class="hint" id="saveMsg"></span></div>
+</div>
+<div class="wrap">
+  <div class="panel" id="tokBox" hidden><span class="lbl">這支裝置還沒設定金鑰：先到「現場紀錄」頁設定，或用同事分享的連結開一次。</span></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="panel" id="body"></div>
+  <p class="hint">這裡改的是案件檔本身（Claude 建立的內容）；紀錄、照片、核對結果不在這裡。改完按上方「儲存」才會寫回。刪除圖說／疊圖只是從案件拿掉，圖檔本身不會刪。</p>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function lsGet(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+const el=(t,p={},...k)=>{const e=document.createElement(t);Object.assign(e,p);e.append(...k);return e};
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+/* ---------- GitHub（同 index.html 的讀寫方式：讀最新＋sha，寫回時帶 sha） ---------- */
+const GH_OWNER=/\.github\.io$/.test(location.hostname)?location.hostname.split(".")[0]:"tw0428";
+const GH_API=`https://api.github.com/repos/${GH_OWNER}/eco-field-data/contents/`;
+const ghToken=lsGet("gh-token");
+async function gh(path,opt={}){
+  const r=await fetch(GH_API+path.split("/").map(encodeURIComponent).join("/"),{cache:"no-store",...opt,
+    headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",...(opt.headers||{})}});
+  if(r.status===404)return null;if(!r.ok){const e=new Error("GitHub "+r.status);e.code=r.status;throw e}return r;
+}
+const b64e=s=>{const b=new TextEncoder().encode(s);let x="";for(let i=0;i<b.length;i+=0x8000)x+=String.fromCharCode(...b.subarray(i,i+0x8000));return btoa(x)};
+const b64d=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g,"")),c=>c.charCodeAt(0)));
+async function getJson(path){const r=await gh(path);if(!r)return {data:null,sha:null};const j=await r.json();return {data:JSON.parse(b64d(j.content)),sha:j.sha}}
+async function putJson(path,data,sha){return gh(path,{method:"PUT",body:JSON.stringify({message:"admin "+path,content:b64e(JSON.stringify(data,null,1)),...(sha?{sha}:{})})})}
+
+/* ---------- 狀態：cases＝全部案件（給選單與工區）；doc＝編輯中的副本；orig＝載入時的原樣（存檔時只寫有改的欄位） ---------- */
+let cases=[],curCase="",doc=null,orig=null,tab=lsGet("eco-admin-tab")||"checks";
+const KEYS=["name","group","zone","area","plan","planTab","stage","checks","stakes","sites","plans","overlays"];
+const SHARED=["stakes","plans","overlays"]; // 多工區案：每份文件地圖內容相同
+// 空字串、空陣列＝沒有（畫面打開某分頁會先建空陣列，不算修改）
+const norm=v=>v==null||v===""||(Array.isArray(v)&&!v.length)?null:v;
+const same=(a,b)=>JSON.stringify(norm(a))===JSON.stringify(norm(b));
+const dirtyKeys=()=>doc?KEYS.filter(k=>!same(doc[k],orig[k])):[];
+function markDirty(){const d=dirtyKeys();$("saveBtn").disabled=!d.length;$("undoBtn").disabled=!d.length;
+  $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存的修改":""}
+window.addEventListener("beforeunload",e=>{if(dirtyKeys().length){e.preventDefault();e.returnValue=""}});
+
+async function loadCases(){
+  $("conn").textContent="讀取中…";
+  const r=await gh("cases");const list=r?await r.json():[];
+  const all=await Promise.all(list.filter(f=>f.name.endsWith(".json")).map(async f=>{const {data}=await getJson("cases/"+f.name);return data?{...data,id:f.name.slice(0,-5)}:null}));
+  cases=all.filter(Boolean).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  $("conn").textContent="已連線";
+}
+function fillSel(){
+  const s=$("caseSel");s.innerHTML="";
+  const live=cases.filter(c=>!c.trashedAt),tr=cases.filter(c=>c.trashedAt);
+  live.forEach(c=>s.appendChild(el("option",{value:c.id,textContent:c.name||c.id})));
+  if(tr.length){const g=el("optgroup",{label:"垃圾桶"});tr.forEach(c=>g.appendChild(el("option",{value:c.id,textContent:c.name||c.id})));s.appendChild(g)}
+  if(!cases.some(c=>c.id===curCase))curCase=(cases.find(c=>c.id===lsGet("eco-case"))||live[0]||{}).id||"";
+  s.value=curCase;
+}
+async function openCase(id){
+  curCase=id;if(!id){doc=orig=null;render();return}
+  $("conn").textContent="讀取中…";
+  const {data}=await getJson("cases/"+id);orig=clone(data||{});doc=clone(orig);
+  const i=cases.findIndex(c=>c.id===id);if(i>=0)cases[i]={...orig,id};
+  $("conn").textContent="已連線";render();markDirty();
+}
+
+/* ---------- 存檔：讀最新版；有改的欄位若在別處也被改過（手機App）就停下，避免互蓋 ---------- */
+async function save(){
+  const d=dirtyKeys();if(!d.length)return;
+  const b=$("saveBtn");b.disabled=true;$("saveMsg").textContent="儲存中…";
+  try{
+    const {data:cur,sha}=await getJson("cases/"+curCase);if(!cur)throw new Error("案件檔不見了");
+    const clash=d.filter(k=>!same(cur[k],orig[k]));
+    if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」剛在別處被改過（可能是手機App）。先按「放棄修改」重新載入再改，避免蓋掉。`;b.disabled=false;return}
+    const next={...cur};d.forEach(k=>{if(norm(doc[k])==null)delete next[k];else next[k]=doc[k]});
+    await putJson("cases/"+curCase,next,sha);
+    // 同案其他工區：樁號、圖說、疊圖一起改（勾選時）
+    const sync=$("syncChk")&&$("syncChk").checked?d.filter(k=>SHARED.includes(k)):[];
+    let n=0;for(const m of mates().filter(c=>c.id!==curCase)){if(!sync.length)break;
+      const {data:o,sha:s}=await getJson("cases/"+m.id);if(!o)continue;const nx={...o};sync.forEach(k=>{nx[k]=doc[k]});await putJson("cases/"+m.id,nx,s);n++}
+    orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===curCase);if(i>=0)cases[i]={...next,id:curCase};
+    if(d.includes("name"))fillSel();
+    render();markDirty();$("saveMsg").textContent="已儲存"+(n?`（同步 ${n} 個工區）`:"")+"。回現場紀錄按 ↻ 會看到。";
+  }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改還在畫面上，再按一次。";b.disabled=false}
+}
+function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return [];return cases.filter(x=>x.group===c.group&&!x.trashedAt)}
+
+/* ---------- 畫面 ---------- */
+const TABS=[["basic","基本資料"],["checks","核對清單"],["stakes","樁號"],["sites","工區點"],["plans","圖說"],["overlays","疊圖"]];
+const lab=k=>({name:"案名",group:"群組",zone:"工區",area:"地區",plan:"計畫編號",planTab:"總表分頁",stage:"階段",checks:"核對清單",stakes:"樁號",sites:"工區點",plans:"圖說",overlays:"疊圖"})[k]||k;
+const PHASES=[["report","提審意見（設計階段核對）"],["design","設計意見（開工前／施工核對）"],["start","開工意見（施工核對）"],["propose","預計提出意見"],["improve","改善意見"]];
+const STAGES=["","提報","設計","開工前","施工中","完工"];
+const ABCD=[["","—"],["A","A 迴避"],["B","B 縮小"],["C","C 減輕"],["D","D 補償"]];
+function render(){
+  const t=$("tabs");t.innerHTML="";
+  TABS.forEach(([k,l])=>{const n=doc&&Array.isArray(doc[k])?`（${doc[k].length}）`:"";
+    const b=el("button",{type:"button",className:"tab"+(tab===k?" on":""),textContent:l+n});b.onclick=()=>{tab=k;lsSet("eco-admin-tab",k);render()};t.appendChild(b)});
+  const B=$("body");B.innerHTML="";if(!doc){B.textContent="沒有案件";return}
+  if(SHARED.includes(tab)&&mates().length>1){const w=el("label",{className:"hint"});const cb=el("input",{type:"checkbox",id:"syncChk",checked:lsGet("eco-admin-sync")!=="0"});
+    cb.onchange=()=>lsSet("eco-admin-sync",cb.checked?"1":"0");w.append(cb,` 樁號、圖說、疊圖的修改同步到同案其他 ${mates().length-1} 個工區（各工區共用同一張地圖）`);B.appendChild(w)}
+  ({basic,checks,stakes,sites,plans,overlays})[tab](B);
+}
+const inp=(v,on,ph="")=>{const i=el("input",{type:"text",value:v??"",placeholder:ph});i.oninput=()=>{on(i.value);markDirty()};return i};
+const area=(v,on,ph="")=>{const t=el("textarea",{value:v??"",placeholder:ph,rows:2});const fit=()=>{t.style.height="auto";t.style.height=t.scrollHeight+2+"px"};t.oninput=()=>{on(t.value);fit();markDirty()};requestAnimationFrame(fit);return t};
+const sel=(opts,v,on)=>{const s=el("select");opts.forEach(([k,l])=>s.appendChild(el("option",{value:k,textContent:l})));s.value=v||"";s.onchange=()=>{on(s.value);markDirty()};return s};
+// 陣列項目共用的 ▲▼／刪除
+function mvDel(arr,i,after){const w=el("span",{className:"mv"});
+  const mk=(t,f,en=true)=>{const b=el("button",{type:"button",textContent:t,disabled:!en});b.onclick=()=>{f();markDirty();render()};w.appendChild(b)};
+  mk("▲",()=>{[arr[i-1],arr[i]]=[arr[i],arr[i-1]]},i>0);mk("▼",()=>{[arr[i+1],arr[i]]=[arr[i],arr[i+1]]},i<arr.length-1);
+  const d=el("button",{type:"button",className:"danger",textContent:"刪除"});
+  d.onclick=()=>{if(d.dataset.a!=="1"){d.dataset.a="1";d.textContent="再按一次";setTimeout(()=>{d.dataset.a="";d.textContent="刪除"},3000);return}arr.splice(i,1);if(after)after();markDirty();render()};
+  w.appendChild(d);return w}
+
+function basic(B){
+  const g=el("div",{className:"kv"});
+  [["name","案名"],["group","群組（工程全名）"],["zone","工區"],["area","地區"],["plan","計畫編號"],["planTab","總表分頁"]].forEach(([k,l])=>{g.append(el("label",{textContent:l}),inp(doc[k],v=>{doc[k]=v.trim()?v:undefined}))});
+  g.append(el("label",{textContent:"階段"}),sel(STAGES.map(s=>[s,s||"（未設定）"]),doc.stage,v=>{doc.stage=v||undefined}));
+  B.append(g,el("p",{className:"hint",textContent:"多工區案：「群組」相同的會合併成一案，「工區」是切換鈕上的名稱。改案名請保留「（工區X）」結尾。"}));
+}
+function checks(B){
+  const a=doc.checks=doc.checks||[];
+  const groups=[...new Set(a.map(i=>i.group).filter(Boolean))],dl=el("datalist",{id:"grpList"});groups.forEach(g=>dl.appendChild(el("option",{value:g})));B.appendChild(dl);
+  B.appendChild(el("p",{className:"hint",textContent:"分類可直接打新名稱；同名的會排在一起（依第一次出現的位置）。階段決定在App哪個階段出現。"}));
+  a.forEach((it,i)=>{const c=el("div",{className:"item"});
+    const r1=el("div",{className:"row"});
+    r1.append(sel(PHASES,it.phase,v=>{it.phase=v}),sel(ABCD,it.abcd,v=>{it.abcd=v}),mvDel(a,i));
+    const g=inp(it.group,v=>{if(v.trim())it.group=v.trim();else delete it.group},"分類（空白＝其他）");g.setAttribute("list","grpList");
+    const f2=el("div",{className:"f2"});f2.append(inp(it.stake,v=>{it.stake=v},"樁號"),inp(it.src,v=>{it.src=v},"來源（例：開工表11-3）"));
+    c.append(r1,g,area(it.text,v=>{it.text=v},"內容"),f2);
+    if(it.fig!=null)c.append(inp(it.fig,v=>{it.fig=v},"圖面現況"));
+    B.appendChild(c)});
+  const ad=el("button",{type:"button",textContent:"＋新增一項"});
+  ad.onclick=()=>{a.push({id:"u"+Date.now().toString(36),abcd:"",text:"",stake:"",src:"",phase:(a[a.length-1]||{}).phase||"design",...(groups.length?{group:(a[a.length-1]||{}).group}:{})});markDirty();render();
+    requestAnimationFrame(()=>{const t=[...B.querySelectorAll("textarea")].pop();if(t){t.scrollIntoView({block:"center"});t.focus()}})};
+  B.appendChild(ad);
+}
+function stakes(B){
+  const a=doc.stakes=doc.stakes||[];
+  B.appendChild(el("p",{className:"hint",textContent:"座標與樁號數值由設計圖算出，這裡只改路線名與註記（構造物名稱），或刪掉不要的點。"}));
+  const g=el("div",{className:"stk"});["路線","樁號","註記",""].forEach(h=>g.appendChild(el("span",{className:"h",textContent:h})));
+  a.forEach((s,i)=>{const d=el("button",{type:"button",className:"mini danger",textContent:"✕"});
+    d.onclick=()=>{a.splice(i,1);markDirty();render()};
+    g.append(inp(s.r,v=>{if(v.trim())s.r=v.trim();else delete s.r}),el("span",{textContent:s.label||s.st}),inp(s.note,v=>{s.note=v}),d)});
+  B.appendChild(g);
+}
+function sites(B){
+  const a=doc.sites=doc.sites||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"這案沒有工區點（沒有樁號的工程才用）。"}));return}
+  a.forEach((s,i)=>{const c=el("div",{className:"item"});
+    c.append(el("div",{className:"row"},inp(s.label,v=>{s.label=v},"名稱"),mvDel(a,i)),inp(s.note,v=>{s.note=v},"註記"),
+      area((s.parts||[]).join("、"),v=>{s.parts=v.split(/[、\n]/).map(x=>x.trim()).filter(Boolean)},"樁號欄下拉的構造物，用「、」隔開"));
+    B.appendChild(c)});
+}
+function plans(B){
+  const a=doc.plans=doc.plans||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"沒有圖說。"}));return}
+  a.forEach((p,i)=>{const c=el("div",{className:"item"});c.append(el("div",{className:"row"},inp(p.title,v=>{p.title=v},"標題"),mvDel(a,i)));B.appendChild(c)});
+}
+function overlays(B){
+  const a=doc.overlays=doc.overlays||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"沒有疊圖。"}));return}
+  a.forEach((p,i)=>{const c=el("div",{className:"item"});c.append(el("div",{className:"row"},inp(p.title,v=>{p.title=v},"標題"),mvDel(a,i)));B.appendChild(c)});
+}
+
+/* ---------- 啟動 ---------- */
+$("caseSel").onchange=async e=>{if(dirtyKeys().length&&!confirm("這案有未儲存的修改，要放棄嗎？")){e.target.value=curCase;return}await openCase(e.target.value)};
+$("saveBtn").onclick=save;
+$("undoBtn").onclick=()=>{if(confirm("放棄這案所有未儲存的修改？"))openCase(curCase)};
+$("reloadBtn").onclick=async e=>{e.preventDefault();if(dirtyKeys().length&&!confirm("有未儲存的修改，重新載入會放棄，確定？"))return;if(await appUpd()){location.reload();return}start()};
+async function start(){
+  if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
+  try{await loadCases();fillSel();if(!$("caseSel").classList.contains("wsrc"))$("caseSel").after(wrapSelect($("caseSel"),1));await openCase(curCase)}
+  catch(e){$("conn").textContent="讀取失敗（"+(e.code||e.message)+"）"}
+}
+let started=false;document.addEventListener("DOMContentLoaded",()=>{if(!started){started=true;start()}});
+</script>
+</body>
+</html>
