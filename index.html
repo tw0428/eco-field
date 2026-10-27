@@ -1324,7 +1324,13 @@ const stageOf=id=>{const c=cases.find(x=>x.id===id)||{},l=lsGet("eco-stage-"+id)
 function curStage(){const ids=[curCase,...zoneMates(curCase).map(z=>z.id)];
   for(const id of ids){const s=stageOf(id);if(s)return s}
   const last=records.filter(r=>ids.includes(r.caseId)&&r.stage).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
-  return (last&&last.stage)||"施工中"}
+  if(last)return last.stage;
+  // 沒存過階段也沒紀錄：看核對清單有哪些意見（只有預計提出意見＝設計；有開工意見或改善意見＝施工中；只有設計意見＝開工前）
+  const ph=new Set(cases.filter(c=>ids.includes(c.id)).flatMap(c=>(c.checks||[]).map(i=>i.phase)));
+  if(ph.has("start")||ph.has("improve"))return "施工中";
+  if(ph.has("design"))return "開工前";
+  if(ph.has("propose")||ph.has("report"))return "設計";
+  return "施工中"}
 function syncStage(id,v){const c=cases.find(x=>x.id===id);if(!c||!db)return;
   if(c.stage===v){lsSet("eco-stage-dirty-"+id,"");return}
   if(stgBusy.has(id))return;stgBusy.add(id);
