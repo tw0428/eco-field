@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="bb44277222"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="dec4d69c7c"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v4"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -133,7 +133,7 @@ function makePicker(sel,recentKey,metaOf,ops){
         if(!addOpen){li.textContent="＋ 新增案件";li.onclick=()=>{addOpen=true;draw()}}
         else{const inp=document.createElement("input");inp.type="text";inp.placeholder="輸入案件名稱";inp.value=addVal;inp.oninput=()=>{addVal=inp.value};
           // 計畫編號（可空白，格式同總表分頁：115-B (25116)）；有 ops.stages 時再多一排階段（不選＝依清單內容判斷）
-          const pin=document.createElement("input");pin.type="text";pin.placeholder="計畫編號（可空白，例：115-B (25116)）";pin.value=addPlan;pin.oninput=()=>{addPlan=pin.value};
+          const pin=document.createElement("input");pin.type="text";pin.placeholder="計畫編號（總表分頁），可空白，例：25116 (115-B)";pin.value=addPlan;pin.oninput=()=>{addPlan=pin.value};
           li.style.flexWrap="wrap";inp.style.flex="1 1 100%";pin.style.flex="1 1 100%";li.append(inp,pin);
           if(ops.stages){const row=document.createElement("div");row.className="chips";row.style.flex="1 1 100%";
             ops.stages.forEach(s=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=s;b.setAttribute("aria-pressed",String(addStage===s));
@@ -141,8 +141,9 @@ function makePicker(sel,recentKey,metaOf,ops){
           const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="建立";
           const cc=document.createElement("button");cc.type="button";cc.textContent="取消";cc.onclick=()=>{addOpen=false;addVal="";addPlan="";addStage="";draw()};
           const go=async()=>{const n=inp.value.trim();if(!n){inp.focus();return}ok.disabled=true;ok.textContent="建立中…";
+            // 計畫編號＝純數字（25116）；總表分頁＝其餘（115-B）。兩種寫法都認：25116 (115-B)、115-B (25116)，順序不拘
             const m=/^(.*?)\s*[（(]\s*(.*?)\s*[）)]\s*$/.exec(addPlan.trim()),extra={};
-            if(addPlan.trim()){extra.plan=m?m[1].trim():addPlan.trim();if(m&&m[2])extra.planTab=m[2].trim()}
+            (m?[m[1],m[2]]:[addPlan]).map(x=>x.trim()).filter(Boolean).forEach(x=>{if(/^\d{4,6}$/.test(x))extra.plan=x;else extra.planTab=x});
             if(addStage)extra.stage=addStage;
             try{await ops.add(n,extra);addVal=addPlan="";addStage="";close()}catch(e){ok.disabled=false;ok.textContent="失敗，再按一次"}};
           ok.onclick=go;inp.onkeydown=pin.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();go()}};li.append(ok,cc);setTimeout(()=>inp.focus(),0)}
