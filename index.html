@@ -1006,7 +1006,7 @@ function renderCases(){
     info.textContent=rs.length?`已載入設計樁號（${rs.join("、")}），照片有GPS會自動推估樁號`:`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
-  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);
+  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);flushStages();
   // 地區：使用者自己填（不從案名推測），候選＝其他案件已填過的地區
   $("areaRow").hidden=!c;if(c&&document.activeElement!==$("areaIn"))$("areaIn").value=c.area||"";
   // 座標跨兩個以上鄉鎮（溪流是界線）：列出候選，點一下就存
@@ -1318,15 +1318,27 @@ $("offSheet").onclick=e=>{if(e.target.id==="offSheet")$("offSheet").hidden=true}
 
 /* ---------- 階段（每案記在本機，新紀錄帶 stage） ---------- */
 const STAGES=["提報","設計","開工前","施工中","完工"];
-// 本次階段：這支手機選過的優先，其次是案件上存的（別支手機選的），都沒有預設施工中
-function curStage(){return lsGet("eco-stage-"+curCase)||zoneMates(curCase).map(z=>lsGet("eco-stage-"+z.id)).find(Boolean)||((cases.find(x=>x.id===curCase)||{}).stage)||"施工中"}
+// 階段以案件檔上存的為準（每次選都會存上去，不會因手機清掉暫存而變回預設）；只有「剛選、還沒存上去」（dirty）時以手機上的為準。
+// 同案各工區共用；都沒存過時，看這案最近一筆紀錄的階段，再沒有才預設施工中
+const stageOf=id=>{const c=cases.find(x=>x.id===id)||{},l=lsGet("eco-stage-"+id);return (lsGet("eco-stage-dirty-"+id)&&l)||c.stage||l||""};
+function curStage(){const ids=[curCase,...zoneMates(curCase).map(z=>z.id)];
+  for(const id of ids){const s=stageOf(id);if(s)return s}
+  const last=records.filter(r=>ids.includes(r.caseId)&&r.stage).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+  return (last&&last.stage)||"施工中"}
+function syncStage(id,v){const c=cases.find(x=>x.id===id);if(!c||!db)return;
+  if(c.stage===v){lsSet("eco-stage-dirty-"+id,"");return}
+  if(stgBusy.has(id))return;stgBusy.add(id);
+  db.doc("cases/"+id).update({stage:v}).then(()=>lsSet("eco-stage-dirty-"+id,"")).catch(()=>{}).finally(()=>stgBusy.delete(id))}
+const stgBusy=new Set();
+// 開啟／連線後把上次沒存上去的階段補存
+function flushStages(){cases.forEach(c=>{if(lsGet("eco-stage-dirty-"+c.id)){const v=lsGet("eco-stage-"+c.id);if(v)syncStage(c.id,v);else lsSet("eco-stage-dirty-"+c.id,"")}})}
 function renderStage(){
   $("stageBox").hidden=!curCase;document.body.dataset.stg=curCase?stgCls(curStage()):"";renderChips();if(!curCase)return;
   chips($("stageChips"),STAGES.map(s=>[s,s]),curStage,v=>{if(v){
     // 階段是整個案件的：同案所有工區一起換
-    const ids=[...new Set([curCase,...zoneMates(curCase).map(z=>z.id)])];ids.forEach(id=>lsSet("eco-stage-"+id,v));renderStage();renderChecks();
-    // 也存到案件上，案件選單「依階段分組」時兩支手機一致；沒訊號存不上就算了，下次再點會補
-    ids.forEach(id=>{const c=cases.find(x=>x.id===id);if(c&&c.stage!==v&&db)db.doc("cases/"+id).update({stage:v}).catch(()=>{})})}});
+    const ids=[...new Set([curCase,...zoneMates(curCase).map(z=>z.id)])];ids.forEach(id=>{lsSet("eco-stage-"+id,v);lsSet("eco-stage-dirty-"+id,"1")});renderStage();renderChecks();
+    // 存到案件上（兩支手機一致、清掉手機暫存也不會跑掉）；沒訊號存不上時 dirty 留著，先以手機上的為準，下次開啟補存
+    ids.forEach(id=>syncStage(id,v))}});
 }
 
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
@@ -2450,7 +2462,7 @@ function fabUpd(){const r=document.querySelector("#recForm .photobtns").getBound
 addEventListener("scroll",fabUpd,{passive:true});addEventListener("resize",fabUpd);headH();
 
 // 階段沒選過＝畫面上預設的施工中（同curStage），分組也照這個
-makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan?`${c.plan}（${c.planTab||""}）`:"",stage:lsGet("eco-stage-"+id)||c.stage||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
+makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan?`${c.plan}（${c.planTab||""}）`:"",stage:stageOf(id)||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
   add:async name=>{if(!db)throw new Error("未連線");const ref=db.collection("cases").doc();await ref.set({name,createdAt:Date.now()});
     curCase=ref.id;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()},
   trash:async id=>{await db.doc("cases/"+id).update({trashedAt:Date.now()});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=Date.now();
