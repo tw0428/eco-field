@@ -1,13 +1,13 @@
 // 網頁存手機：開啟時直接用手機上的副本（秒開、沒訊號也能開），背景再抓新版；
 // 新版和副本不同時通知頁面顯示「有新版本」提示條。只管兩個網頁本身，GitHub資料與照片另有暫存。
-const CACHE = "eco-pages-v4"; // 改這個檔的邏輯時要升版號（shared.js 的 ECO_PAGES_CACHE 要同名）
+const CACHE = "eco-pages-v5"; // 改這個檔的邏輯時要升版號（shared.js 的 ECO_PAGES_CACHE 要同名）
 // 離線包：圖磚由頁面「下載離線包」寫進 eco-tiles；地圖/PDF元件（cdnjs，網址含版號不會變）第一次用到就存
 const TILES = "eco-tiles", LIBS = "eco-libs";
 const PAGES = ["index.html", "habitat.html", "shared.css", "shared.js"]; // 兩個頁面＋兩個頁面共用的樣式與程式
 
 self.addEventListener("install", e => {
-  // cache:"reload" 略過瀏覽器HTTP快取，確保存到的是GitHub上最新的
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PAGES.map(p => new Request(p, { cache: "reload" })))));
+  // 網址加參數：GitHub Pages 的 CDN 對同一網址的舊副本會留約 10 分鐘（no-store 只管瀏覽器、管不到 CDN），加參數才抓得到剛上傳的新版
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(PAGES.map(async p => { const r = await fetch(p + "?swbust=" + Date.now(), { cache: "no-store" }); if (r.ok) await c.put(p, r); }))));
   self.skipWaiting();
 });
 self.addEventListener("activate", e => {
@@ -56,7 +56,7 @@ self.addEventListener("fetch", e => {
     const hit = await cache.match(page);
     // 舊副本的內容要在交給頁面之前先讀出來（交出去後body會被頁面讀走，不能再讀）
     const old = hit ? await hit.clone().text() : null;
-    const update = fetch(page, { cache: "no-store" }).then(async res => {
+    const update = fetch(page + "?swbust=" + Date.now(), { cache: "no-store" }).then(async res => {
       if (!res.ok) return res;
       const fresh = await res.clone().text();
       await cache.put(page, res.clone());
