@@ -84,7 +84,7 @@ async function putJson(path,data,sha){return gh(path,{method:"PUT",body:JSON.str
 
 /* ---------- 狀態：cases＝全部案件（給選單與工區）；doc＝編輯中的副本；orig＝載入時的原樣（存檔時只寫有改的欄位） ---------- */
 let cases=[],curCase="",doc=null,orig=null,tab=lsGet("eco-admin-tab")||"checks";
-const KEYS=["name","group","zone","area","plan","planTab","stage","checks","stakes","sites","plans","overlays"];
+const KEYS=["name","group","zone","area","plan","stage","checks","stakes","sites","plans","overlays"];
 const SHARED=["stakes","plans","overlays"]; // 多工區案：每份文件地圖內容相同
 // 空字串、空陣列＝沒有（畫面打開某分頁會先建空陣列，不算修改）
 const norm=v=>v==null||v===""||(Array.isArray(v)&&!v.length)?null:v;
@@ -141,7 +141,7 @@ function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return []
 
 /* ---------- 畫面 ---------- */
 const TABS=[["basic","基本資料"],["checks","核對清單"],["stakes","樁號"],["sites","工區點"],["plans","圖說"],["overlays","疊圖"]];
-const lab=k=>({name:"案名",group:"群組",zone:"工區",area:"地區",plan:"計畫編號",planTab:"總表分頁",stage:"階段",checks:"核對清單",stakes:"樁號",sites:"工區點",plans:"圖說",overlays:"疊圖"})[k]||k;
+const lab=k=>({name:"案名",group:"群組",zone:"工區",area:"地區",plan:"計畫編號",stage:"階段",checks:"核對清單",stakes:"樁號",sites:"工區點",plans:"圖說",overlays:"疊圖"})[k]||k;
 const PHASES=[["report","提審意見"],["design","設計意見"],["start","開工意見"],["propose","預計提出意見"],["improve","改善意見"]];
 const STAGES=["","提報","設計","開工前","施工中","完工"];
 const ABCD=[["","—"],["A","A 迴避"],["B","B 縮小"],["C","C 減輕"],["D","D 補償"]];
@@ -167,7 +167,7 @@ function mvDel(arr,i,after){const w=el("span",{className:"mv"});
 
 function basic(B){
   const g=el("div",{className:"kv"});
-  [["name","案名"],["group","群組（工程全名）"],["zone","工區"],["area","地區"],["plan","計畫編號"],["planTab","總表分頁"]].forEach(([k,l])=>{g.append(el("label",{textContent:l}),inp(doc[k],v=>{doc[k]=v.trim()?v:undefined}))});
+  [["name","案名"],["group","群組（工程全名）"],["zone","工區"],["area","地區"],["plan","計畫編號"]].forEach(([k,l])=>{g.append(el("label",{textContent:l}),inp(doc[k],v=>{doc[k]=v.trim()?v:undefined}))});
   g.append(el("label",{textContent:"階段"}),sel(STAGES.map(s=>[s,s||"（未設定）"]),doc.stage,v=>{doc.stage=v||undefined}));
   B.append(g,el("p",{className:"hint",textContent:"多工區案：「群組」相同的會合併成一案，「工區」是切換鈕上的名稱。改案名請保留「（工區X）」結尾。"}));
 }
