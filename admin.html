@@ -53,7 +53,7 @@ button:disabled{opacity:.5}
 <div class="pagehead">
   <div class="top"><h1>資料管理</h1><span class="status"><a href="index.html">現場紀錄</a>｜<a href="habitat.html">棲地評估</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
   <div class="row"><select id="caseSel" class="grow"></select></div>
-  <div id="saveBar"><button type="button" class="primary" id="saveBtn" disabled>儲存</button><button type="button" id="undoBtn" disabled>放棄修改</button><span class="hint" id="saveMsg"></span></div>
+  <div id="saveBar" hidden><button type="button" class="primary" id="saveBtn">儲存</button><button type="button" id="undoBtn">放棄修改</button><span class="hint" id="saveMsg"></span></div>
 </div>
 <div class="wrap">
   <div class="panel" id="tokBox" hidden><span class="lbl">這支裝置還沒設定金鑰：先到「現場紀錄」頁設定，或用同事分享的連結開一次。</span></div>
@@ -90,8 +90,9 @@ const SHARED=["stakes","plans","overlays"]; // 多工區案：每份文件地圖
 const norm=v=>v==null||v===""||(Array.isArray(v)&&!v.length)?null:v;
 const same=(a,b)=>JSON.stringify(norm(a))===JSON.stringify(norm(b));
 const dirtyKeys=()=>doc?KEYS.filter(k=>!same(doc[k],orig[k])):[];
-function markDirty(){const d=dirtyKeys();$("saveBtn").disabled=!d.length;$("undoBtn").disabled=!d.length;
-  $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存的修改":""}
+// 沒有修改時整列收起來；有修改才出現「儲存／放棄修改」
+function markDirty(){const d=dirtyKeys();$("saveBtn").disabled=!d.length;$("undoBtn").hidden=$("saveBtn").hidden=!d.length;
+  $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存的修改":"";$("saveBar").hidden=!d.length}
 window.addEventListener("beforeunload",e=>{if(dirtyKeys().length){e.preventDefault();e.returnValue=""}});
 
 async function loadCases(){
@@ -133,7 +134,7 @@ async function save(){
       const {data:o,sha:s}=await getJson("cases/"+m.id+".json");if(!o)continue;const nx={...o};sync.forEach(k=>{nx[k]=doc[k]});await putJson("cases/"+m.id+".json",nx,s);n++}
     orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===curCase);if(i>=0)cases[i]={...next,id:curCase};
     if(d.includes("name"))fillSel();
-    render();markDirty();$("saveMsg").textContent="已儲存"+(n?`（同步 ${n} 個工區）`:"")+"。回現場紀錄按 ↻ 會看到。";
+    render();markDirty();$("saveBar").hidden=false;$("saveMsg").textContent="已儲存"+(n?`（同步 ${n} 個工區）`:"")+"。回現場紀錄按 ↻ 會看到。";
   }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改還在畫面上，再按一次。";b.disabled=false}
 }
 function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return [];return cases.filter(x=>x.group===c.group&&!x.trashedAt)}
