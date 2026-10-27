@@ -43,7 +43,9 @@ button:disabled{opacity:.5}
 .stk input{padding:4px 7px;font-size:14px}
 .stk .h{font-size:12px;color:var(--muted)}
 .dirty{color:var(--warn);font-weight:600}
-#saveBar{display:flex;gap:8px;align-items:center}
+#saveBar{display:flex;gap:8px;align-items:center}#saveBar button{flex:none;white-space:nowrap;padding:6px 14px}#saveBar .hint{flex:1;min-width:0;line-height:1.35}
+.item .row{flex-wrap:wrap}.item .row select:first-child{flex:1;min-width:9em}.item .row select:nth-child(2){flex:none;width:6.5em}
+.mv button{white-space:nowrap}
 </style>
 <link rel="stylesheet" href="shared.css">
 </head>
@@ -139,7 +141,7 @@ function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return []
 /* ---------- 畫面 ---------- */
 const TABS=[["basic","基本資料"],["checks","核對清單"],["stakes","樁號"],["sites","工區點"],["plans","圖說"],["overlays","疊圖"]];
 const lab=k=>({name:"案名",group:"群組",zone:"工區",area:"地區",plan:"計畫編號",planTab:"總表分頁",stage:"階段",checks:"核對清單",stakes:"樁號",sites:"工區點",plans:"圖說",overlays:"疊圖"})[k]||k;
-const PHASES=[["report","提審意見（設計階段核對）"],["design","設計意見（開工前／施工核對）"],["start","開工意見（施工核對）"],["propose","預計提出意見"],["improve","改善意見"]];
+const PHASES=[["report","提審意見"],["design","設計意見"],["start","開工意見"],["propose","預計提出意見"],["improve","改善意見"]];
 const STAGES=["","提報","設計","開工前","施工中","完工"];
 const ABCD=[["","—"],["A","A 迴避"],["B","B 縮小"],["C","C 減輕"],["D","D 補償"]];
 function render(){
@@ -171,7 +173,7 @@ function basic(B){
 function checks(B){
   const a=doc.checks=doc.checks||[];
   const groups=[...new Set(a.map(i=>i.group).filter(Boolean))],dl=el("datalist",{id:"grpList"});groups.forEach(g=>dl.appendChild(el("option",{value:g})));B.appendChild(dl);
-  B.appendChild(el("p",{className:"hint",textContent:"分類可直接打新名稱；同名的會排在一起（依第一次出現的位置）。階段決定在App哪個階段出現。"}));
+  B.appendChild(el("p",{className:"hint",textContent:"分類可直接打新名稱，同名的排在一起。意見來源決定在App哪個階段出現：提審意見→設計；設計意見→開工前、施工中、完工；開工意見→施工中、完工；預計提出意見→設計；改善意見→施工中、完工。"}));
   a.forEach((it,i)=>{const c=el("div",{className:"item"});
     const r1=el("div",{className:"row"});
     r1.append(sel(PHASES,it.phase,v=>{it.phase=v}),sel(ABCD,it.abcd,v=>{it.abcd=v}),mvDel(a,i));
