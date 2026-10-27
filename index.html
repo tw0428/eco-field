@@ -1526,7 +1526,11 @@ function chkEditForm(c,it,groups=[]){
   ok.onclick=async()=>{const text=tx.value.trim();if(!text){tx.focus();return}ok.disabled=true;tx.blur();sk.blur();
     const checks=(c.checks||[]).map(i=>i.id===it.id?{...i,text,abcd:ab_,stake:sk.value.trim(),group:gr_||undefined}:i);
     if(await saveChecks(checks))chkEditId=null;else ok.disabled=false;renderChecks()};
-  row.append(stakeField(sk,c),cn,ok);f.append(ab);if(groups.length)f.append(grpChips(groups,()=>gr_,v=>{gr_=v}));f.append(tx,row);return f;
+  const dx=document.createElement("button");dx.type="button";dx.className="danger";dx.textContent="刪除此項";
+  dx.onclick=async()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
+    dx.disabled=true;ok.disabled=true;tx.blur();sk.blur();
+    if(await saveChecks((c.checks||[]).filter(i=>i.id!==it.id)))chkEditId=null;else{dx.disabled=false;ok.disabled=false}renderChecks()};
+  row.append(stakeField(sk,c),cn,ok);f.append(ab);if(groups.length)f.append(grpChips(groups,()=>gr_,v=>{gr_=v}));f.append(tx,row,dx);dx.style.alignSelf="flex-end";return f;
 }
 async function saveChecks(checks){
   const c=cases.find(x=>x.id===curCase);if(!c||!db)return false;
