@@ -1463,8 +1463,8 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     rb.onclick=()=>{cancelEdit();clearForm();cat=it.phase==="improve"?"改善":"生態友善措施";abcd=it.abcd||"";renderChips();
       if(it.stake)$("stakeIn").value=it.stake;setLink(it.id);$("recForm").scrollIntoView({behavior:"smooth"})};
     bs.appendChild(rb);
-    // 預計提出意見、改善意見、現場新增的項目可修改內容
-    if(it.added||it.phase==="propose"||it.phase==="improve"){const eb=document.createElement("button");eb.type="button";eb.className="mini";eb.textContent="✎ 編輯";
+    // 所有核對項目（含設計文件帶入的）都可修改內容；只有現場新增的才有刪除鈕
+    {const eb=document.createElement("button");eb.type="button";eb.className="mini";eb.textContent="✎ 編輯";
       eb.onclick=()=>{chkEditId=it.id;renderChecks()};bs.appendChild(eb)}
     if(it.added){const dx=document.createElement("button");dx.type="button";dx.className="mini del";dx.textContent="刪除此項";
       dx.onclick=()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
