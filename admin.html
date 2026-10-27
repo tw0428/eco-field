@@ -110,7 +110,7 @@ function fillSel(){
 async function openCase(id){
   curCase=id;if(!id){doc=orig=null;render();return}
   $("conn").textContent="讀取中…";
-  const {data}=await getJson("cases/"+id);orig=clone(data||{});doc=clone(orig);
+  const {data}=await getJson("cases/"+id+".json");orig=clone(data||{});doc=clone(orig);
   const i=cases.findIndex(c=>c.id===id);if(i>=0)cases[i]={...orig,id};
   $("conn").textContent="已連線";render();markDirty();
 }
@@ -120,15 +120,15 @@ async function save(){
   const d=dirtyKeys();if(!d.length)return;
   const b=$("saveBtn");b.disabled=true;$("saveMsg").textContent="儲存中…";
   try{
-    const {data:cur,sha}=await getJson("cases/"+curCase);if(!cur)throw new Error("案件檔不見了");
+    const {data:cur,sha}=await getJson("cases/"+curCase+".json");if(!cur)throw new Error("案件檔不見了");
     const clash=d.filter(k=>!same(cur[k],orig[k]));
     if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」剛在別處被改過（可能是手機App）。先按「放棄修改」重新載入再改，避免蓋掉。`;b.disabled=false;return}
     const next={...cur};d.forEach(k=>{if(norm(doc[k])==null)delete next[k];else next[k]=doc[k]});
-    await putJson("cases/"+curCase,next,sha);
+    await putJson("cases/"+curCase+".json",next,sha);
     // 同案其他工區：樁號、圖說、疊圖一起改（勾選時）
     const sync=$("syncChk")&&$("syncChk").checked?d.filter(k=>SHARED.includes(k)):[];
     let n=0;for(const m of mates().filter(c=>c.id!==curCase)){if(!sync.length)break;
-      const {data:o,sha:s}=await getJson("cases/"+m.id);if(!o)continue;const nx={...o};sync.forEach(k=>{nx[k]=doc[k]});await putJson("cases/"+m.id,nx,s);n++}
+      const {data:o,sha:s}=await getJson("cases/"+m.id+".json");if(!o)continue;const nx={...o};sync.forEach(k=>{nx[k]=doc[k]});await putJson("cases/"+m.id+".json",nx,s);n++}
     orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===curCase);if(i>=0)cases[i]={...next,id:curCase};
     if(d.includes("name"))fillSel();
     render();markDirty();$("saveMsg").textContent="已儲存"+(n?`（同步 ${n} 個工區）`:"")+"。回現場紀錄按 ↻ 會看到。";
