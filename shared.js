@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="370711ca0e"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="928b397a40"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v4"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -90,10 +90,7 @@ function makePicker(sel,recentKey,metaOf,ops){
   ops=ops||{};
   const btn=document.createElement("button");btn.type="button";btn.className="pickbtn grow act";sel.before(btn);sel.hidden=true;
   const zbar=document.createElement("div");zbar.className="zonebar";zbar.hidden=true;btn.parentElement.after(zbar);
-  // 同案不同工區是各自獨立的案件：新工區沒選過階段時沿用原工區的階段，不要掉回預設的施工中
-  const pick=v=>{if(sel.value!==v){const p=sel.value,ps=p&&metaOf(p).stage;
-    if(ps&&!lsGet("eco-stage-"+v)&&zoneMates(p).some(c=>c.id===v))lsSet("eco-stage-"+v,ps);
-    sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}))}};
+  const pick=v=>{if(sel.value!==v){sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}))}};
   const sync=()=>{const o=sel.options[sel.selectedIndex],m=o&&o.value?metaOf(o.value):{};
     btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，點這裡新增）");
     const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.innerHTML="";zbar.hidden=zs.length<2;
