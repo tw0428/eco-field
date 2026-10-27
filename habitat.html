@@ -927,7 +927,7 @@ document.addEventListener('change',e=>{
  if(t.dataset.sl){p.slope[t.dataset.sl]=t.value;render();return;}
 });
 makePicker($('caseSel'),'eco-recent-habitat',habMeta,{
- add:async name=>{if(!db)throw new Error('未連線');await flush();const ref=db.collection('cases').doc();await ref.set({name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
+ add:async (name,extra)=>{if(!db)throw new Error('未連線');await flush();const ref=db.collection('cases').doc();await ref.set({name,createdAt:Date.now(),...(extra||{}),p:[blank('施工前'),blank('施工中'),blank('完工')]});
   curCase=ref.id;S.cur=0;S.view='creek';loadCase(true);render()},
  trash:async id=>{await flush();await db.doc('cases/'+id).update({trashedAt:Date.now()});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=Date.now();
   if(curCase===id){curCase=(cases.find(x=>!x.trashedAt)||{}).id||'';S.cur=0;loadCase(true)}render()},
