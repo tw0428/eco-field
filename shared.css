@@ -1,6 +1,6 @@
 /* 現場紀錄(index.html)與棲地評估(habitat.html)共用的外觀：兩頁都只引用這一份，改這裡兩頁一起變。
    頁面各自的版面（欄位、卡片內容排列）留在各自的檔案裡。 */
-:root{--eco-ver:"eb49de0a79"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
+:root{--eco-ver:"98e021c768"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
 
 /* ===== 設計變數（唯一一份）：色票取自大地色系；階段色 提報＝灰藍青、設計＝赤陶褐、施工＝苔綠 ===== */
 :root{
@@ -78,7 +78,9 @@ body{--soft:color-mix(in srgb,var(--accent) 13%,var(--surface));
 .picker li.trashgrp{cursor:pointer;color:var(--danger,var(--bad));margin-top:10px}
 .picker li.trashed .pkname{opacity:.6}.picker li.trashed .restore{flex:none;font-size:13px;padding:4px 12px;margin-right:4px}
 @media (pointer:fine){.picker{inset:5vh auto auto 50%;transform:translateX(-50%);width:min(560px,94vw);height:88vh;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding-top:12px}}
-.zonebar{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+.zonebar{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:6px 0 2px}
+.zonebar::-webkit-scrollbar{display:none}
+.zonebar button{flex:0 0 auto;white-space:nowrap}
 .zonebar button{border:1px solid var(--line);background:var(--surface,var(--card));color:inherit;border-radius:999px;padding:5px 14px;font-size:14px;cursor:pointer}
 .zonebar button[aria-pressed="true"]{background:var(--accent,var(--acc));color:var(--accent-fg,var(--accfg));border-color:var(--accent,var(--acc));font-weight:600}
 
