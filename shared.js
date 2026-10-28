@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="98e021c768"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="aa2114366b"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -96,11 +96,21 @@ function makePicker(sel,recentKey,metaOf,ops){
   const pick=v=>{if(sel.value!==v){sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}))}};
   const sync=()=>{const o=sel.options[sel.selectedIndex],m=o&&o.value?metaOf(o.value):{};
     btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，點這裡新增）");
-    const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.innerHTML="";zbar.hidden=zs.length<2;
-    if(zs.length>1)zs.forEach(c=>{const b=document.createElement("button");b.type="button";b.textContent=zoneInfo(c).zone;
-      b.setAttribute("aria-pressed",String(c.id===sel.value));b.onclick=()=>pick(c.id);zbar.appendChild(b)});
-    // 單行橫向捲動：把目前工區捲到中間（只動橫向，不拉動頁面）
-    const on=zbar.querySelector('[aria-pressed="true"]');if(on)zbar.scrollLeft=on.getBoundingClientRect().left-zbar.getBoundingClientRect().left+zbar.scrollLeft-(zbar.clientWidth-on.offsetWidth)/2};
+    const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.hidden=zs.length<2;
+    // 同一組工區只改按下狀態、不重建按鈕（頁面每次重畫都會觸發這裡，重建會讓捲動位置歸零而跳動）
+    const ids=zs.length>1?zs.map(c=>c.id+"|"+zoneInfo(c).zone).join(","):"",fresh=ids!==zIds;zIds=ids;
+    if(fresh){zbar.innerHTML="";if(zs.length>1)zs.forEach(c=>{const b=document.createElement("button");b.type="button";b.textContent=zoneInfo(c).zone;b.dataset.id=c.id;b.onclick=()=>pick(c.id);zbar.appendChild(b)})}
+    zbar.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.id===sel.value)));
+    // 單行橫向捲動：目前工區滑到中間。換案件／第一次顯示直接定位；同組切換才用動畫，且只在選到的工區變了才動（使用者自己滑開時不拉回）
+    const on=zbar.querySelector('[aria-pressed="true"]'),moved=sel.value!==zSel;zSel=sel.value;
+    if(on&&(fresh||moved))zGlide(on.getBoundingClientRect().left-zbar.getBoundingClientRect().left+zbar.scrollLeft-(zbar.clientWidth-on.offsetWidth)/2,fresh)};
+  let zIds="",zSel="",zAnim=0;
+  // 自己算的緩動（ease-out quart，距離越遠時間略長，上限0.52秒）：各瀏覽器手感一致；手指一碰就停，不跟使用者搶
+  const zGlide=(to,instant)=>{cancelAnimationFrame(zAnim);to=Math.max(0,Math.min(zbar.scrollWidth-zbar.clientWidth,to));const from=zbar.scrollLeft,d=to-from;
+    if(instant||Math.abs(d)<2||matchMedia("(prefers-reduced-motion: reduce)").matches){zbar.scrollLeft=to;return}
+    const t0=performance.now(),T=Math.min(520,300+Math.abs(d)*.5),ease=x=>1-Math.pow(1-x,4);
+    const f=now=>{const x=Math.min(1,(now-t0)/T);zbar.scrollLeft=from+d*ease(x);if(x<1)zAnim=requestAnimationFrame(f)};zAnim=requestAnimationFrame(f)};
+  ["touchstart","wheel"].forEach(e=>zbar.addEventListener(e,()=>cancelAnimationFrame(zAnim),{passive:true}));
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
