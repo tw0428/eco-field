@@ -118,7 +118,7 @@ body[data-view="creek"]{--accent:#40798c}body[data-view="slope"]{--accent:#7d6a5
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
-<div class="tabs" id="locBar" hidden></div>
+<div class="row" id="locBar" hidden></div>
 <div class="tabs" id="ptabs"></div>
 <div class="vrow" id="vtabs"></div>
 </header>
@@ -197,7 +197,7 @@ try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.p&&o.p
 /* 案件：有db時每案一份 cases/<id> {name,createdAt,updatedAt,p:[三期]}；無db時退回本機單一份 */
 let assets=null,db=null,cases=[],curCase='',lastJson='',saveTimer=null,saveFn=null,delArm=null,unsaved=false;
 /* 位置：同案同工區評多個地點。cases/<id>.p＝位置1（名稱 pn，預設「位置1」，維持舊格式），其餘位置存 locs:[{name,p}]；各位置各有三期評分與照片 */
-let curLoc=0;
+let curLoc=0,locEdit=false;
 const blank3=()=>[blank('施工前'),blank('施工中'),blank('完工')];
 const locsOf=c=>c?[{name:c.pn||'位置1',p:c.p},...(Array.isArray(c.locs)?c.locs:[])]:[];
 const posP=(c,k)=>{const l=locsOf(c)[k];return l&&l.p&&l.p.length===3?l.p:null};
@@ -487,9 +487,12 @@ function renderLocs(){
  const b=$('locBar'),c=cases.find(x=>x.id===curCase),L=locsOf(c);
  if(!db||!c||!S.p){b.hidden=true;return}
  b.hidden=false;
- b.innerHTML=(L.length>1?L.map((l,k)=>`<button class="tab ${k===curLoc?'on':''}" data-loc="${k}">${esc(l.name)}</button>`).join(''):'')
-  +`<button class="vlink" data-locadd="1">＋新增位置</button>`
-  +(L.length>1?`<button class="vlink" data-locren="1">編輯位置名稱</button><button class="vlink" data-locdel="1">刪除此位置</button>`:'');
+ // 同「案件」那排的樣式：下拉選位置＋新增＋編輯；編輯展開後才出現改名、刪除
+ if(L.length<2)locEdit=false;
+ b.innerHTML=`<label for="locSel">位置</label><select id="locSel" style="flex:1">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}</select>`
+  +`<button class="act" data-locadd="1">新增</button><button class="act ${locEdit?'on':''}" data-locedit="1">編輯</button>`
+  +(locEdit?`<div class="row" style="flex-basis:100%;margin:0"><button class="act" data-locren="1">改位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></div>`:'');
+ b.style.flexWrap='wrap';
 }
 async function switchLoc(k){await flush();curLoc=k;S.cur=0;msg('');loadCase(true);render()}
 async function addLoc(){
@@ -912,7 +915,7 @@ document.addEventListener('click',e=>{
  else if(t.id==='caseAdd'){const r=$('caseAddRow');r.hidden=!r.hidden;if(!r.hidden)$('caseName').focus()}
  else if(t.id==='caseSave'){addCase()}
  else if(t.id==='caseDel'){delCase(t)}
- else if(t.dataset.loc!=null){switchLoc(+t.dataset.loc)}
+ else if(t.dataset.locedit){locEdit=!locEdit;renderLocs()}
  else if(t.dataset.locadd){addLoc()}
  else if(t.dataset.locren){renLoc()}
  else if(t.dataset.locdel){delLoc(t)}
@@ -960,6 +963,7 @@ function fallback(txt,done){const a=document.createElement('textarea');a.value=t
 document.addEventListener('change',e=>{
  const t=e.target;
  if(t.id==='caseSel'){msg('');(async()=>{await flush();curCase=t.value;S.cur=0;curLoc=0;loadCase(true);render()})();return}
+ if(t.id==='locSel'){switchLoc(+t.value);return}
  if(!S.p)return;
  const p=S.p[S.cur];
  if(t.dataset.c||t.dataset.o||t.dataset.sl||t.dataset.f||t.dataset.gps!=null)addBy(p);
