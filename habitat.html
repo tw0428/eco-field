@@ -118,6 +118,7 @@ body[data-view="creek"]{--accent:#40798c}body[data-view="slope"]{--accent:#7d6a5
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
+<div class="tabs" id="locBar" hidden></div>
 <div class="tabs" id="ptabs"></div>
 <div class="vrow" id="vtabs"></div>
 </header>
@@ -195,6 +196,17 @@ let S={cur:0,view:'creek',p:[blank('施工前'),blank('施工中'),blank('完工
 try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.p&&o.p.length===3){S=o;S.p.forEach(fixP);}}}catch(e){}
 /* 案件：有db時每案一份 cases/<id> {name,createdAt,updatedAt,p:[三期]}；無db時退回本機單一份 */
 let assets=null,db=null,cases=[],curCase='',lastJson='',saveTimer=null,saveFn=null,delArm=null,unsaved=false;
+/* 位置：同案同工區評多個地點。cases/<id>.p＝位置1（名稱 pn，預設「位置1」，維持舊格式），其餘位置存 locs:[{name,p}]；各位置各有三期評分與照片 */
+let curLoc=0;
+const blank3=()=>[blank('施工前'),blank('施工中'),blank('完工')];
+const locsOf=c=>c?[{name:c.pn||'位置1',p:c.p},...(Array.isArray(c.locs)?c.locs:[])]:[];
+const posP=(c,k)=>{const l=locsOf(c)[k];return l&&l.p&&l.p.length===3?l.p:null};
+const pkey=(id,k)=>k?id+'~'+k:id; // 手機暫存的 key（位置1沿用案件id）
+async function hPatch(id,fn){const res=await mutate(`habitat/${id}.json`,old=>fn(old||{}));if(res==null)delete hStore[id];else hStore[id]=res;hEmit();lsSet(CACHE_KEY,JSON.stringify(hStore))}
+function writePos(id,k,p){
+ if(!k)return db.doc('cases/'+id).update({p,updatedAt:Date.now()});
+ return hPatch(id,o=>{const L=Array.isArray(o.locs)?o.locs.slice():[];L[k-1]={name:'位置'+(k+1),...(L[k-1]||{}),p};return {...o,locs:L,updatedAt:Date.now()}});
+}
 const PREF='habitat_pref';
 try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
@@ -233,10 +245,10 @@ function save(){
  lsSet(PREF,JSON.stringify({view:S.view,cur:S.cur,c:curCase}));
  if(!curCase||!S.p)return;
  const j=JSON.stringify(S.p);if(j===lastJson)return;
- lastJson=j;const id=curCase;clearTimeout(saveTimer);pendSet(id,j);
+ const id=curCase,lk=curLoc;lastJson=j;clearTimeout(saveTimer);pendSet(pkey(id,lk),j);
  // 存失敗時清掉lastJson，下次render或恢復訊號（online事件）會重送，不用手動再改一次
  // 每次修改先存手機（pendSet），存上雲端才刪；離線拍的照片要先補傳，評分才不會指到雲端沒有的照片
- saveFn=async()=>{saveTimer=null;saveFn=null;try{await phFlush();await db.doc('cases/'+id).update({p:JSON.parse(j),updatedAt:Date.now()});pendDel(id,j);unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分與照片先存在手機（關掉網頁也不會不見），有訊號時會自動補存':'儲存失敗（'+(e.code||e.message)+'），資料已存在手機，有網路時會再試')}};
+ saveFn=async()=>{saveTimer=null;saveFn=null;try{await phFlush();await writePos(id,lk,JSON.parse(j));pendDel(pkey(id,lk),j);unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分與照片先存在手機（關掉網頁也不會不見），有訊號時會自動補存':'儲存失敗（'+(e.code||e.message)+'），資料已存在手機，有網路時會再試')}};
  saveTimer=setTimeout(saveFn,600);
 }
 async function flush(){if(saveTimer){clearTimeout(saveTimer);await saveFn()}}
@@ -244,11 +256,12 @@ function loadCase(force){
  const c=cases.find(x=>x.id===curCase);
  if(!c){S.p=null;lastJson='';return}
  if((saveTimer||unsaved)&&!force)return; // 有還沒存上去的評分時，不讓背景更新蓋掉
- const src=c.p&&c.p.length===3?JSON.stringify(c.p):null;
- if(force||(src&&src!==lastJson)||(!src&&!S.p)){S.p=src?JSON.parse(src).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')];lastJson=JSON.stringify(S.p)}
+ if(curLoc>=locsOf(c).length)curLoc=0;
+ const pp=posP(c,curLoc),src=pp?JSON.stringify(pp):null;
+ if(force||(src&&src!==lastJson)||(!src&&!S.p)){S.p=src?JSON.parse(src).map(fixP):blank3();lastJson=JSON.stringify(S.p)}
  // 手機上有還沒存上雲端的評分（上次沒訊號、網頁被關掉）→ 用手機上的，並重送
- const pd=pendAll()[curCase];
- if(pd){if(pd.p===src)pendDel(curCase,pd.p);else{S.p=JSON.parse(pd.p).map(fixP);lastJson='';unsaved=true}}
+ const pk=pkey(curCase,curLoc),pd=pendAll()[pk];
+ if(pd){if(pd.p===src)pendDel(pk,pd.p);else{S.p=JSON.parse(pd.p).map(fixP);lastJson='';unsaved=true}}
 }
 /* 離線暫存：評分（localStorage eco-hab-pending，每案最新一份）與照片（IndexedDB eco-hab-outbox）存上雲端前先留在手機 */
 const PEND='eco-hab-pending';
@@ -281,9 +294,10 @@ function phFlush(){
 async function habFlush(){
  if(!ghToken||navigator.onLine===false)return;
  try{await phFlush()}catch(e){return}
- for(const [id,v] of Object.entries(pendAll())){
-  if(!hStore[id]){pendDel(id);continue}
-  try{await db.doc('cases/'+id).update({p:JSON.parse(v.p),updatedAt:Date.now()});pendDel(id,v.p);if(id===curCase&&!saveTimer){unsaved=false;msg('')}}catch(e){return}
+ for(const [key,v] of Object.entries(pendAll())){
+  const [id,ks]=key.split('~'),k=+ks||0;
+  if(!hStore[id]){pendDel(key);continue}
+  try{await writePos(id,k,JSON.parse(v.p));pendDel(key,v.p);if(id===curCase&&k===curLoc&&!saveTimer){unsaved=false;msg('')}}catch(e){return}
  }
 }
 function renderCases(){
@@ -417,7 +431,7 @@ async function initDb(){
   const live=cases.filter(c=>!c.trashedAt);
   const j=live.length&&takeJump('habitat');
   if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name)||live.find(c=>c.group&&c.group===j.name);
-   if(hit){curCase=hit.id;S.cur=0;loadCase(true);render();return}
+   if(hit){curCase=hit.id;S.cur=0;curLoc=0;loadCase(true);render();return}
    jumpNote(j)}
   if(!live.find(c=>c.id===curCase)){curCase=(live.find(c=>c.id===pf.c)||live[0]||{}).id||'';loadCase(true)}else loadCase(false);
   render();
@@ -468,8 +482,42 @@ window.ecoBeforeReload=()=>flush(); // 有新版要重整前，先把還沒存�
 const wrapAll=()=>document.querySelectorAll("main select:not(.wsrc)").forEach(s=>{s.after(wrapSelect(s,1))});
 {const m=document.querySelector("main");if(m){new MutationObserver(wrapAll).observe(m,{childList:true,subtree:true});wrapAll()}}
 
+/* 位置列：只有一個位置時只顯示「＋新增位置」，兩個以上才顯示各位置按鈕與編輯 */
+function renderLocs(){
+ const b=$('locBar'),c=cases.find(x=>x.id===curCase),L=locsOf(c);
+ if(!db||!c||!S.p){b.hidden=true;return}
+ b.hidden=false;
+ b.innerHTML=(L.length>1?L.map((l,k)=>`<button class="tab ${k===curLoc?'on':''}" data-loc="${k}">${esc(l.name)}</button>`).join(''):'')
+  +`<button class="vlink" data-locadd="1">＋新增位置</button>`
+  +(L.length>1?`<button class="vlink" data-locren="1">編輯位置名稱</button><button class="vlink" data-locdel="1">刪除此位置</button>`:'');
+}
+async function switchLoc(k){await flush();curLoc=k;S.cur=0;msg('');loadCase(true);render()}
+async function addLoc(){
+ const c=cases.find(x=>x.id===curCase);if(!c||!db)return;
+ const n=locsOf(c).length,nm=(prompt('新位置的名稱（例：上游、橋下）','位置'+(n+1))||'').trim();if(!nm)return;
+ try{await flush();await hPatch(c.id,o=>({...o,locs:[...(Array.isArray(o.locs)?o.locs:[]),{name:nm,p:blank3()}],updatedAt:Date.now()}));
+  curLoc=n;S.cur=0;msg('');loadCase(true);render()}catch(e){msg('新增位置失敗（'+(e.code||e.message)+'）')}
+}
+async function renLoc(){
+ const c=cases.find(x=>x.id===curCase);if(!c||!db)return;
+ const k=curLoc,nm=(prompt('位置名稱',locsOf(c)[k].name)||'').trim();if(!nm)return;
+ try{await flush();await hPatch(c.id,o=>{if(!k)return {...o,pn:nm,updatedAt:Date.now()};const L=(o.locs||[]).slice();L[k-1]={...L[k-1],name:nm};return {...o,locs:L,updatedAt:Date.now()}});render()}
+ catch(e){msg('改名失敗（'+(e.code||e.message)+'）')}
+}
+async function delLoc(b){
+ const c=cases.find(x=>x.id===curCase),k=curLoc;if(!c||!db)return;const L=locsOf(c);if(L.length<2)return;
+ if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${L[k].name}」的三期評分與照片會一起刪掉，無法復原。確定請再按「確認刪除」。`);
+  setTimeout(()=>{b.dataset.armed='';b.textContent='刪除此位置';msg('')},6000);return}
+ b.dataset.armed='';msg('');clearTimeout(saveTimer);saveTimer=null;saveFn=null;
+ const gone=L[k].p||[];
+ try{await hPatch(c.id,o=>{const Ls=(o.locs||[]).slice();if(!k){const f=Ls.shift();return {...o,p:f.p,pn:f.name,locs:Ls,updatedAt:Date.now()}}Ls.splice(k-1,1);return {...o,locs:Ls,updatedAt:Date.now()}});
+  Object.keys(pendAll()).filter(x=>x===c.id||x.startsWith(c.id+'~')).forEach(x=>pendDel(x));
+  curLoc=0;S.cur=0;lastJson='';loadCase(true);render();
+  if(assets)for(const q of gone)for(const x of [...(q.photos||[]),...(q.photosCreek||[]),...(q.photosSlope||[])]){try{await assets.delete(x.id)}catch(e){}}
+ }catch(e){msg('刪除失敗（'+(e.code||e.message)+'）')}
+}
 function render(){
- renderCases();
+ renderCases();renderLocs();
  if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
  // 第一層：期別（分段按鈕）；第二層：評估類型（分段按鈕）＋匯出、說明（文字連結）
  $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
@@ -557,7 +605,7 @@ async function compress(file){
  return await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
 }
 async function upPhotos(files,kind,fromCam){
- const id=curCase,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0,queued=0;
+ const id=curCase,lc=curLoc,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0,queued=0;
  for(let i=0;i<files.length;i++){
   pm(`上傳 ${i+1}/${files.length}…`);
   const ex=await readExif(files[i]);
@@ -570,7 +618,7 @@ async function upPhotos(files,kind,fromCam){
    // 沒訊號：照片先存手機（待上傳），評分照常記；有訊號時自動補傳
    try{if(navigator.onLine===false)throw new TypeError('offline');r=await assets.upload(blob,{type:blob.type||'image/jpeg'})}
    catch(e){if(!(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'))throw e;r={id:await phQueue(blob)};queued++}
-   if(curCase!==id||!S.p)return;
+   if(curCase!==id||curLoc!==lc||!S.p)return;
    if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
    const by=addBy(S.p[ci]);
    phList(S.p[ci],kind).push({id:r.id,...(by?{by}:{}),lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
@@ -583,7 +631,7 @@ async function upPhotos(files,kind,fromCam){
 const recTaken=r=>{if(/^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(r.takenAt||""))return r.takenAt.replace(/\//g,":")+":00";
  if(!r.createdAt)return "";const d=new Date(r.createdAt),z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}:${z(d.getMonth()+1)}:${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:00`};
 async function recPick(kind){
- const id=curCase,ci=S.cur;let recs=[];
+ const id=curCase,lc=curLoc,ci=S.cur;let recs=[];
  try{const r=await gh("records/"+id+".json",{headers:{Accept:"application/vnd.github.raw+json"}});recs=r?Object.values(await r.json()):[]}
  catch(e){msg("讀取現場紀錄失敗（"+(e.code||e.message)+"）");return}
  const items=[];recs.filter(r=>r.photos&&r.photos.length).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).forEach(r=>r.photos.forEach(pid=>items.push({pid,r})));
@@ -598,7 +646,7 @@ async function recPick(kind){
    const pm=t=>{const e=$("phMsg");if(e)e.textContent=t};
    for(const [k,{pid,r}] of sel.entries()){pm(`加入 ${k+1}/${sel.length}…`);
     try{const up=await assets.upload(await fileBlob(pid));
-     if(curCase!==id||!S.p)return;
+     if(curCase!==id||curLoc!==lc||!S.p)return;
      const taken=recTaken(r);
      if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(taken)||todayStr();
      const by=addBy(S.p[ci]);
@@ -760,7 +808,7 @@ function renderExpSheet(){
  const box=$('expBody');if(!box||!S.p)return;const D=exportData(),ex=S.exp==='design'?'design':'build';
  const nPh=D.cIdx.reduce((s,i)=>s+phGet(S.p[i],'creek').length+phGet(S.p[i],'slope').length,0);
  box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（前中後）</button></div></div>
- <div class="mut">${zoneMates(curCase).length>1?`Word一次匯出${zoneMates(curCase).length}個工區（依工區分節）；下面的數量、複製和CSV只含目前的${esc(zoneInfo(cases.find(x=>x.id===curCase)).zone)}：`:''}坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
+ <div class="mut">${locsOf(cases.find(x=>x.id===curCase)).length>1?`Word含全部${locsOf(cases.find(x=>x.id===curCase)).length}個位置（依位置分節）；下面的數量、複製和CSV只含目前位置「${esc(locsOf(cases.find(x=>x.id===curCase))[curLoc].name)}」。`:''}${zoneMates(curCase).length>1?`Word一次匯出${zoneMates(curCase).length}個工區（依工區分節）；下面的數量、複製和CSV只含目前的${esc(zoneInfo(cases.find(x=>x.id===curCase)).zone)}：`:''}坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
  <div class="expbtns"><button class="act primary" data-xw="1"><i class="ic ic-file"></i>下載Word（含照片）</button>
  <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
  <a href="#" data-xcmp="1">修改前言草稿 →</a></div>`;
@@ -779,9 +827,11 @@ async function habDocx(btn){
    return tbl(ws,[t.head.map(x=>P(x,{b:true,sz:20,jc:'center'})),...t.rows.map(r=>r.map((x,i)=>P(x,{sz:20,jc:i?'center':''}))),...(t.foot?[t.foot.map(x=>P(x,{b:true,sz:20,jc:'center'}))]:[])])};
   // 複數工區：一次匯出整案，依工區分節。各工區的評分、樁號要切到該工區才算得出來，
   // 所以先「同步」暫時切換 curCase／S.p 算完文字與照片清單，馬上切回，再非同步下載照片（避免背景更新撞到切換中的狀態）
-  const cur=cases.find(x=>x.id===curCase)||{},zs=zoneMates(curCase),multi=zs.length>1,list=multi?zs:[cur],keepC=curCase,keepP=S.p,parts=[];
-  try{for(const zc of list){curCase=zc.id;S.p=zc.id===keepC?keepP:(zc.p&&zc.p.length===3?JSON.parse(JSON.stringify(zc.p)).map(fixP):[blank('施工前'),blank('施工中'),blank('完工')]);
-    const D=exportData(),own=zc.id===keepC,pt={zc,secs:[],ph:[]};
+  // 每個工區再依「位置」展開（只有一個位置的工區照舊）
+  const cur=cases.find(x=>x.id===curCase)||{},zs=zoneMates(curCase),multi=zs.length>1,keepC=curCase,keepP=S.p,keepL=curLoc,parts=[];
+  const list=(multi?zs:[cur]).flatMap(zc=>{const L=locsOf(zc);return L.map((l,k)=>({zc,k,lname:l.name,nl:L.length}))});
+  try{for(const {zc,k,lname,nl} of list){curCase=zc.id;const own=zc.id===keepC&&k===keepL,pp=posP(zc,k);S.p=own?keepP:(pp?JSON.parse(JSON.stringify(pp)).map(fixP):blank3());
+    const D=exportData(),pt={zc,lname,nl,secs:[],ph:[]};
     if(hasSlope(D))pt.secs.push(['坡地棲地評估',P((own&&($('dS')||{}).value)||draftSlope(D))+T(D.slope)+(memoText(D,'slope')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'slope'),{sz:22}):'')+P('')]);
     if(hasCreek(D))pt.secs.push(['野溪治理工程生態回復追蹤評估',P((own&&($('dC')||{}).value)||draftCreek(D))+T(D.creek)+(memoText(D,'creek')?P('現場簡記',{b:true,sz:22})+P(memoText(D,'creek'),{sz:22}):'')+P('')]);
     ['slope','creek'].forEach(k=>D.cIdx.forEach(i=>phGet(S.p[i],k).forEach(x=>{const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
@@ -792,7 +842,8 @@ async function habDocx(btn){
   const zip=new JSZip(),rels=[];let n=0,body=P(title+'　棲地評估',{b:true,sz:32,jc:'center'});
   const NUM='一二三四五',W=4277,tc=x=>`<w:tc><w:tcPr><w:tcW w:w="${W}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${x||P('')}</w:tc>`;
   for(const pt of parts){let sec=0;
-   if(multi){body+=kn(P(zoneInfo(pt.zc).zone,{b:true,sz:30}));if(!pt.secs.length&&!pt.ph.length){body+=P('本工區尚無評分與照片',{sz:22})+P('');continue}}
+   const hd=[multi?zoneInfo(pt.zc).zone:'',pt.nl>1?pt.lname:''].filter(Boolean).join('・');
+   if(hd){body+=kn(P(hd,{b:true,sz:30}));if(!pt.secs.length&&!pt.ph.length){body+=P(pt.nl>1?'本位置尚無評分與照片':'本工區尚無評分與照片',{sz:22})+P('');continue}}
    pt.secs.forEach(([h,x])=>{body+=kn(P(NUM[sec++]+'、'+h,{b:true,sz:26}))+x});
    const grp=[];
    for(const {k,i,cn,x,st} of pt.ph){let g=grp[grp.length-1];if(!g||g.k!==k)grp.push(g={k,subs:[]});let s=g.subs[g.subs.length-1];if(!s||s.i!==i)g.subs.push(s={i,cn,cells:[]});
@@ -820,7 +871,7 @@ async function habDocx(btn){
 }
 function habCsv(){const D=exportData(),c=cases.find(x=>x.id===curCase)||{},q=v=>`"${String(v).replace(/"/g,'""')}"`,t2=t=>[t.head,...t.rows,...(t.foot?[t.foot]:[])].map(r=>r.map(q).join(',')).join('\r\n');
  const parts=[];if(hasSlope(D))parts.push('"坡地棲地評估"',t2(D.slope),'');if(hasCreek(D))parts.push('"野溪治理工程生態回復追蹤評估"',t2(D.creek));
- saveFile(safeName(c.name||'案件')+'_棲地評估.csv',new Blob(['\ufeff'+parts.join('\r\n')],{type:'text/csv'}))}
+ saveFile(safeName(c.name||'案件')+(locsOf(c).length>1?'_'+safeName(locsOf(c)[curLoc].name):'')+'_棲地評估.csv',new Blob(['\ufeff'+parts.join('\r\n')],{type:'text/csv'}))}
 async function copyRich(html,txt,btn){
  const done=()=>{const o=btn.textContent;btn.textContent='已複製';setTimeout(()=>btn.textContent=o,1200)};
  try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([txt],{type:'text/plain'})})]);done()}
@@ -861,6 +912,10 @@ document.addEventListener('click',e=>{
  else if(t.id==='caseAdd'){const r=$('caseAddRow');r.hidden=!r.hidden;if(!r.hidden)$('caseName').focus()}
  else if(t.id==='caseSave'){addCase()}
  else if(t.id==='caseDel'){delCase(t)}
+ else if(t.dataset.loc!=null){switchLoc(+t.dataset.loc)}
+ else if(t.dataset.locadd){addLoc()}
+ else if(t.dataset.locren){renLoc()}
+ else if(t.dataset.locdel){delLoc(t)}
  else if(t.dataset.recpick){recPick(t.dataset.recpick)}
  else if(t.dataset.phdel!=null){
   if(t.dataset.armed!=='1'){t.dataset.armed='1';t.textContent='確認刪除';setTimeout(()=>{t.dataset.armed='';t.textContent='刪除'},5000);return}
@@ -875,7 +930,7 @@ function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement
  const s=document.createElement('span');s.style.flex='1';s.textContent=`「${j.name}」還沒有棲地評估，目前顯示上次的案件。`;
  const mk=(t,cls,f)=>{const x=document.createElement('button');x.className='act'+(cls?' '+cls:'');x.textContent=t;x.onclick=f;return x};
  b.append(s,mk('建立同名評估','primary',async()=>{b.remove();try{await flush();await db.collection('cases').doc(j.id).set({name:j.name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
-   curCase=j.id;S.cur=0;S.view='creek';loadCase(true);render()}catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}}),mk('關閉','',()=>b.remove()));
+   curCase=j.id;S.cur=0;curLoc=0;S.view='creek';loadCase(true);render()}catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}}),mk('關閉','',()=>b.remove()));
  $('caseMsg').after(b)}
 // 選單分組用：地區、階段在現場紀錄設定，這裡讀手機上現場紀錄的暫存（同id、再找同名）；棲地自己不存
 function habMeta(id){const c=cases.find(x=>x.id===id)||{};let fid=null,f=null;
@@ -886,7 +941,7 @@ async function addCase(){
  const name=$('caseName').value.trim();if(!name||!db)return;
  try{await flush();const ref=db.collection('cases').doc();const p=[blank('施工前'),blank('施工中'),blank('完工')];
   await ref.set({name,createdAt:Date.now(),p});
-  curCase=ref.id;S.cur=0;S.view='creek';loadCase(true);$('caseName').value='';$('caseAddRow').hidden=true;render();
+  curCase=ref.id;S.cur=0;curLoc=0;S.view='creek';loadCase(true);$('caseName').value='';$('caseAddRow').hidden=true;render();
  }catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}
 }
 async function delCase(b){
@@ -896,7 +951,7 @@ async function delCase(b){
  clearTimeout(delArm);b.dataset.armed='';b.textContent='刪除';msg('');
  clearTimeout(saveTimer);saveTimer=null;saveFn=null;
  try{await db.doc('cases/'+c.id).delete();curCase='';
-  if(assets)for(const q of (c.p||[]))for(const x of [...(q.photos||[]),...(q.photosCreek||[]),...(q.photosSlope||[])]){try{await assets.delete(x.id)}catch(e){}}
+  if(assets)for(const q of locsOf(c).flatMap(l=>l.p||[]))for(const x of [...(q.photos||[]),...(q.photosCreek||[]),...(q.photosSlope||[])]){try{await assets.delete(x.id)}catch(e){}}
  }catch(e){msg('刪除失敗（'+(e.code||e.message)+'）')}
 }
 function cp(txt,btn){const done=()=>{const o=btn.textContent;btn.textContent='已複製';setTimeout(()=>btn.textContent=o,1200)};
@@ -904,7 +959,7 @@ function cp(txt,btn){const done=()=>{const o=btn.textContent;btn.textContent='�
 function fallback(txt,done){const a=document.createElement('textarea');a.value=txt;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(_){}a.remove()}
 document.addEventListener('change',e=>{
  const t=e.target;
- if(t.id==='caseSel'){msg('');(async()=>{await flush();curCase=t.value;S.cur=0;loadCase(true);render()})();return}
+ if(t.id==='caseSel'){msg('');(async()=>{await flush();curCase=t.value;S.cur=0;curLoc=0;loadCase(true);render()})();return}
  if(!S.p)return;
  const p=S.p[S.cur];
  if(t.dataset.c||t.dataset.o||t.dataset.sl||t.dataset.f||t.dataset.gps!=null)addBy(p);
@@ -928,9 +983,9 @@ document.addEventListener('change',e=>{
 });
 makePicker($('caseSel'),'eco-recent-habitat',habMeta,{
  add:async (name,extra)=>{if(!db)throw new Error('未連線');await flush();const ref=db.collection('cases').doc();await ref.set({name,createdAt:Date.now(),...(extra||{}),p:[blank('施工前'),blank('施工中'),blank('完工')]});
-  curCase=ref.id;S.cur=0;S.view='creek';loadCase(true);render()},
+  curCase=ref.id;S.cur=0;curLoc=0;S.view='creek';loadCase(true);render()},
  trash:async id=>{await flush();await db.doc('cases/'+id).update({trashedAt:Date.now()});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=Date.now();
-  if(curCase===id){curCase=(cases.find(x=>!x.trashedAt)||{}).id||'';S.cur=0;loadCase(true)}render()},
+  if(curCase===id){curCase=(cases.find(x=>!x.trashedAt)||{}).id||'';S.cur=0;curLoc=0;loadCase(true)}render()},
  restore:async id=>{await db.doc('cases/'+id).update({trashedAt:null});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=null;render()},
  trashed:()=>cases.filter(c=>c.trashedAt).sort((a,b)=>b.trashedAt-a.trashedAt)});
 whoShow();$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
