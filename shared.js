@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="eb49de0a79"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="98e021c768"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -98,7 +98,9 @@ function makePicker(sel,recentKey,metaOf,ops){
     btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，點這裡新增）");
     const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.innerHTML="";zbar.hidden=zs.length<2;
     if(zs.length>1)zs.forEach(c=>{const b=document.createElement("button");b.type="button";b.textContent=zoneInfo(c).zone;
-      b.setAttribute("aria-pressed",String(c.id===sel.value));b.onclick=()=>pick(c.id);zbar.appendChild(b)})};
+      b.setAttribute("aria-pressed",String(c.id===sel.value));b.onclick=()=>pick(c.id);zbar.appendChild(b)});
+    // 單行橫向捲動：把目前工區捲到中間（只動橫向，不拉動頁面）
+    const on=zbar.querySelector('[aria-pressed="true"]');if(on)zbar.scrollLeft=on.getBoundingClientRect().left-zbar.getBoundingClientRect().left+zbar.scrollLeft-(zbar.clientWidth-on.offsetWidth)/2};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
