@@ -39,7 +39,7 @@ button:disabled{opacity:.5}
 .kv{display:grid;grid-template-columns:5.5em 1fr;gap:6px 8px;align-items:center}
 .kv label{font-size:14px;color:var(--muted)}
 .mv{display:flex;gap:2px;margin-left:auto}.mv button{padding:2px 8px;font-size:13px}
-.stk{display:grid;grid-template-columns:4.2em 7.5em 1fr auto;gap:4px 6px;align-items:center;font-size:14px}
+.stk{display:grid;grid-template-columns:3.8em 6.2em 1fr 2.4em auto;gap:4px 6px;align-items:center;font-size:14px}.stk input[type=checkbox]{width:18px;height:18px;justify-self:center}
 .stk input{padding:4px 7px;font-size:14px}
 .stk .h{font-size:12px;color:var(--muted)}
 .dirty{color:var(--warn);font-weight:600}
@@ -190,11 +190,16 @@ function checks(B){
 }
 function stakes(B){
   const a=doc.stakes=doc.stakes||[];
-  B.appendChild(el("p",{className:"hint",textContent:"座標與樁號數值由設計圖算出，這裡只改路線名與註記（構造物名稱），或刪掉不要的點。"}));
-  const g=el("div",{className:"stk"});["路線","樁號","註記",""].forEach(h=>g.appendChild(el("span",{className:"h",textContent:h})));
+  B.appendChild(el("p",{className:"hint",textContent:"座標與樁號數值由設計圖算出，這裡改路線名、註記（構造物名稱）、地圖上要不要顯示文字標籤，或刪掉不要的點。「標示」預設只有每條路線的起點、終點和有註記的點是勾的；自己勾選或取消後以你的為準。"}));
+  const g=el("div",{className:"stk"});["路線","樁號","註記","標示",""].forEach(h=>g.appendChild(el("span",{className:"h",textContent:h})));
+  // 預設是否標示（同 index.html 地圖）：該路線第一點、最後一點、有註記
+  const dflt=s=>{const grp=a.filter(p=>(p.r||"")===(s.r||"")),i=grp.indexOf(s);return i===0||i===grp.length-1||!!(s.note&&s.note.trim())};
+  const shown=s=>s.show===false?false:s.show===true||dflt(s);
   a.forEach((s,i)=>{const d=el("button",{type:"button",className:"mini danger",textContent:"✕"});
     d.onclick=()=>{a.splice(i,1);markDirty();render()};
-    g.append(inp(s.r,v=>{if(v.trim())s.r=v.trim();else delete s.r}),el("span",{textContent:s.label||s.st}),inp(s.note,v=>{s.note=v}),d)});
+    const cb=el("input",{type:"checkbox",checked:shown(s)});
+    cb.onchange=()=>{if(cb.checked===dflt(s))delete s.show;else s.show=cb.checked;markDirty()};
+    g.append(inp(s.r,v=>{if(v.trim())s.r=v.trim();else delete s.r}),el("span",{textContent:s.label||s.st}),inp(s.note,v=>{s.note=v}),cb,d)});
   B.appendChild(g);
 }
 function sites(B){
