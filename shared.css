@@ -1,6 +1,6 @@
 /* 現場紀錄(index.html)與棲地評估(habitat.html)共用的外觀：兩頁都只引用這一份，改這裡兩頁一起變。
    頁面各自的版面（欄位、卡片內容排列）留在各自的檔案裡。 */
-:root{--eco-ver:"98e021c768"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
+:root{--eco-ver:"aa2114366b"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
 
 /* ===== 設計變數（唯一一份）：色票取自大地色系；階段色 提報＝灰藍青、設計＝赤陶褐、施工＝苔綠 ===== */
 :root{
@@ -149,7 +149,11 @@ button,.tab,.chip,.photobtns label{transition:transform .22s cubic-bezier(.34,1.
 button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale(.94)}
 @media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(45,41,29,.08),0 16px 36px -14px rgba(45,41,29,.34)}}
 @keyframes vpopc{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
-.chip[aria-pressed="true"],.tab.on{animation:vpopc .28s ease}
+.chip[aria-pressed="true"],.tab.on,.zonebar button[aria-pressed="true"]{animation:vpopc .28s ease}
+.zonebar button{transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .3s ease,color .3s ease,border-color .3s ease}
+/* 工區列兩端淡出：提示可以左右滑，也讓捲動中的按鈕不會被硬切 */
+.zonebar{-webkit-mask-image:linear-gradient(90deg,transparent,#000 12px,#000 calc(100% - 12px),transparent);mask-image:linear-gradient(90deg,transparent,#000 12px,#000 calc(100% - 12px),transparent);padding:0 8px}
+@media (prefers-reduced-motion:reduce){.zonebar button[aria-pressed="true"]{animation:none}}
 /* 置頂區內所有子元素（含工區切換列）置中在 640px 內容欄；棲地評估主區同寬 */
 .pagehead>.zonebar,header>.zonebar{width:100%;max-width:640px;margin:6px auto 2px;box-sizing:border-box}
 main{max-width:672px}
