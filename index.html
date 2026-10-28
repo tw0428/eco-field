@@ -2348,7 +2348,8 @@ async function openMap(focusMe){
       if(g.length>1)L.polyline(g.map(p=>[p.lat,p.lng]),{color:col,weight:4,opacity:.9}).addTo(mapLayers);
       g.forEach(p=>{const m=L.circleMarker([p.lat,p.lng],{radius:3,color:col,weight:2,fillOpacity:1}).addTo(mapLayers);
         m.bindTooltip(fmtSt(p.st,p.r)+(p.note?" "+p.note:""),{direction:"right"});pts.push([p.lat,p.lng])});
-      mapLabels.push(...g.filter((p,i)=>i===0||i===g.length-1||p.note))});
+      // 標籤：預設＝路線第一點、最後一點、有註記的點；每點可用 show:true／false 強制顯示／不顯示（管理頁「樁號」分頁勾選）
+      mapLabels.push(...g.filter((p,i)=>p.show===false?false:p.show===true||i===0||i===g.length-1||p.note))});
   }
   (Array.isArray(c.sites)?c.sites:[]).forEach(p=>{if(p.lat==null)return;L.marker([p.lat,p.lng]).addTo(mapLayers).bindTooltip(p.label,{permanent:true,direction:"right"});pts.push([p.lat,p.lng])});
   records.filter(r=>r.caseId===curCase&&r.lat!=null).forEach(r=>{
