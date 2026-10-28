@@ -93,7 +93,8 @@ const dirtyKeys=()=>doc?KEYS.filter(k=>!same(doc[k],orig[k])):[];
 // 沒有修改時整列收起來；有修改才出現「儲存／放棄修改」
 function markDirty(){const d=dirtyKeys();$("saveBtn").disabled=!d.length;$("undoBtn").hidden=$("saveBtn").hidden=!d.length;
   $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存的修改":"";$("saveBar").hidden=!d.length}
-window.addEventListener("beforeunload",e=>{if(dirtyKeys().length){e.preventDefault();e.returnValue=""}});
+let syncing=0; // 背景同步其他工區進行中：離開頁面會讓沒寫完的工區停住，所以也要提醒
+window.addEventListener("beforeunload",e=>{if(dirtyKeys().length||syncing){e.preventDefault();e.returnValue=""}});
 
 async function loadCases(){
   $("conn").textContent="讀取中…";
@@ -145,8 +146,8 @@ async function save(){
     const tail="。回現場紀錄按 ↻ 會看到。";
     if(!others.length){$("saveMsg").textContent="已儲存"+tail;return}
     // 背景同步其他工區（一個一個寫；GitHub 同時寫同一專案會互相卡）
-    let ok=0,fail=[];$("saveMsg").textContent=`已儲存；同步其他工區 0/${others.length}…`;
-    for(const m of others){
+    let ok=0,fail=[];$("saveMsg").textContent=`已儲存；同步其他工區 0/${others.length}…（請先別離開這一頁）`;syncing++;
+    try{for(const m of others){
       const p="cases/"+m.id+".json",ap=base=>{const nx={...base};sync.forEach(k=>{if(norm(snap[k])==null)delete nx[k];else nx[k]=snap[k]});return nx};
       try{
         const {id:_,...base}=cases.find(c=>c.id===m.id)||{};let nx=ap(base);
@@ -154,8 +155,8 @@ async function save(){
         catch(e){if(!isStale(e))throw e;const {data:o,sha}=await getJson(p);if(!o)throw e;nx=ap(o);shaOf[m.id]=await putFast(p,nx,sha)}
         const j=cases.findIndex(c=>c.id===m.id);if(j>=0)cases[j]={...nx,id:m.id};ok++;
       }catch(e){fail.push(m.zone||m.name||m.id)}
-      $("saveMsg").textContent=`已儲存；同步其他工區 ${ok+fail.length}/${others.length}…`;
-    }
+      $("saveMsg").textContent=`已儲存；同步其他工區 ${ok+fail.length}/${others.length}…（請先別離開這一頁）`;
+    }}finally{syncing--}
     $("saveMsg").className=fail.length?"hint dirty":"hint";
     $("saveMsg").textContent=fail.length?`已儲存，但這些工區同步失敗：${fail.join("、")}（再改一下樁號／圖說／疊圖後儲存即可重試）`:`已儲存，已同步 ${ok} 個工區${tail}`;
   }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改還在畫面上，再按一次。";b.disabled=false}
