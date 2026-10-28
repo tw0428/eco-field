@@ -1242,8 +1242,10 @@ let offBusy=null; // 下載中：{id,done,total}
 async function offDownload(c){
   if(offBusy)return;if(navigator.onLine===false){offErr="目前沒網路，請在有訊號的地方下載。";offRender();return}
   offErr="";try{await navigator.storage.persist()}catch(e){}
-  const files=[...new Set([...(c.plans||[]).map(p=>p.id),...(c.overlays||[]).map(o=>o.id),...records.filter(r=>r.caseId===c.id).flatMap(r=>r.photos||[])].filter(Boolean))];
-  const tiles=offTiles(c);
+  // 同群組的工區一次下載：平面圖、設計圖、照片、地圖取各工區聯集
+  const zs=zoneMates(c.id),mates=zs.length?zs:[c],zid=mates.map(z=>z.id);
+  const files=[...new Set(mates.flatMap(z=>[...(z.plans||[]).map(p=>p.id),...(z.overlays||[]).map(o=>o.id),...records.filter(r=>r.caseId===z.id).flatMap(r=>r.photos||[])]).filter(Boolean))];
+  const tiles=[...new Set(mates.flatMap(z=>offTiles(z)))];
   offBusy={id:c.id,done:0,total:OFF_LIBS.length+files.length+tiles.length*2};let fail=0,bytes=0;offRender();
   // 下載中只改進度文字（整個面板重畫會閃）；開始與結束才重畫
   const step=async f=>{try{bytes+=(await f())||0}catch(e){fail++}offBusy.done++;if(offBusy.done%10===0||offBusy.done===offBusy.total)offTick()};
@@ -1251,13 +1253,16 @@ async function offDownload(c){
     await pool(OFF_LIBS,3,u=>step(()=>cachePut(LIB_CACHE,u).then(()=>0)));
     await pool(files,4,id=>step(async()=>(await fileBlob(id)).size));
     await pool(tiles.flatMap(k=>["EMAP","PHOTO2"].map(l=>tileUrl(l,k))),6,u=>step(()=>cachePut(TILE_CACHE,u)));
-    lsSet(offKey(c.id),JSON.stringify({at:Date.now(),files,tiles,bytes,fail,noMap:!tiles.length}));
+    // 每個工區各存一份同內容紀錄（lead＝代表者，清單只顯示一筆），這樣切到任一工區都顯示已下載
+    const rec=JSON.stringify({at:Date.now(),files,tiles,bytes,fail,noMap:!tiles.length,lead:c.id,zones:zid});
+    zid.forEach(id=>lsSet(offKey(id),rec));
   }finally{offBusy=null;offRender()}
 }
 // 只刪這一案用到、而且別的離線包沒用到的檔案與圖磚（相鄰案件常共用圖磚）
 async function offDelete(id){
   const all=offPacks(),me=all.find(p=>p.id===id);if(!me)return;
-  const others=all.filter(p=>p.id!==id),arr=x=>Array.isArray(x)?x:[];
+  const arr=x=>Array.isArray(x)?x:[],mine=new Set([id,...arr(me.zones)]);
+  const others=all.filter(p=>!mine.has(p.id));
   const keepF=new Set(others.flatMap(p=>arr(p.files))),keepT=new Set(others.flatMap(p=>arr(p.tiles)));
   try{
     const fc=await caches.open(FILE_CACHE),tc=await caches.open(TILE_CACHE);
@@ -1265,7 +1270,7 @@ async function offDelete(id){
     for(const t of arr(me.tiles))if(!keepT.has(t))for(const l of ["EMAP","PHOTO2"])await tc.delete(tileUrl(l,t));
     if(!others.length)await caches.delete(LIB_CACHE);
   }catch(e){}
-  try{localStorage.removeItem(offKey(id))}catch(e){}
+  try{mine.forEach(k=>localStorage.removeItem(offKey(k)))}catch(e){}
 }
 let offErr="",offUse="";
 function offTick(){if(!offBusy)return;const t=`下載中 ${offBusy.done}/${offBusy.total}`;
@@ -1275,27 +1280,27 @@ function offShow(c){
   const b=$("offBtn"),m=$("offMsg");b.hidden=!c;if(!c){m.hidden=true;return}
   const s=offGet(c.id);
   setBt(b,"down",offBusy&&offBusy.id===c.id?`離線包：下載中 ${offBusy.done}/${offBusy.total}`:s?`離線包：已下載（${fmtAt(s.at)}）`:"離線包：未下載");
-  const newer=s&&records.some(r=>r.caseId===c.id&&(r.photos||[]).some(p=>!s.files.includes?.(p)));
+  const zset=new Set([c.id,...(Array.isArray(s&&s.zones)?s.zones:[])]),newer=s&&records.some(r=>zset.has(r.caseId)&&(r.photos||[]).some(p=>!s.files.includes?.(p)));
   m.hidden=!newer;if(newer)m.textContent="下載後有新增照片，出發前可以按進去「更新」。";
 }
 function offRender(){
   const c=cases.find(x=>x.id===curCase);offShow(c);
   const box=$("offBox");if(!box||$("offSheet").hidden)return;box.innerHTML="";
   const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
-  const packs=offPacks();
+  const allPacks=offPacks(),packs=allPacks.filter(p=>!p.lead||p.lead===p.id);
   if(c){
-    const s=packs.find(p=>p.id===c.id),sec=el("div","expbtns");
+    const s=allPacks.find(p=>p.id===c.id),sec=el("div","expbtns");
     sec.appendChild(el("div","lbl","本案："+c.name));
     const go=el("button","primary",offBusy&&offBusy.id===c.id?`下載中 ${offBusy.done}/${offBusy.total}…`:s?"更新本案離線包":"下載本案離線包");if(!(offBusy&&offBusy.id===c.id))go.prepend(ic("down"));
     go.type="button";go.id="offGo";go.disabled=!!offBusy;go.onclick=()=>offDownload(c);sec.appendChild(go);
-    sec.appendChild(el("div","hint",offErr||"含平面圖、對位設計圖、本案照片、工區周圍約300m的地圖。出發前有網路時下載；下載中可以繼續操作，頁面先不要關。"));
+    sec.appendChild(el("div","hint",offErr||"含平面圖、對位設計圖、照片、工區周圍約300m的地圖；同群組的工區一次全下載。出發前有網路時下載；下載中可以繼續操作，頁面先不要關。"));
     if(s&&s.noMap)sec.appendChild(el("div","hint","本案沒有樁號或定位紀錄，地圖沒有下載。"));
     box.appendChild(sec);
   }
   box.appendChild(el("div","lbl",packs.length?`手機上的離線包（${packs.length} 個）`:"手機上還沒有離線包。"));
   packs.forEach(p=>{
     const cc=cases.find(x=>x.id===p.id),row=el("div","offitem");
-    const info=el("div","offinfo");info.appendChild(el("b",null,cc?cc.name:"（案件已刪除）"));
+    const info=el("div","offinfo");info.appendChild(el("b",null,(cc?cc.name:"（案件已刪除）")+(Array.isArray(p.zones)&&p.zones.length>1?`（含同群組共 ${p.zones.length} 個工區）`:"")));
     info.appendChild(el("span",null,`${fmtAt(p.at)}・約 ${fmtMB(p.bytes||0)}・檔案 ${Array.isArray(p.files)?p.files.length:0}・地圖 ${Array.isArray(p.tiles)?p.tiles.length:0} 格`+(p.fail?`・${p.fail} 個失敗`:"")));
     row.appendChild(info);
     if(cc){const u=el("button",null,"更新");u.type="button";u.disabled=!!offBusy;u.onclick=()=>offDownload(cc);row.appendChild(u)}
