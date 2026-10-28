@@ -486,8 +486,8 @@ function locHtml(){
  const c=cases.find(x=>x.id===curCase),L=locsOf(c);
  if(!db||!c)return '';
  if(L.length<2)locEdit=false;
- return `<span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><select id="locSel" aria-label="位置" style="max-width:34vw">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}</select>`
-  +`<button class="tab" data-locadd="1" title="新增位置">＋</button><button class="tab ${locEdit?'on':''}" data-locedit="1">編輯</button></span>`
+ // 新增、編輯收進同一個下拉的最後兩項，這一排才不會因為按鈕多而換行
+ return `<select id="locSel" aria-label="位置" style="margin-left:auto;max-width:36vw;min-width:0">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}<option value="+">＋ 新增位置…</option>${L.length>1?`<option value="e">${locEdit?'✕ 收起編輯':'✎ 編輯位置…'}</option>`:''}</select>`
   +(locEdit?`<span style="flex-basis:100%;display:flex;gap:6px"><button class="act" data-locren="1">改位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></span>`:'');
 }
 async function switchLoc(k){await flush();curLoc=k;S.cur=0;msg('');loadCase(true);render()}
@@ -959,7 +959,8 @@ function fallback(txt,done){const a=document.createElement('textarea');a.value=t
 document.addEventListener('change',e=>{
  const t=e.target;
  if(t.id==='caseSel'){msg('');(async()=>{await flush();curCase=t.value;S.cur=0;curLoc=0;loadCase(true);render()})();return}
- if(t.id==='locSel'){switchLoc(+t.value);return}
+ if(t.id==='locSel'){const v=t.value;
+  if(v==='+')addLoc().then(()=>render());else if(v==='e'){locEdit=!locEdit;render()}else switchLoc(+v);return}
  if(!S.p)return;
  const p=S.p[S.cur];
  if(t.dataset.c||t.dataset.o||t.dataset.sl||t.dataset.f||t.dataset.gps!=null)addBy(p);
