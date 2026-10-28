@@ -98,7 +98,7 @@ window.addEventListener("beforeunload",e=>{if(dirtyKeys().length){e.preventDefau
 async function loadCases(){
   $("conn").textContent="讀取中…";
   const r=await gh("cases");const list=r?await r.json():[];
-  const all=await Promise.all(list.filter(f=>f.name.endsWith(".json")).map(async f=>{const {data}=await getJson("cases/"+f.name);return data?{...data,id:f.name.slice(0,-5)}:null}));
+  const all=await Promise.all(list.filter(f=>f.name.endsWith(".json")).map(async f=>{const {data,sha}=await getJson("cases/"+f.name);if(data)shaOf[f.name.slice(0,-5)]=sha;return data?{...data,id:f.name.slice(0,-5)}:null}));
   cases=all.filter(Boolean).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   $("conn").textContent="已連線";
 }
@@ -113,28 +113,51 @@ function fillSel(){
 async function openCase(id){
   curCase=id;if(!id){doc=orig=null;render();return}
   $("conn").textContent="讀取中…";
-  const {data}=await getJson("cases/"+id+".json");orig=clone(data||{});doc=clone(orig);
+  const {data,sha}=await getJson("cases/"+id+".json");shaOf[id]=sha;orig=clone(data||{});doc=clone(orig);
   const i=cases.findIndex(c=>c.id===id);if(i>=0)cases[i]={...orig,id};
   $("conn").textContent="已連線";render();markDirty();
 }
 
-/* ---------- 存檔：讀最新版；有改的欄位若在別處也被改過（手機App）就停下，避免互蓋 ---------- */
+/* ---------- 存檔 ----------
+   快速路徑：直接用載入時記下的檔案版本號（sha）寫回，一次請求；若這份檔在別處被改過（版本號對不上），才讀最新版、逐欄位檢查有沒有互蓋。
+   同案其他工區的同步放背景做，主案件存好就先顯示「已儲存」，不用等。 */
+const shaOf={};
+const isStale=e=>e&&(e.code===409||e.code===422);
+async function putFast(path,next,sha){const r=await putJson(path,next,sha);try{return (await r.json()).content.sha}catch(_){return null}}
 async function save(){
   const d=dirtyKeys();if(!d.length)return;
-  const b=$("saveBtn");b.disabled=true;$("saveMsg").textContent="儲存中…";
+  const b=$("saveBtn");b.disabled=true;$("saveMsg").className="hint";$("saveMsg").textContent="儲存中…";
+  const path="cases/"+curCase+".json",apply=(base,keys=d)=>{const nx={...base};keys.forEach(k=>{if(norm(doc[k])==null)delete nx[k];else nx[k]=doc[k]});return nx};
   try{
-    const {data:cur,sha}=await getJson("cases/"+curCase+".json");if(!cur)throw new Error("案件檔不見了");
-    const clash=d.filter(k=>!same(cur[k],orig[k]));
-    if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」剛在別處被改過（可能是手機App）。先按「放棄修改」重新載入再改，避免蓋掉。`;b.disabled=false;return}
-    const next={...cur};d.forEach(k=>{if(norm(doc[k])==null)delete next[k];else next[k]=doc[k]});
-    await putJson("cases/"+curCase+".json",next,sha);
-    // 同案其他工區：樁號、圖說、疊圖一起改（勾選時）
-    const sync=$("syncChk")&&$("syncChk").checked?d.filter(k=>SHARED.includes(k)):[];
-    let n=0;for(const m of mates().filter(c=>c.id!==curCase)){if(!sync.length)break;
-      const {data:o,sha:s}=await getJson("cases/"+m.id+".json");if(!o)continue;const nx={...o};sync.forEach(k=>{nx[k]=doc[k]});await putJson("cases/"+m.id+".json",nx,s);n++}
-    orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===curCase);if(i>=0)cases[i]={...next,id:curCase};
+    let next=apply(orig);
+    try{shaOf[curCase]=await putFast(path,next,shaOf[curCase])}
+    catch(e){
+      if(!isStale(e))throw e;
+      const {data:cur,sha}=await getJson(path);if(!cur)throw new Error("案件檔不見了");
+      const clash=d.filter(k=>!same(cur[k],orig[k]));
+      if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」剛在別處被改過（可能是手機App）。先按「放棄修改」重新載入再改，避免蓋掉。`;b.disabled=false;return}
+      next=apply(cur);shaOf[curCase]=await putFast(path,next,sha);
+    }
+    const mine=curCase,sync=$("syncChk")&&$("syncChk").checked?d.filter(k=>SHARED.includes(k)):[],others=sync.length?mates().filter(c=>c.id!==mine):[],snap={};sync.forEach(k=>{snap[k]=clone(doc[k]??null)});
+    orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===mine);if(i>=0)cases[i]={...next,id:mine};
     if(d.includes("name"))fillSel();
-    render();markDirty();$("saveBar").hidden=false;$("saveMsg").textContent="已儲存"+(n?`（同步 ${n} 個工區）`:"")+"。回現場紀錄按 ↻ 會看到。";
+    render();markDirty();$("saveBar").hidden=false;
+    const tail="。回現場紀錄按 ↻ 會看到。";
+    if(!others.length){$("saveMsg").textContent="已儲存"+tail;return}
+    // 背景同步其他工區（一個一個寫；GitHub 同時寫同一專案會互相卡）
+    let ok=0,fail=[];$("saveMsg").textContent=`已儲存；同步其他工區 0/${others.length}…`;
+    for(const m of others){
+      const p="cases/"+m.id+".json",ap=base=>{const nx={...base};sync.forEach(k=>{if(norm(snap[k])==null)delete nx[k];else nx[k]=snap[k]});return nx};
+      try{
+        const {id:_,...base}=cases.find(c=>c.id===m.id)||{};let nx=ap(base);
+        try{shaOf[m.id]=await putFast(p,nx,shaOf[m.id])}
+        catch(e){if(!isStale(e))throw e;const {data:o,sha}=await getJson(p);if(!o)throw e;nx=ap(o);shaOf[m.id]=await putFast(p,nx,sha)}
+        const j=cases.findIndex(c=>c.id===m.id);if(j>=0)cases[j]={...nx,id:m.id};ok++;
+      }catch(e){fail.push(m.zone||m.name||m.id)}
+      $("saveMsg").textContent=`已儲存；同步其他工區 ${ok+fail.length}/${others.length}…`;
+    }
+    $("saveMsg").className=fail.length?"hint dirty":"hint";
+    $("saveMsg").textContent=fail.length?`已儲存，但這些工區同步失敗：${fail.join("、")}（再改一下樁號／圖說／疊圖後儲存即可重試）`:`已儲存，已同步 ${ok} 個工區${tail}`;
   }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改還在畫面上，再按一次。";b.disabled=false}
 }
 function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return [];return cases.filter(x=>x.group===c.group&&!x.trashedAt)}
