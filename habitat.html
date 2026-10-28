@@ -118,7 +118,6 @@ body[data-view="creek"]{--accent:#40798c}body[data-view="slope"]{--accent:#7d6a5
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
 <div id="caseMsg" class="warn" hidden></div>
-<div class="row" id="locBar" hidden></div>
 <div class="tabs" id="ptabs"></div>
 <div class="vrow" id="vtabs"></div>
 </header>
@@ -482,17 +481,14 @@ window.ecoBeforeReload=()=>flush(); // 有新版要重整前，先把還沒存�
 const wrapAll=()=>document.querySelectorAll("main select:not(.wsrc)").forEach(s=>{s.after(wrapSelect(s,1))});
 {const m=document.querySelector("main");if(m){new MutationObserver(wrapAll).observe(m,{childList:true,subtree:true});wrapAll()}}
 
-/* 位置列：只有一個位置時只顯示「＋新增位置」，兩個以上才顯示各位置按鈕與編輯 */
-function renderLocs(){
- const b=$('locBar'),c=cases.find(x=>x.id===curCase),L=locsOf(c);
- if(!db||!c||!S.p){b.hidden=true;return}
- b.hidden=false;
- // 同「案件」那排的樣式：下拉選位置＋新增＋編輯；編輯展開後才出現改名、刪除
+/* 位置：放在期別分頁同一排的右側（不多佔一排高度）：[位置下拉][＋][編輯]；編輯展開後才出現改名、刪除 */
+function locHtml(){
+ const c=cases.find(x=>x.id===curCase),L=locsOf(c);
+ if(!db||!c)return '';
  if(L.length<2)locEdit=false;
- b.innerHTML=`<label for="locSel">位置</label><select id="locSel" style="flex:1">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}</select>`
-  +`<button class="act" data-locadd="1">新增</button><button class="act ${locEdit?'on':''}" data-locedit="1">編輯</button>`
-  +(locEdit?`<div class="row" style="flex-basis:100%;margin:0"><button class="act" data-locren="1">改位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></div>`:'');
- b.style.flexWrap='wrap';
+ return `<span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center"><select id="locSel" aria-label="位置" style="max-width:34vw">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}</select>`
+  +`<button class="tab" data-locadd="1" title="新增位置">＋</button><button class="tab ${locEdit?'on':''}" data-locedit="1">編輯</button></span>`
+  +(locEdit?`<span style="flex-basis:100%;display:flex;gap:6px"><button class="act" data-locren="1">改位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></span>`:'');
 }
 async function switchLoc(k){await flush();curLoc=k;S.cur=0;msg('');loadCase(true);render()}
 async function addLoc(){
@@ -520,10 +516,10 @@ async function delLoc(b){
  }catch(e){msg('刪除失敗（'+(e.code||e.message)+'）')}
 }
 function render(){
- renderCases();renderLocs();
+ renderCases();
  if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
  // 第一層：期別（分段按鈕）；第二層：評估類型（分段按鈕）＋匯出、說明（文字連結）
- $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('');
+ $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('')+locHtml();
  const v=[['creek','野溪評估'],['slope','坡地評估']];
  $('vtabs').innerHTML=`<div class="seg">${v.map(([k,n])=>`<button class="${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('')}</div>`+[['cmp','匯出'],['note','說明']].map(([k,n])=>`<button class="vlink ${S.view===k?'on':''}" data-v="${k}">${n}</button>`).join('');
  document.body.dataset.view=S.view; // 野溪藍、坡地土黃，其他維持綠
@@ -915,7 +911,7 @@ document.addEventListener('click',e=>{
  else if(t.id==='caseAdd'){const r=$('caseAddRow');r.hidden=!r.hidden;if(!r.hidden)$('caseName').focus()}
  else if(t.id==='caseSave'){addCase()}
  else if(t.id==='caseDel'){delCase(t)}
- else if(t.dataset.locedit){locEdit=!locEdit;renderLocs()}
+ else if(t.dataset.locedit){locEdit=!locEdit;render()}
  else if(t.dataset.locadd){addLoc()}
  else if(t.dataset.locren){renLoc()}
  else if(t.dataset.locdel){delLoc(t)}
