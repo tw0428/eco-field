@@ -1,6 +1,6 @@
 /* 現場紀錄(index.html)與棲地評估(habitat.html)共用的外觀：兩頁都只引用這一份，改這裡兩頁一起變。
    頁面各自的版面（欄位、卡片內容排列）留在各自的檔案裡。 */
-:root{--eco-ver:"c6fabbf54e"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
+:root{--eco-ver:"fb06c8ddca"} /* 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版） */
 
 /* ===== 設計變數（唯一一份）：色票取自大地色系；階段色 提報＝灰藍青、設計＝赤陶褐、施工＝苔綠 ===== */
 :root{
@@ -147,6 +147,8 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;ba
 .fab{box-shadow:0 8px 22px -4px color-mix(in srgb,var(--accent) 55%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
 button,.tab,.chip,.photobtns label{transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .15s ease,border-color .15s ease,box-shadow .2s ease}
 button:not(:disabled):active,.photobtns label:active,.fab:active{transform:scale(.94)}
+/* 整排寬的選單鈕（案件、下拉）不縮放：電腦版寬1000多px，縮94%會讓靠左的案名左右彈約40px；改用底色回饋 */
+.pickbtn:not(:disabled):active,.wsel-btn:not(:disabled):active{transform:none;background:var(--soft)}
 @media (hover:hover) and (pointer:fine){.panel,.card,.rec{transition:transform .2s ease,box-shadow .2s ease}.rec:hover,.panel:hover,.card:hover{transform:translateY(-1px);box-shadow:0 1px 2px rgba(45,41,29,.08),0 16px 36px -14px rgba(45,41,29,.34)}}
 @keyframes vpopc{0%{transform:scale(.92)}60%{transform:scale(1.05)}100%{transform:none}}
 .chip[aria-pressed="true"],.tab.on,.zonebar button[aria-pressed="true"]{animation:vpopc .28s ease}
