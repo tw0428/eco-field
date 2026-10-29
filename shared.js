@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="1fc82c7969"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="c6fabbf54e"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -208,3 +208,94 @@ function makePicker(sel,recentKey,metaOf,ops){
   };
   sync();
 }
+
+/* ---------- EXIF：拍攝時間與GPS（現場紀錄與棲地評估共用，只改這一份）：JPEG、HEIC/HEIF ---------- */
+async function readExif(file){
+  try{
+    const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
+    // x＝診斷：notjpeg 不是JPEG（如HEIC）／noexif 沒有EXIF／nogps 有EXIF但沒位置／ok 有位置
+    const jpeg=v.byteLength>=4&&v.getUint16(0)===0xFFD8;
+    let r=null;
+    if(jpeg){
+      let off=2;
+      while(off+4<v.byteLength){
+        const mk=v.getUint16(off);
+        if(mk===0xFFFF){off++;continue} // 標記之間的填充位元組
+        if((mk&0xFF00)!==0xFF00)break;
+        const len=v.getUint16(off+2);
+        if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966){r=parseTiff(v,off+10);break}
+        off+=2+len;
+      }
+    }
+    // HEIC/HEIF（iPhone原格式）：EXIF是檔內一個項目，依 meta→iinf/iloc 找到位置再讀（可能在檔案很後面，不只檔頭）
+    if(!jpeg&&v.byteLength>=12&&v.getUint32(4)===0x66747970){const h=await heicExif(file,v);if(h)r=h}
+    // 保險：標準走法沒讀到位置（檔案結構特殊）時，直接在檔頭範圍找「Exif\0\0＋TIFF檔頭」再解一次
+    if(!r||r.lat==null){const s=scanExif(v);if(s&&(s.lat!=null||!r))r=s}
+    if(!r)return {x:jpeg?"noexif":"notjpeg"};
+    r.x=r.lat!=null?"ok":"nogps";return r;
+  }catch(e){}
+  return {};
+}
+// ISO-BMFF：meta(iinf 找 type=Exif 的項目、iloc 找它在檔案的位置)→讀出該段→交給 parseTiff
+async function heicExif(file,v){
+  try{
+    const u8=n=>v.getUint8(n),u16=n=>v.getUint16(n),u32=n=>v.getUint32(n),
+      uN=(n,sz)=>sz===0?0:sz===4?u32(n):sz===8?u32(n)*4294967296+u32(n+4):sz===2?u16(n):u8(n),
+      box=(s,e)=>{const out=[];let p=s;while(p+8<=e){let sz=u32(p),hd=8;const ty=String.fromCharCode(u8(p+4),u8(p+5),u8(p+6),u8(p+7));
+        if(sz===1){sz=u32(p+8)*4294967296+u32(p+12);hd=16}else if(sz===0)sz=e-p;if(sz<hd)break;out.push({ty,b:p+hd,e:Math.min(e,p+sz)});p+=sz}return out};
+    const meta=box(0,v.byteLength).find(x=>x.ty==="meta");if(!meta)return null;
+    const kids=box(meta.b+4,meta.e); // meta是FullBox，前4個位元組是版本/旗標
+    let exifId=null;
+    const iinf=kids.find(x=>x.ty==="iinf");
+    if(iinf){const ver=u8(iinf.b);let p=iinf.b+4+(ver===0?2:4);
+      for(const it of box(p,iinf.e)){if(it.ty!=="infe")continue;const iv=u8(it.b);let q=it.b+4,id;
+        if(iv>=2){id=iv===2?u16(q):u32(q);q+=iv===2?2:4;q+=2;const t=String.fromCharCode(u8(q),u8(q+1),u8(q+2),u8(q+3));if(t==="Exif"){exifId=id;break}}}}
+    if(exifId==null)return null;
+    const iloc=kids.find(x=>x.ty==="iloc");if(!iloc)return null;
+    const ver=u8(iloc.b),sz1=u8(iloc.b+4),sz2=u8(iloc.b+5),offS=sz1>>4,lenS=sz1&15,baseS=sz2>>4,idxS=ver>=1?sz2&15:0;
+    let p=iloc.b+6;const cnt=ver<2?u16(p):u32(p);p+=ver<2?2:4;
+    for(let i=0;i<cnt;i++){
+      const id=ver<2?u16(p):u32(p);p+=ver<2?2:4;if(ver>=1)p+=2;p+=2;
+      const base=uN(p,baseS);p+=baseS;const ec=u16(p);p+=2;
+      for(let k=0;k<ec;k++){if(ver>=1&&idxS)p+=idxS;const eo=uN(p,offS);p+=offS;const el=uN(p,lenS);p+=lenS;
+        if(id===exifId&&k===0){
+          const d=new DataView(await file.slice(base+eo,base+eo+Math.min(el,262144)).arrayBuffer());
+          if(d.byteLength<12)return null;const t=4+d.getUint32(0);return parseTiff(d,t)}}
+    }
+  }catch(e){}
+  return null;
+}
+function scanExif(v){
+  const n=v.byteLength-12;
+  for(let i=0;i<n;i++){
+    if(v.getUint8(i)!==0x45||v.getUint32(i)!==0x45786966||v.getUint16(i+4)!==0)continue;
+    const h=v.getUint32(i+6);if(h!==0x49492A00&&h!==0x4D4D002A)continue;
+    try{return parseTiff(v,i+6)}catch(e){}
+  }
+  return null;
+}
+function parseTiff(v,t){
+  const le=v.getUint16(t)===0x4949;
+  const u16=o=>v.getUint16(t+o,le),u32=o=>v.getUint32(t+o,le);
+  const ifd=o=>{const n=u16(o),tags={};for(let i=0;i<n;i++){const e=o+2+i*12;tags[u16(e)]={count:u32(e+4),vo:e+8}}return tags};
+  const rat=(tag)=>{const o=u32(tag.vo),out=[];for(let i=0;i<tag.count;i++){const a=u32(o+i*8),b=u32(o+i*8+4);out.push(b?a/b:0)}return out};
+  const asc=(tag)=>{const o=tag.count>4?u32(tag.vo):tag.vo;let s="";for(let i=0;i<tag.count;i++){const c=v.getUint8(t+o+i);if(!c)break;s+=String.fromCharCode(c)}return s};
+  const out={};
+  try{
+    const i0=ifd(u32(4));
+    if(i0[0x8769]){const ex=ifd(u32(i0[0x8769].vo));const d=ex[0x9003]||ex[0x9004];if(d)out.taken=asc(d)}
+    if(!out.taken&&i0[0x0132])out.taken=asc(i0[0x0132]);
+    if(i0[0x8825]){
+      const g=ifd(u32(i0[0x8825].vo));
+      if(g[2]&&g[4]){
+        const dms=a=>a[0]+a[1]/60+a[2]/3600;
+        let lat=dms(rat(g[2])),lng=dms(rat(g[4]));
+        if(g[1]&&asc(g[1])==="S")lat=-lat;
+        if(g[3]&&asc(g[3])==="W")lng=-lng;
+        if(lat||lng){out.lat=+lat.toFixed(6);out.lng=+lng.toFixed(6)}
+      }
+    }
+  }catch(e){}
+  return out;
+}
+function fmtExifTime(s){const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(s||"");return m?`${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`:""}
