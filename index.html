@@ -1124,7 +1124,10 @@ $("vSave").onclick=async()=>{
   if(!downloads||!vCur)return;const b=$("vSave"),old=b.textContent;
   try{
     b.disabled=true;b.textContent="準備中…";
-    const blob=await fileBlob(vCur.id,vCur.type);
+    let blob=await fileBlob(vCur.id,vCur.type);
+    // 紀錄裡的照片：上傳時壓縮過、EXIF已清掉，下載時把這筆的GPS與拍攝時間寫回（與「下載本案照片」zip一致）；平面圖、PDF不動
+    const rec=vCur.type==="image/jpeg"?records.find(r=>(r.photos||[]).includes(vCur.id)):null;
+    if(rec)blob=await withExif(blob,rec.lat,rec.lng,exifDt(rec));
     const ext=vCur.type==="application/pdf"?"pdf":vCur.type==="image/png"?"png":"jpg";
     const name=(vCur.title||"檔案").replace(/[\\/:*?"<>|]/g,"_")+"."+ext;
     await downloads.save({filename:name,data:blob});b.textContent="已下載";
