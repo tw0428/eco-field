@@ -700,17 +700,26 @@ function renderOutbox(){
 }
 
 /* ---------- 手機定位：獨立網頁可以用定位，拍照時自動帶入 ---------- */
-let geo=null,geoWatch=null,geoErr="";
-function geoStart(){
-  if(geoWatch!=null||!navigator.geolocation)return;
+let geo=null,geoWatch=null,geoErr="",geoDenied=false,geoLate=[];
+// force：重啟監聽。iPhone 開相機時網頁被暫停，回來後原本的監聽可能卡住（程式以為還在跑），所以回到前景一律重啟
+function geoStart(force){
+  if(!navigator.geolocation)return;
+  if(geoWatch!=null){if(!force)return;try{navigator.geolocation.clearWatch(geoWatch)}catch(e){}geoWatch=null}
   geoWatch=navigator.geolocation.watchPosition(
-    p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr="";renderGeo()},
-    e=>{geoErr=e.code===1?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
-      if(e.code===1){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
+    p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr="";geoDenied=false;geoLateApply();renderGeo()},
+    e=>{geoDenied=e.code===1; // 只有「被拒」才算定位不可用；訊號弱逾時（2、3）會繼續等下一筆，不能當成放棄
+      geoErr=geoDenied?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
+      if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
     {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
 }
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
-async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoErr&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+// 等不到的照片先記著：之後定位來了（3分鐘內）自動補上，不用重拍
+function geoLateApply(){const g=geoFresh();if(!g||!geoLate.length)return;let hit=false;
+  geoLate=geoLate.filter(x=>{if(Date.now()-x.at>180000||x.ex.lat!=null)return false;
+    if(!pending.some(p=>p.ex===x.ex))return false;Object.assign(x.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"});hit=true;return false});
+  if(hit){renderPending();suggestStake();showMsg("定位到了，已補上等待中照片的GPS。")}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&geoWatch!=null)geoStart(true)});
 function renderGeo(){const e=$("geoState");const g=geoFresh();
   const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
   e.textContent="";if(gt)e.append(ic("pin"),gt);e.hidden=!gt;renderNear()}
@@ -842,15 +851,16 @@ async function addFiles(list,fromCam){
     // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
     // 不用檔案修改時間判斷：從工具下載的照片再選回來，修改時間是下載當下，會誤用現在位置；改看照片內的拍攝時間
     const tk=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(ex.taken||""),tkMs=tk?new Date(+tk[1],tk[2]-1,+tk[3],+tk[4],+tk[5]).getTime():0;
-    ex.fresh=ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000));
+    ex.fresh=ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000));ex.at=Date.now();
     const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f)}
   }
   renderPending();renderAlbum();
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
-    const g=geoFresh()||await geoWait(10000);
-    if(g)add.forEach(p=>{if(p.ex.fresh)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})});
-    else showMsg(geoErr||"還沒取得定位，這張照片沒有GPS，可從樁號清單選位置。",true);
+    const g=geoFresh()||await geoWait(30000);
+    if(g)add.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})});
+    else{add.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)geoLate.push({ex:p.ex,at:p.ex.at})});
+      showMsg(geoDenied?geoErr:"還沒取得定位，收到訊號後會自動補上這張的GPS（3分鐘內），也可以從樁號清單選位置。",true)}
     renderPending();
   }
   suggestStake();
@@ -881,7 +891,7 @@ function renderPending(){
     const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
     x.onclick=()=>{if(p._sv)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
     const g=document.createElement("div");g.className="gps";
-    g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoErr?"定位中…":"無GPS";
+    g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoDenied&&Date.now()-(p.ex.at||0)<180000?"定位中…":"無GPS";
     d.append(im,x,g);box.appendChild(d);
   });
   $("batchBtn").hidden=pending.length<2||!!editing;
@@ -1944,7 +1954,7 @@ $("recForm").onsubmit=async e=>{
     const blobs=[];
     for(let i=0;i<snapP.length;i++){let blob;try{blob=await compress(snapP[i].file)}catch(err){blob=snapP[i].file}blobs.push(blob)}
     // 照片還在等定位就先等（最多10秒），存太快也不會漏掉GPS
-    if(snapP.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(10000);
+    if(snapP.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(20000);
       if(g)snapP.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})})}
     const gp=snapP.find(p=>p.ex.lat!=null);const tp=snapP.find(p=>p.ex.taken);
     // 樁號欄空白但有GPS：存檔時補上推估樁號（離中心線60m內才補）
