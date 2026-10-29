@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="b9415d5fd2"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="1fc82c7969"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -114,7 +114,13 @@ function makePicker(sel,recentKey,metaOf,ops){
     if(instant||Math.abs(d)<2||matchMedia("(prefers-reduced-motion: reduce)").matches){zbar.scrollLeft=to;return}
     const t0=performance.now(),T=Math.min(520,300+Math.abs(d)*.5),ease=x=>1-Math.pow(1-x,4);
     const f=now=>{const x=Math.min(1,(now-t0)/T);zbar.scrollLeft=from+d*ease(x);if(x<1)zAnim=requestAnimationFrame(f)};zAnim=requestAnimationFrame(f)};
-  ["touchstart","wheel"].forEach(e=>zbar.addEventListener(e,()=>cancelAnimationFrame(zAnim),{passive:true}));
+  zbar.addEventListener("touchstart",()=>cancelAnimationFrame(zAnim),{passive:true});
+  // 電腦滑鼠滾輪（只會上下滾）→ 轉成左右捲；已經捲到盡頭就放行，讓頁面照常上下捲
+  zbar.addEventListener("wheel",e=>{cancelAnimationFrame(zAnim);
+    if(Math.abs(e.deltaX)>=Math.abs(e.deltaY)||e.ctrlKey)return; // 觸控板橫向滑動本來就能捲
+    const max=zbar.scrollWidth-zbar.clientWidth,d=e.deltaMode===1?e.deltaY*32:e.deltaY;
+    if(max<=0||(d<0&&zbar.scrollLeft<=0)||(d>0&&zbar.scrollLeft>=max-1))return;
+    e.preventDefault();zbar.scrollLeft+=d},{passive:false});
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});
   const recent=()=>{try{return JSON.parse(lsGet(recentKey)||"[]")}catch(e){return []}};
   const touch=v=>{if(!v)return;lsSet(recentKey,JSON.stringify([v,...recent().filter(x=>x!==v)].slice(0,30)))};
