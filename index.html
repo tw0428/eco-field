@@ -2222,7 +2222,7 @@ function apItems(){const list=(rvShown||[]).filter(r=>r.photos&&r.photos.length)
   return list.flatMap((r,ri)=>r.photos.map((id,i)=>({r,id,name:names[ri][i].split("/").pop()})))}
 function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,off:0,files:null};
   const n=its.length;b.hidden=!apOk()||!n;if(b.hidden)return;
-  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張（再點）`:ap.off>=n?"已存完（再點重來）":ap.off?`存下一批 ${ap.off+1}–${Math.min(n,ap.off+AP_N)}`:`存到相簿（${n}張）`)}
+  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張（${ap.gps}張有GPS，再點）`:ap.off>=n?"已存完（再點重來）":ap.off?`存下一批 ${ap.off+1}–${Math.min(n,ap.off+AP_N)}`:`存到相簿（${n}張）`)}
 $("apBtn").onclick=async()=>{
   const b=$("apBtn"),its=apItems();apLabel();
   if(ap.files){ // 第二步：直接分享（維持點擊當下）
@@ -2235,7 +2235,7 @@ $("apBtn").onclick=async()=>{
   try{const fs=[];
     for(const [i,x] of batch.entries()){b.textContent=`準備中 ${i+1}/${batch.length}…`;
       fs.push(new File([await withExif(await fileBlob(x.id),x.r.lat,x.r.lng,exifDt(x.r))],x.name,{type:"image/jpeg"}))}
-    ap.files=fs}
+    ap.files=fs;ap.gps=batch.filter(x=>x.r.lat!=null&&x.r.lng!=null).length} // 這批裡有幾張的紀錄本身有座標（沒座標的存進相簿也不會有GPS）
   catch(e){b.textContent="準備失敗（"+(e.message||"網路")+"），再點一次";setTimeout(apLabel,2500)}
   finally{b.disabled=false;apLabel()}
 };
