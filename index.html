@@ -763,14 +763,16 @@ function impUpd(){const b=$("impBox");if(b)b.hidden=!!editing||!!linkCheck||!(ca
 async function readExif(file){
   try{
     const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
-    if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {};
+    // x＝診斷：notjpeg 不是JPEG（如HEIC）／noexif 沒有EXIF／nogps 有EXIF但沒位置／ok 有位置
+    if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {x:"notjpeg"};
     let off=2;
     while(off+4<v.byteLength){
       const mk=v.getUint16(off);if((mk&0xFF00)!==0xFF00)break;
       const len=v.getUint16(off+2);
-      if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966)return parseTiff(v,off+10);
+      if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966){const o=parseTiff(v,off+10);o.x=o.lat!=null?"ok":"nogps";return o}
       off+=2+len;
     }
+    return {x:"noexif"};
   }catch(e){}
   return {};
 }
@@ -855,6 +857,9 @@ async function addFiles(list,fromCam){
     const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f)}
   }
   renderPending();renderAlbum();
+  // 從相簿選的照片檔案裡本來就沒有位置：明講是檔案的問題（手機從相簿交給網頁時，系統常把位置移除），不是工具沒讀到
+  const nog=add.filter(p=>!p.ex.fresh&&p.ex.lat==null&&p.ex.x);
+  if(nog.length)showMsg(`${nog.length} 張照片的檔案裡沒有位置資料（${nog[0].ex.x==="notjpeg"?"不是一般JPEG格式":"手機從相簿交給網頁時，系統常把位置移除"}），不是工具沒讀到。要自動帶GPS請用工具內的拍照，或在樁號欄選位置。`,true);
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
     const g=geoFresh()||await geoWait(30000);
@@ -891,7 +896,7 @@ function renderPending(){
     const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
     x.onclick=()=>{if(p._sv)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
     const g=document.createElement("div");g.className="gps";
-    g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoDenied&&Date.now()-(p.ex.at||0)<180000?"定位中…":"無GPS";
+    g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoDenied&&Date.now()-(p.ex.at||0)<180000?"定位中…":"無GPS"+(p.ex.x&&p.ex.x!=="ok"?"（檔案內無位置）":"");
     d.append(im,x,g);box.appendChild(d);
   });
   $("batchBtn").hidden=pending.length<2||!!editing;
