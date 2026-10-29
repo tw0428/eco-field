@@ -570,12 +570,13 @@ async function updateMany(col,cid,ids,u){
   Object.assign(store[col],res);emit(col);lsSet(CACHE_KEY,JSON.stringify(store));
 }
 // 多筆併成一筆：以拍攝時間最早的那筆為主（類別、階段、定位、建立時間沿用它），其餘刪掉，一次寫入
-async function mergeRecs(cid,sel){
+async function mergeRecs(cid,sel,extra={}){
   const tk=r=>r.takenAt||fmtMs(r.createdAt);const rs=[...sel].sort((a,b)=>tk(a).localeCompare(tk(b))),base=rs[0];
   const uniq=(k,sep)=>[...new Set(rs.map(r=>(r[k]||"").trim()).filter(Boolean))].join(sep);
   const first=k=>(rs.find(r=>r[k])||{})[k]||"";
   const u={photos:rs.flatMap(r=>r.photos||[]),note:uniq("note","\n"),species:uniq("species","、"),count:uniq("count","、"),stake:first("stake"),checkId:first("checkId")};
-  if(rs.some(r=>r.op))u.op=true;if(base.lat==null){const g=rs.find(r=>r.lat!=null);if(g)Object.assign(u,{lat:g.lat,lng:g.lng,gpsSource:g.gpsSource||"exif"})}
+  if(rs.some(r=>r.op))u.op=true;Object.assign(u,extra); // extra：整理分類「合併＋改分類」同一次寫入
+  if(base.lat==null){const g=rs.find(r=>r.lat!=null);if(g)Object.assign(u,{lat:g.lat,lng:g.lng,gpsSource:g.gpsSource||"exif"})}
   const drop=new Set(rs.slice(1).map(r=>r.id));
   const res=await mutate(`records/${cid}.json`,old=>{const m={...(old||{})};if(!m[base.id])throw Object.assign(new Error("gone"),{code:"已被刪除"});m[base.id]={...m[base.id],...u};drop.forEach(i=>delete m[i]);return m});
   for(const k of Object.keys(store.records))if(store.records[k].caseId===cid&&!(k in res))delete store.records[k];
@@ -2060,9 +2061,12 @@ function srtBar(bar,list){
   if(!sel.length){srtFM=false;srtPick=null;return}
   if(srtPick){const v=srtPick,box=document.createElement("div");box.className="row";box.style.margin="0";box.style.flexWrap="wrap";
     const h=document.createElement("span");h.className="hint";h.style.flex="1 1 100%";h.textContent=`把這 ${sel.length} 筆改成：${[v.category,v.sub,v.struct].filter(Boolean).join("・")}`;
-    const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="確定套用";ok.onclick=()=>srtDo(bar,list,v);
+    const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent=sel.length>1?"只改分類":"確定套用";ok.onclick=()=>srtDo(bar,list,v);
     const no=document.createElement("button");no.type="button";no.textContent="取消";no.onclick=()=>{srtPick=null;srtBar(bar,list)};
-    box.append(h,ok,no);bar.appendChild(box);return}
+    box.append(h,ok);
+    // 多筆時可一次「合併成一筆＋改分類」（只寫一次）
+    if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="primary";mg.textContent=`合併成一筆＋改分類（${sel.flatMap(r=>r.photos||[]).length} 張）`;mg.onclick=()=>srtDo(bar,list,v,true);box.append(mg)}
+    box.append(no);bar.appendChild(box);return}
   const stg=[...new Set(sel.map(r=>r.stage||"施工中"))],cats=CATS_BY[stg.length===1?stg[0]:curStage()]||CATS_BY["施工中"];
   const box=document.createElement("div");box.className="chips";
   const mk=(t,on,f)=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;b.setAttribute("aria-pressed",String(!!on));b.onclick=f;box.appendChild(b)};
@@ -2113,12 +2117,16 @@ function srtBar(bar,list){
 }
 // 點類別不直接改：先顯示「把 N 筆改成：…」，按「確定套用」才寫入
 function srtApply(bar,list,v){srtPick=v;srtBar(bar,list)}
-async function srtDo(bar,list,v){srtPick=null;
+async function srtDo(bar,list,v,merge){srtPick=null;
   const u={category:v.category,abcd:v.abcd||"",sub:v.sub||"",struct:v.struct||""};
   // 勾選的一次改好：只寫一次紀錄檔（原本一筆一筆寫，慢又能在中途點別張）；寫入中整面照片牆鎖住
   const sel=list.filter(r=>srtSel.has(r.id));bar.querySelectorAll("button").forEach(b=>b.disabled=true);
   srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
-  const h=bar.querySelector(".hint");if(h)h.textContent=`更新 ${sel.length} 筆中…`;
+  const h=bar.querySelector(".hint");if(h)h.textContent=merge?`合併 ${sel.length} 筆中…`:`更新 ${sel.length} 筆中…`;
+  if(merge){
+    try{await mergeRecs(curCase,sel,u);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併成一筆並改成${[u.category,u.sub,u.struct].filter(Boolean).join("・")}，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
+    catch(e){showMsg(`沒合併成功（${(e&&e.code)||"網路"}），照片還勾著，再試一次。`,true)}
+    srtBusy=false;srtFM=false;renderRecords();return}
   try{await updateMany("records",curCase,sel.map(r=>r.id),u);sel.forEach(r=>{Object.assign(r,u);srtSel.delete(r.id)})}
   catch(e){showMsg(`沒改成功（${(e&&e.code)||"網路"}），照片還勾著，再點一次類別。`,true)}
   srtBusy=false;srtFM=false;renderRecords();
