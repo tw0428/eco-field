@@ -273,6 +273,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   .wrap>section.list{grid-column:2;grid-row:1/-1;position:sticky;top:calc(var(--headh,120px) + 10px);max-height:calc(100vh - var(--headh,120px) - 20px);overflow:auto;overscroll-behavior:contain;padding-right:6px}
   #recList{padding-bottom:16px}
   .wall{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .wrap>section.list .srttools{top:0} /* 右欄自己捲：整理分類列貼右欄頂端，不是頁首下緣 */
 }
 </style>
 <link rel="stylesheet" href="shared.css">
