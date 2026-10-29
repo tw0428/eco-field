@@ -744,10 +744,10 @@ $("subSel").onchange=e=>{sub=e.target.value;abcd="";renderChips()};
 $("structSel").onchange=e=>{struct=e.target.value;renderChips()};
 $("subSel").after(wrapSelect($("subSel"),1));$("structSel").after(wrapSelect($("structSel"),1));{const fw=wrapSelect($("filtSel"),1);fw.classList.add("grow");$("filtSel").after(fw)}
 function renderChips(){
-  // 一次選兩張以上（批次）多一個「未分類」：先全部存上去，之後在照片牆「整理分類」慢慢分
-  const many=pending.length>=2&&!editing,base=[...(CATS_BY[curStage()]||CATS_BY["施工中"]),...(many?["未分類"]:[])];
+  // 新紀錄預設「未分類」（排最前）：先存上去，之後在照片牆「整理分類」慢慢分；編輯舊紀錄不加
+  const base=[...(editing?[]:["未分類"]),...(CATS_BY[curStage()]||CATS_BY["施工中"])];
   if(!cat||(!editing&&!base.includes(cat)))cat=base[0];
-  const cl=catList();if(many&&!cl.includes("未分類"))cl.push("未分類");
+  const cl=catList();if(!editing&&!cl.includes("未分類"))cl.unshift("未分類");
   chips($("catChips"),cl.map(c=>[c,c]),()=>cat,v=>{if(v!==cat){sub="";struct=""}cat=v});
   $("abcdBox").hidden=!isFM(cat);$("habBox").hidden=cat!=="棲地影像";
   if(isFM(cat)){fillSel($("subSel"),"措施種類…",FM_SUBS,sub);$("abcdChips").hidden=true}
@@ -1901,14 +1901,14 @@ $("noteIn").addEventListener("input",growNote);
 /* 按儲存當下：把這一筆的欄位與照片「固定」起來、表單馬上清空，上傳在背景跑；這時拍的新照片是下一筆，不會被這次的儲存清掉或帶走 */
 const FORM_IDS=["stakeIn","countIn","spIn","noteIn"];
 function formSnap(){return {caseId:curCase,stage:curStage(),v:FORM_IDS.map(id=>$(id).value.trim()),cat,abcd,sub,struct,link:linkCheck,op:$("opChk").checked,imp:!$("impBox").hidden&&$("impChk").checked}}
-function resetFields(){FORM_IDS.forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null)}
+function resetFields(){FORM_IDS.forEach(id=>$(id).value="");growNote();$("opChk").checked=false;cat="";abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null)}
 // 失敗時把欄位放回去（使用者已經開始填下一筆就不動）
 function restoreFields(s){if(FORM_IDS.some(id=>$(id).value.trim()))return;
-  FORM_IDS.forEach((id,i)=>$(id).value=s.v[i]);growNote();$("opChk").checked=s.op;if(!abcd&&!sub&&!struct){abcd=s.abcd;sub=s.sub;struct=s.struct}if(s.link&&!linkCheck)setLink(s.link);renderChips()}
+  FORM_IDS.forEach((id,i)=>$(id).value=s.v[i]);growNote();$("opChk").checked=s.op;if(cat==="未分類"&&s.cat)cat=s.cat;if(!abcd&&!sub&&!struct){abcd=s.abcd;sub=s.sub;struct=s.struct}if(s.link&&!linkCheck)setLink(s.link);renderChips()}
 function dropPend(ps){ps.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb)});pending=pending.filter(p=>!ps.includes(p));renderPending()}
 function clearForm(){
   pending.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb)});pending=[];renderPending();
-  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null);
+  ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");growNote();$("opChk").checked=false;cat="";abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null);
 }
 
 /* ---------- 儲存 ---------- */
