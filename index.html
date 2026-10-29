@@ -1364,9 +1364,12 @@ function curDay(){return today()}
 const byDay=()=>curStage()==="施工中";
 function visits(){return Object.entries(checkRes).filter(([k,d])=>d.caseId===curCase&&d.stage==="施工中"&&d.st&&Object.keys(d.st).length)
   .sort((a,b)=>(a[1].date||"").localeCompare(b[1].date||"")||((a[1].updatedAt||0)-(b[1].updatedAt||0)))}
+// chkVisit 只記使用者自己選的那次（選單、＋新增一次現勘）；沒選就一律用最近一次。
+// 還沒有任何一次時給暫定編號但不鎖進 chkVisit：開啟時核對結果還沒載入，鎖住的話載入後會變成多開一次現勘（10/29 同一天開出 4 次）
+let chkNew=null;
 function resId(){if(!byDay())return curCase+"_"+curStage();
   if(chkVisit)return chkVisit;const v=visits();if(v.length)return v[v.length-1][0];
-  return chkVisit=curCase+"_施工中_"+Date.now().toString(36)}
+  if(!chkNew||!chkNew.startsWith(curCase+"_施工中_"))chkNew=curCase+"_施工中_"+Date.now().toString(36);return chkNew}
 // 目前這份結果；依階段存的還沒有時，沿用改版前同階段依日期存的最新一份（第一次按就會轉存成階段那份）
 function curRes(){const k=resId();if(checkRes[k])return checkRes[k];if(byDay())return null;const s=curStage();
   return Object.values(checkRes).filter(d=>d.caseId===curCase&&d.stage===s&&d.st&&Object.keys(d.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0]||null}
