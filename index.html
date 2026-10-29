@@ -210,6 +210,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 .stkbtn{position:absolute;right:4px;top:4px;bottom:4px;width:36px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:16px;border:0;border-radius:8px;background:var(--tone,var(--surface));padding:0;cursor:pointer}
 .stkbtn[hidden]{display:none}
 /* 紀錄卡：精簡排版 */
+#listTools .tilesz{display:none;align-items:center;gap:4px;color:var(--muted);flex:none}#listTools .tilesz input{width:110px;padding:0;accent-color:var(--accent)}
 .rec.compact{flex-direction:row;align-items:flex-start;gap:10px;padding:8px 10px}
 .rec.compact .ph{position:relative;flex:none;display:block;width:76px;height:76px}
 .rec.compact .ph img{width:76px;height:76px;object-fit:cover;border-radius:6px;display:block;background:var(--soft)}
@@ -272,7 +273,12 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   .wrap>*{grid-column:1;margin-top:10px}
   .wrap>section.list{grid-column:2;grid-row:1/-1;position:sticky;top:calc(var(--headh,120px) + 10px);max-height:calc(100vh - var(--headh,120px) - 20px);overflow:auto;overscroll-behavior:contain;padding-right:6px}
   #recList{padding-bottom:16px}
-  .wall{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  /* 照片大小拉桿（--tile，照片牆與列表各記各的）：照片牆每格最小寬；列表改多欄卡片，縮圖＝--tile */
+  .wall{grid-template-columns:repeat(auto-fill,minmax(var(--tile,150px),1fr))}
+  #listTools .tilesz{display:flex}
+  #recList[data-mode="list"]{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(var(--tile,96px) + 260px),1fr));gap:8px;align-content:start}
+  #recList[data-mode="list"]>.dayhead,#recList[data-mode="list"]>.empty{grid-column:1/-1}
+  #recList[data-mode="list"] .rec.compact .ph,#recList[data-mode="list"] .rec.compact .ph img{width:var(--tile,96px);height:var(--tile,96px)}
   .wrap>section.list .srttools{top:0} /* 右欄自己捲：整理分類列貼右欄頂端，不是頁首下緣 */
 }
 </style>
@@ -415,7 +421,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
-    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button><button type="button" id="apBtn" hidden><i class="ic ic-save"></i>存到相簿</button></div>
+    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><label class="tilesz" title="照片大小"><i class="ic ic-img"></i><input type="range" id="tileIn" min="60" max="420" step="10" aria-label="照片大小"></label><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button><button type="button" id="apBtn" hidden><i class="ic ic-save"></i>存到相簿</button></div>
     <div class="row" id="filtRow" hidden><label for="filtSel" class="lbl" style="margin:0;white-space:nowrap">篩選</label><select id="filtSel" class="grow"></select></div>
     <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
@@ -2048,7 +2054,12 @@ camLoad();
 
 /* ---------- 列表／照片牆 ---------- */
 const listMode=()=>lsGet("eco-listmode")||"list";
-function renderSeg(){document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===listMode())))}
+function renderSeg(){document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===listMode())));tileUpd()}
+// 電腦版照片大小拉桿（手機不顯示）：照片牆、列表各記一個值
+const TILE_DEF={wall:150,list:96};
+function tileUpd(){const m=listMode()==="wall"?"wall":"list",v=+lsGet("eco-tile-"+m)||TILE_DEF[m];
+  $("tileIn").value=v;$("recList").dataset.mode=m;$("recList").style.setProperty("--tile",v+"px")}
+$("tileIn").oninput=e=>{const m=listMode()==="wall"?"wall":"list";lsSet("eco-tile-"+m,e.target.value);$("recList").style.setProperty("--tile",e.target.value+"px")};
 document.querySelectorAll("#listTools [data-mode]").forEach(b=>b.onclick=()=>{lsSet("eco-listmode",b.dataset.mode);renderSeg();renderRecords()});
 renderSeg();
 $("filtSel").onchange=e=>{recFilt=e.target.value;srtSel.clear();srtFM=false;e.target.blur();renderRecords()};
