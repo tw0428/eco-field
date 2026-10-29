@@ -724,7 +724,8 @@ function renderGeo(){const e=$("geoState");const g=geoFresh();
   const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
   e.textContent="";if(gt)e.append(ic("pin"),gt);e.hidden=!gt;renderNear()}
 
-function showMsg(t,err){const m=$("formMsg");m.textContent=t;m.className="msg"+(err?" err":"");m.hidden=!t}
+let gpsNote=false; // 目前顯示的是「照片檔案沒有位置」提示（照片移除或補上GPS後要自動收掉）
+function showMsg(t,err){gpsNote=false;const m=$("formMsg");m.textContent=t;m.className="msg"+(err?" err":"");m.hidden=!t}
 
 function chips(box,items,getSel,onPick){
   box.innerHTML="";
@@ -777,12 +778,43 @@ async function readExif(file){
         off+=2+len;
       }
     }
-    // 保險：標準走法沒讀到位置（檔案結構特殊、或是HEIC）時，直接在檔頭範圍找「Exif\0\0＋TIFF檔頭」再解一次
+    // HEIC/HEIF（iPhone原格式）：EXIF是檔內一個項目，依 meta→iinf/iloc 找到位置再讀（可能在檔案很後面，不只檔頭）
+    if(!jpeg&&v.byteLength>=12&&v.getUint32(4)===0x66747970){const h=await heicExif(file,v);if(h)r=h}
+    // 保險：標準走法沒讀到位置（檔案結構特殊）時，直接在檔頭範圍找「Exif\0\0＋TIFF檔頭」再解一次
     if(!r||r.lat==null){const s=scanExif(v);if(s&&(s.lat!=null||!r))r=s}
     if(!r)return {x:jpeg?"noexif":"notjpeg"};
     r.x=r.lat!=null?"ok":"nogps";return r;
   }catch(e){}
   return {};
+}
+// ISO-BMFF：meta(iinf 找 type=Exif 的項目、iloc 找它在檔案的位置)→讀出該段→交給 parseTiff
+async function heicExif(file,v){
+  try{
+    const u8=n=>v.getUint8(n),u16=n=>v.getUint16(n),u32=n=>v.getUint32(n),
+      uN=(n,sz)=>sz===0?0:sz===4?u32(n):sz===8?u32(n)*4294967296+u32(n+4):sz===2?u16(n):u8(n),
+      box=(s,e)=>{const out=[];let p=s;while(p+8<=e){let sz=u32(p),hd=8;const ty=String.fromCharCode(u8(p+4),u8(p+5),u8(p+6),u8(p+7));
+        if(sz===1){sz=u32(p+8)*4294967296+u32(p+12);hd=16}else if(sz===0)sz=e-p;if(sz<hd)break;out.push({ty,b:p+hd,e:Math.min(e,p+sz)});p+=sz}return out};
+    const meta=box(0,v.byteLength).find(x=>x.ty==="meta");if(!meta)return null;
+    const kids=box(meta.b+4,meta.e); // meta是FullBox，前4個位元組是版本/旗標
+    let exifId=null;
+    const iinf=kids.find(x=>x.ty==="iinf");
+    if(iinf){const ver=u8(iinf.b);let p=iinf.b+4+(ver===0?2:4);
+      for(const it of box(p,iinf.e)){if(it.ty!=="infe")continue;const iv=u8(it.b);let q=it.b+4,id;
+        if(iv>=2){id=iv===2?u16(q):u32(q);q+=iv===2?2:4;q+=2;const t=String.fromCharCode(u8(q),u8(q+1),u8(q+2),u8(q+3));if(t==="Exif"){exifId=id;break}}}}
+    if(exifId==null)return null;
+    const iloc=kids.find(x=>x.ty==="iloc");if(!iloc)return null;
+    const ver=u8(iloc.b),sz1=u8(iloc.b+4),sz2=u8(iloc.b+5),offS=sz1>>4,lenS=sz1&15,baseS=sz2>>4,idxS=ver>=1?sz2&15:0;
+    let p=iloc.b+6;const cnt=ver<2?u16(p):u32(p);p+=ver<2?2:4;
+    for(let i=0;i<cnt;i++){
+      const id=ver<2?u16(p):u32(p);p+=ver<2?2:4;if(ver>=1)p+=2;p+=2;
+      const base=uN(p,baseS);p+=baseS;const ec=u16(p);p+=2;
+      for(let k=0;k<ec;k++){if(ver>=1&&idxS)p+=idxS;const eo=uN(p,offS);p+=offS;const el=uN(p,lenS);p+=lenS;
+        if(id===exifId&&k===0){
+          const d=new DataView(await file.slice(base+eo,base+eo+Math.min(el,262144)).arrayBuffer());
+          if(d.byteLength<12)return null;const t=4+d.getUint32(0);return parseTiff(d,t)}}
+    }
+  }catch(e){}
+  return null;
 }
 function scanExif(v){
   const n=v.byteLength-12;
@@ -877,6 +909,7 @@ async function addFiles(list,fromCam){
   // 從相簿選的照片檔案裡本來就沒有位置：明講是檔案的問題（手機從相簿交給網頁時，系統常把位置移除），不是工具沒讀到
   const nog=add.filter(p=>!p.ex.fresh&&p.ex.lat==null&&p.ex.x);
   if(nog.length)showMsg(`${nog.length} 張照片的檔案裡沒有位置資料（${nog[0].ex.x==="notjpeg"?"不是一般JPEG格式":"手機從相簿交給網頁時，系統常把位置移除"}），不是工具沒讀到。要自動帶GPS請用工具內的拍照，或在樁號欄選位置。`,true);
+  if(nog.length)gpsNote=true;
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
     const g=geoFresh()||await geoWait(30000);
@@ -917,6 +950,7 @@ function renderPending(){
     d.append(im,x,g);box.appendChild(d);
   });
   $("batchBtn").hidden=pending.length<2||!!editing;
+  if(gpsNote&&!pending.some(p=>!p.ex.fresh&&p.ex.lat==null&&p.ex.x))showMsg(""); // 沒有缺位置的照片了：收掉提示
   renderChips();
 }
 
