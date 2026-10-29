@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="c6fabbf54e"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="fb06c8ddca"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
