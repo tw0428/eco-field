@@ -1350,7 +1350,7 @@ function renderStage(){
 /* ---------- 現場核對清單（案件 checks:[{id,abcd,text,stake,src}]；
    勾選依現勘日存 checkres/<caseId>_<YYYYMMDD> {caseId,date,stage,st}，未勾的顯示上次結果） ---------- */
 let checkRes={},linkCheck=null,chkEditId=null,chkCase=null,chkSort=null,chkDay=null,chkVisit=null;
-const CHK_ST=[["ok","✓ 落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
+const CHK_ST=[["ok","✓ 落實"],["adj","△ 部分落實"],["ng","✗ 未落實"],["na","－ 未施作"]];
 // 開工前：只核對設計階段意見（phase:"design"），確認能否落實；設計階段不顯示清單
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
 // 設計：只核對提審階段意見（phase:"report"），確認設計是否納入
@@ -1502,7 +1502,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"做不到的原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?"調整方向（例：改設於0K+040下游側）":"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"做不到的原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實的部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
