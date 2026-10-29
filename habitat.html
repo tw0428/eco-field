@@ -575,30 +575,6 @@ function nearestStation(lat,lng){
  return best;
 }
 function stationText(r){return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st,r.r)}（距中心線${Math.round(r.off)}m）`}
-/* EXIF（JPEG）拍攝時間與GPS：同現場紀錄App */
-async function readExif(file){
- try{const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
-  if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {};let off=2;
-  while(off+4<v.byteLength){const mk=v.getUint16(off);if((mk&0xFF00)!==0xFF00)break;const len=v.getUint16(off+2);
-   if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966)return parseTiff(v,off+10);off+=2+len;}
- }catch(e){}return {};
-}
-function parseTiff(v,t){
- const le=v.getUint16(t)===0x4949;const u16=o=>v.getUint16(t+o,le),u32=o=>v.getUint32(t+o,le);
- const ifd=o=>{const n=u16(o),tags={};for(let i=0;i<n;i++){const e=o+2+i*12;tags[u16(e)]={count:u32(e+4),vo:e+8}}return tags};
- const rat=tag=>{const o=u32(tag.vo),out=[];for(let i=0;i<tag.count;i++){const a=u32(o+i*8),b=u32(o+i*8+4);out.push(b?a/b:0)}return out};
- const asc=tag=>{const o=tag.count>4?u32(tag.vo):tag.vo;let s="";for(let i=0;i<tag.count;i++){const c=v.getUint8(t+o+i);if(!c)break;s+=String.fromCharCode(c)}return s};
- const out={};
- try{const i0=ifd(u32(4));
-  if(i0[0x8769]){const ex=ifd(u32(i0[0x8769].vo));const d=ex[0x9003]||ex[0x9004];if(d)out.taken=asc(d)}
-  if(!out.taken&&i0[0x0132])out.taken=asc(i0[0x0132]);
-  if(i0[0x8825]){const g=ifd(u32(i0[0x8825].vo));
-   if(g[2]&&g[4]){const dms=a=>a[0]+a[1]/60+a[2]/3600;let lat=dms(rat(g[2])),lng=dms(rat(g[4]));
-    if(g[1]&&asc(g[1])==="S")lat=-lat;if(g[3]&&asc(g[3])==="W")lng=-lng;
-    if(lat||lng){out.lat=+lat.toFixed(6);out.lng=+lng.toFixed(6)}}}
- }catch(e){}return out;
-}
-function fmtExifTime(s){const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(s||"");return m?`${m[1]}/${m[2]}/${m[3]} ${m[4]}:${m[5]}`:""}
 async function compress(file){
  let src;try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}
  catch(e){src=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
@@ -608,7 +584,7 @@ async function compress(file){
  return await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));
 }
 async function upPhotos(files,kind,fromCam){
- const id=curCase,lc=curLoc,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0,queued=0;
+ const id=curCase,lc=curLoc,ci=S.cur,pm=t=>{const e=$('phMsg');if(e)e.textContent=t};let noGps=0,queued=0,fileNoLoc=0;
  for(let i=0;i<files.length;i++){
   pm(`上傳 ${i+1}/${files.length}…`);
   const ex=await readExif(files[i]);
@@ -625,10 +601,10 @@ async function upPhotos(files,kind,fromCam){
    if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
    const by=addBy(S.p[ci]);
    phList(S.p[ci],kind).push({id:r.id,...(by?{by}:{}),lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
-   if(ex.lat==null)noGps++;render();
+   if(ex.lat==null){noGps++;if(ex.x&&ex.x!=='ok')fileNoLoc++}render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
- pm((queued?`沒訊號，${queued} 張先存在手機，有訊號時自動上傳。`:'')+(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(geoErr?'（'+geoErr+'）':''):'完成'));
+ pm((queued?`沒訊號，${queued} 張先存在手機，有訊號時自動上傳。`:'')+(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(fileNoLoc?`（其中 ${fileNoLoc} 張的檔案裡沒有位置資料，手機從相簿交給網頁時系統常把位置移除，不是工具沒讀到；用工具內拍照會自動帶GPS）`:'')+(geoDenied?'（'+geoErr+'）':''):'完成'));
 }
 /* 從現場紀錄選照片：讀同案件ID的 records/<案>.json；照片複製一份（兩邊各自刪除互不影響），位置與拍攝時間沿用該筆紀錄 */
 const recTaken=r=>{if(/^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(r.takenAt||""))return r.takenAt.replace(/\//g,":")+":00";
