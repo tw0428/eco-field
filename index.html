@@ -402,7 +402,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
-    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button></div>
+    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button><button type="button" id="apBtn" hidden><i class="ic ic-save"></i>存到手機相簿</button></div>
     <div class="row" id="filtRow" hidden><label for="filtSel" class="lbl" style="margin:0;white-space:nowrap">篩選</label><select id="filtSel" class="grow"></select></div>
     <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
@@ -1722,6 +1722,7 @@ function renderRecords(){
   $("listTools").hidden=!list.length;$("filtRow").hidden=!list.length;renderNear();
   if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
   const shown=renderFilt(list);rvShown=listMode()==="wall"?shown.filter(r=>r.photos&&r.photos.length):shown;
+  try{apLabel()}catch(e){}
   if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
   if(listMode()==="wall"){renderWall(box,shown,list);return}
   if(!shown.length){box.innerHTML='<div class="empty">這個篩選沒有紀錄。</div>';return}
@@ -2266,6 +2267,31 @@ $("zipBtn").onclick=async()=>{
     await downloads.save({filename:safeName(c.name)+"_照片.zip",data:blob});b.textContent="已下載";
   }catch(e){b.textContent="下載失敗（"+(e.message||"網路")+"）"}
   finally{b.disabled=false;setTimeout(()=>b.textContent=old,2500)}
+};
+/* 存到手機相簿：把目前畫面上（含篩選）的紀錄照片，連GPS與拍攝時間寫回後，透過分享選單「儲存影像」進相簿。
+   iPhone 要求分享必須在點擊當下才能呼叫，所以分兩步：先按一下準備（每批20張），再按一下存；存完按同一顆接著下一批 */
+const AP_N=20;let ap={key:"",off:0,files:null};
+const apOk=()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"a.jpg",{type:"image/jpeg"})]}))}catch(e){return false}};
+function apItems(){const list=(rvShown||[]).filter(r=>r.photos&&r.photos.length),names=zipNames(list);
+  return list.flatMap((r,ri)=>r.photos.map((id,i)=>({r,id,name:names[ri][i].split("/").pop()})))}
+function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,off:0,files:null};
+  const n=its.length;b.hidden=!apOk()||!n;if(b.hidden)return;
+  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張到相簿（再點一下）`:ap.off>=n?"已全部存完（再點一次重新開始）":ap.off?`存下一批（${ap.off+1}–${Math.min(n,ap.off+AP_N)} / 共${n}張）`:`存到手機相簿（共${n}張，每批${AP_N}張）`)}
+$("apBtn").onclick=async()=>{
+  const b=$("apBtn"),its=apItems();apLabel();
+  if(ap.files){ // 第二步：直接分享（維持點擊當下）
+    try{await navigator.share({files:ap.files});ap.off+=ap.files.length;ap.files=null}
+    catch(e){if(!e||e.name!=="AbortError"){b.textContent="儲存失敗，再點一次重試";setTimeout(apLabel,2500);ap.files=null;return}ap.files=null}
+    apLabel();return}
+  if(ap.off>=its.length)ap.off=0;
+  const batch=its.slice(ap.off,ap.off+AP_N);if(!batch.length)return;
+  b.disabled=true;
+  try{const fs=[];
+    for(const [i,x] of batch.entries()){b.textContent=`準備中 ${i+1}/${batch.length}…`;
+      fs.push(new File([await withExif(await fileBlob(x.id),x.r.lat,x.r.lng,exifDt(x.r))],x.name,{type:"image/jpeg"}))}
+    ap.files=fs}
+  catch(e){b.textContent="準備失敗（"+(e.message||"網路")+"），再點一次";setTimeout(apLabel,2500)}
+  finally{b.disabled=false;apLabel()}
 };
 
 /* ---------- 匯出：紀錄表＋當天核對結果；複製可貼Word/Excel成表格，或下載CSV ---------- */
