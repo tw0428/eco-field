@@ -149,7 +149,9 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;border-radius:0;padding:6px 12px;font-size:14px}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
-#zipBtn{padding:6px 10px;font-size:14px}
+#zipBtn,#apBtn{padding:6px 10px;font-size:14px}
+/* 工具列按鈕多了會被擠成直排：不換字、不縮，放不下就整顆換到下一行 */
+#listTools{flex-wrap:wrap;row-gap:6px}#listTools button{white-space:nowrap;flex:none}#listTools .seg{flex:none}
 .sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 .sheetbody{background:var(--bg);width:100%;max-width:640px;max-height:85vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
 .sheethead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -402,7 +404,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <section aria-label="紀錄列表" class="list">
     <div class="sectionhead"><h2 id="listTitle">本案紀錄</h2><span class="status" id="listCount"></span></div>
-    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button><button type="button" id="apBtn" hidden><i class="ic ic-save"></i>存到手機相簿</button></div>
+    <div class="row" id="listTools" hidden><div class="seg"><button type="button" data-mode="list">列表</button><button type="button" data-mode="wall">照片牆</button></div><button type="button" id="expBtn" style="margin-left:auto;padding:6px 10px;font-size:14px"><i class="ic ic-up"></i>匯出</button><button type="button" id="zipBtn"><i class="ic ic-down"></i>下載本案照片</button><button type="button" id="apBtn" hidden><i class="ic ic-save"></i>存到相簿</button></div>
     <div class="row" id="filtRow" hidden><label for="filtSel" class="lbl" style="margin:0;white-space:nowrap">篩選</label><select id="filtSel" class="grow"></select></div>
     <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
@@ -2220,7 +2222,7 @@ function apItems(){const list=(rvShown||[]).filter(r=>r.photos&&r.photos.length)
   return list.flatMap((r,ri)=>r.photos.map((id,i)=>({r,id,name:names[ri][i].split("/").pop()})))}
 function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,off:0,files:null};
   const n=its.length;b.hidden=!apOk()||!n;if(b.hidden)return;
-  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張到相簿（再點一下）`:ap.off>=n?"已全部存完（再點一次重新開始）":ap.off?`存下一批（${ap.off+1}–${Math.min(n,ap.off+AP_N)} / 共${n}張）`:`存到手機相簿（共${n}張，每批${AP_N}張）`)}
+  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張（再點）`:ap.off>=n?"已存完（再點重來）":ap.off?`存下一批 ${ap.off+1}–${Math.min(n,ap.off+AP_N)}`:`存到相簿（${n}張）`)}
 $("apBtn").onclick=async()=>{
   const b=$("apBtn"),its=apItems();apLabel();
   if(ap.files){ // 第二步：直接分享（維持點擊當下）
