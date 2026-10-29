@@ -1755,8 +1755,27 @@ function recCard(r,c,onEdit){
         const q=document.querySelector("#rvBody .rvq");if(q){const t=document.createElement("div");t.className="cpnote";t.textContent="✓ 已複製成新的一筆（照片共用）。請在下面選新的分類，再按儲存。";q.prepend(t);
           const cb=q.querySelector(".chips");if(cb)cb.classList.add("flash");setTimeout(()=>t.scrollIntoView({block:"start",behavior:"smooth"}),50)}}
       catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
-    if(onEdit){eb.textContent="完整編輯";eb.title="加照片、改ABCD、對應核對項目"}
+    if(onEdit){eb.textContent="完整編輯";eb.title="改ABCD、對應核對項目、一次改多欄"}
     acts.append(eb,cp);
+    // 直接幫這筆加照片（拍照或相簿都行，可多張）：不用先開新紀錄再合併，也不用進完整編輯
+    if(onEdit&&assets){
+      const ab=document.createElement("button");ab.type="button";ab.textContent="＋加照片";
+      const fi=document.createElement("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.hidden=true;
+      ab.onclick=()=>{if(!rvOk())return; // 補說明有改動還沒存：加完照片視窗會重畫，先問
+        if(navigator.onLine===false){showMsg("加照片需要網路，有訊號時再加。",true);return}geoStart();fi.click()};
+      fi.onchange=async()=>{const fs=[...fi.files];fi.value="";if(!fs.length)return;
+        ab.disabled=true;
+        try{const ids=[];let ex0=null;
+          for(let i=0;i<fs.length;i++){ab.textContent=`上傳 ${i+1}/${fs.length}…`;
+            if(!ex0)ex0=await readExif(fs[i]).catch(()=>null);
+            let blob;try{blob=await compress(fs[i])}catch(e){blob=fs[i]}ids.push((await assets.upload(blob)).id)}
+          const upd={photos:[...(r.photos||[]),...ids]};
+          if(r.lat==null&&ex0&&ex0.lat!=null){upd.lat=ex0.lat;upd.lng=ex0.lng;upd.gpsSource=ex0.src||"exif";if(ex0.acc!=null)upd.gpsAcc=ex0.acc}
+          if(!r.takenAt&&ex0&&ex0.taken)upd.takenAt=fmtExifTime(ex0.taken);
+          await db.doc("records/"+r.id).update(upd);Object.assign(r,upd);rvDirty=null;openRec(r);showMsg(`已加入 ${ids.length} 張照片。`)}
+        catch(e){ab.disabled=false;ab.textContent=isNetErr(e)?"沒訊號，再按一次":"加照片失敗，再按一次"}};
+      acts.append(ab,fi);
+    }
     // 多工區：這筆移到其他工區（點了展開工區按鈕）
     const zo=onEdit?zoneMates(r.caseId).filter(x=>x.id!==r.caseId):[];
     if(zo.length){const mv=document.createElement("button");mv.type="button";mv.textContent="移到其他工區";acts.appendChild(mv);
