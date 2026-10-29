@@ -390,16 +390,20 @@ async function fileBlob(id){
 function blobUrl(id){if(!blobCache.has(id))blobCache.set(id,fileBlob(id).then(b=>URL.createObjectURL(b)).catch(e=>{blobCache.delete(id);throw e}));return blobCache.get(id)}
 function hydrateImgs(){document.querySelectorAll('img[data-blob]').forEach(i=>{const id=i.dataset.blob;i.removeAttribute('data-blob');blobUrl(id).then(u=>{i.src=u;if(i.parentNode.tagName==='A')i.parentNode.href=u}).catch(()=>{i.alt='載入失敗'})})}
 /* 手機定位：獨立網頁可以用定位，工具內拍照自動帶入 */
-let geo=null,geoWatch=null,geoErr='';
-function geoStart(){
- if(geoWatch!=null||!navigator.geolocation)return;
+let geo=null,geoWatch=null,geoErr='',geoDenied=false;
+// force：重啟監聽。iPhone 開相機時網頁被暫停，回來後原本的監聽可能卡住，所以回到前景一律重啟
+function geoStart(force){
+ if(!navigator.geolocation)return;
+ if(geoWatch!=null){if(!force)return;try{navigator.geolocation.clearWatch(geoWatch)}catch(e){}geoWatch=null}
  geoWatch=navigator.geolocation.watchPosition(
-  p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr='';geoShow()},
-  e=>{geoErr=e.code===1?'定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」':'定位訊號不足';if(e.code===1){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}geoShow()},
+  p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr='';geoDenied=false;geoShow()},
+  e=>{geoDenied=e.code===1; // 只有「被拒」才算不可用；訊號弱逾時會繼續等下一筆，不能當成放棄
+   geoErr=geoDenied?'定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」':'定位訊號不足';if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}geoShow()},
   {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
 }
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
-async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoErr&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&geoWatch!=null)geoStart(true)});
 function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt)}
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
 async function repoCheck(){
@@ -611,7 +615,7 @@ async function upPhotos(files,kind,fromCam){
   // 照片本身沒GPS、且是剛拍的（工具內拍照）→ 用拍照當下的手機定位
   // 不用檔案修改時間判斷（下載後再選回來的照片會誤用現在位置），改看照片內的拍攝時間
   const tk=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(ex.taken||''),tkMs=tk?new Date(+tk[1],tk[2]-1,+tk[3],+tk[4],+tk[5]).getTime():0;
-  if(ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000))){pm('取得定位中…');const g=geoFresh()||await geoWait(10000);if(g){ex.lat=g.lat;ex.lng=g.lng;ex.acc=g.acc;ex.src='device'}}
+  if(ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000))){pm('取得定位中…');const g=geoFresh()||await geoWait(25000);if(g){ex.lat=g.lat;ex.lng=g.lng;ex.acc=g.acc;ex.src='device'}}
   let blob;try{blob=await compress(files[i])}catch(e){blob=files[i]}
   try{let r;
    // 沒訊號：照片先存手機（待上傳），評分照常記；有訊號時自動補傳
