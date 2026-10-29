@@ -764,17 +764,34 @@ async function readExif(file){
   try{
     const buf=await file.slice(0,262144).arrayBuffer();const v=new DataView(buf);
     // x＝診斷：notjpeg 不是JPEG（如HEIC）／noexif 沒有EXIF／nogps 有EXIF但沒位置／ok 有位置
-    if(v.byteLength<4||v.getUint16(0)!==0xFFD8)return {x:"notjpeg"};
-    let off=2;
-    while(off+4<v.byteLength){
-      const mk=v.getUint16(off);if((mk&0xFF00)!==0xFF00)break;
-      const len=v.getUint16(off+2);
-      if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966){const o=parseTiff(v,off+10);o.x=o.lat!=null?"ok":"nogps";return o}
-      off+=2+len;
+    const jpeg=v.byteLength>=4&&v.getUint16(0)===0xFFD8;
+    let r=null;
+    if(jpeg){
+      let off=2;
+      while(off+4<v.byteLength){
+        const mk=v.getUint16(off);
+        if(mk===0xFFFF){off++;continue} // 標記之間的填充位元組
+        if((mk&0xFF00)!==0xFF00)break;
+        const len=v.getUint16(off+2);
+        if(mk===0xFFE1&&v.getUint32(off+4)===0x45786966){r=parseTiff(v,off+10);break}
+        off+=2+len;
+      }
     }
-    return {x:"noexif"};
+    // 保險：標準走法沒讀到位置（檔案結構特殊、或是HEIC）時，直接在檔頭範圍找「Exif\0\0＋TIFF檔頭」再解一次
+    if(!r||r.lat==null){const s=scanExif(v);if(s&&(s.lat!=null||!r))r=s}
+    if(!r)return {x:jpeg?"noexif":"notjpeg"};
+    r.x=r.lat!=null?"ok":"nogps";return r;
   }catch(e){}
   return {};
+}
+function scanExif(v){
+  const n=v.byteLength-12;
+  for(let i=0;i<n;i++){
+    if(v.getUint8(i)!==0x45||v.getUint32(i)!==0x45786966||v.getUint16(i+4)!==0)continue;
+    const h=v.getUint32(i+6);if(h!==0x49492A00&&h!==0x4D4D002A)continue;
+    try{return parseTiff(v,i+6)}catch(e){}
+  }
+  return null;
 }
 function parseTiff(v,t){
   const le=v.getUint16(t)===0x4949;
