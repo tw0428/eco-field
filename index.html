@@ -174,7 +174,8 @@ body[data-stg="stg-a"]{--accent:var(--stg-a)}body[data-stg="stg-b"]{--accent:var
 /* 保險：任何元素超出畫面寬度都不讓整頁左右滑（clip 不影響頂端固定列） */
 html,body{overflow-x:clip}
 .subrow{flex-wrap:wrap;gap:6px}.subrow select{width:auto;flex:none;max-width:100%;padding:5px 8px}select.ph{color:var(--muted)}
-#recForm.busy #catChips,#recForm.busy #abcdBox,#recForm.busy #habBox,#recForm.busy .ckrow,#recForm.busy .thumb button{pointer-events:none;opacity:.5}
+/* 上傳中：只鎖正在上傳的那幾張（.sv），分類與欄位照常可用，可以接著拍下一筆 */
+#recForm .thumb.sv button{pointer-events:none;opacity:.5}#recForm .thumb.sv img{opacity:.6}
 /* 照片牆勾選：整理模式每張右上空心圈；選到的加粗框＋整張染主色＋實心勾 */
 .wall.picking a::after{content:"";position:absolute;top:6px;right:6px;width:26px;height:26px;box-sizing:border-box;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.3);box-shadow:0 0 0 1px rgba(0,0,0,.35);z-index:3}
 .wall a.sel{outline:4px solid var(--accent);outline-offset:-4px}
@@ -874,11 +875,11 @@ function renderPending(){
     d.append(im,x,o);box.appendChild(d);
   });
   pending.forEach((p,i)=>{
-    const d=document.createElement("div");d.className="thumb";p._el=d;
+    const d=document.createElement("div");d.className="thumb"+(p._sv?" sv":"");p._el=d;
     // 原檔當縮圖太吃效能（類單眼一張六千萬畫素）→ 背景做小縮圖，好了再換上
     const im=document.createElement("img");im.alt="待上傳照片";im.decoding="async";p._img=im;if(p.thumb)im.src=p.thumb;else mkThumb(p);
     const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
-    x.onclick=()=>{if(saving)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
+    x.onclick=()=>{if(p._sv)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
     const g=document.createElement("div");g.className="gps";
     g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoErr?"定位中…":"無GPS";
     d.append(im,x,g);box.appendChild(d);
@@ -901,8 +902,9 @@ $("batchBtn").onclick=async()=>{
     return {...fix,stake:manualStake&&!autoFilled?manualStake:fillOf(ns),createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
       lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})}};
   const cmp=async p=>{try{return await compress(p.file)}catch(err){return p.file}};
-  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;$("recForm").classList.add("busy");
-  const list=[...pending],total=list.length;let done=0,queued=0,i=0;
+  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
+  const list=[...pending],total=list.length,snap=formSnap();let done=0,queued=0,i=0;
+  list.forEach(p=>{p._sv=1});resetFields();renderPending();
   // 存好的從待存區拿掉（不整個重畫，照片多時才不會卡）
   const drop=ps=>{ps.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);if(p._el)p._el.remove()});pending=pending.filter(p=>!ps.includes(p))};
   try{
@@ -927,11 +929,12 @@ $("batchBtn").onclick=async()=>{
     for(;i<total;i++){const p=list[i];if(!pending.includes(p))continue;
       showMsg(`存到手機 ${i+1}/${total}…`);
       const r=await saveNew(docOf(p),[await cmp(p)]);r==="queued"?queued++:done++;drop([p])}
-    clearForm();showMsg(queued?`已存 ${done} 筆；${queued} 筆沒訊號，先存在手機（見上方「待上傳」），有訊號會自動上傳。`:`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`,queued>0);
+    const fresh=pending.filter(p=>!list.includes(p)).length; // 上傳期間新拍的，留在表單上當下一筆
+    showMsg((queued?`已存 ${done} 筆；${queued} 筆沒訊號，先存在手機（見上方「待上傳」），有訊號會自動上傳。`:`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`)+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued>0);
   }catch(err){
-    console.error(err);renderPending();
-    showMsg(`已存 ${done+queued} 筆，之後失敗（${(err&&err.code)||"錯誤"}）。剩下 ${pending.length} 張還在上面，可以再按一次。`,true);
-  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;$("recForm").classList.remove("busy")}
+    console.error(err);restoreFields(snap);
+    showMsg(`已存 ${done+queued} 筆，之後失敗（${(err&&err.code)||"錯誤"}）。剩下的照片還在上面，可以再按一次。`,true);
+  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;list.forEach(p=>{p._sv=0});renderPending()}
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
@@ -1893,6 +1896,14 @@ $("cancelEdit").onclick=()=>{cancelEdit();clearForm()};
 // 說明框兩行起跳，打字時跟著長高（不出現框內捲軸）
 function growNote(){const t=$("noteIn");t.style.height="auto";t.style.height=t.scrollHeight+2+"px"}
 $("noteIn").addEventListener("input",growNote);
+/* 按儲存當下：把這一筆的欄位與照片「固定」起來、表單馬上清空，上傳在背景跑；這時拍的新照片是下一筆，不會被這次的儲存清掉或帶走 */
+const FORM_IDS=["stakeIn","countIn","spIn","noteIn"];
+function formSnap(){return {caseId:curCase,stage:curStage(),v:FORM_IDS.map(id=>$(id).value.trim()),cat,abcd,sub,struct,link:linkCheck,op:$("opChk").checked,imp:!$("impBox").hidden&&$("impChk").checked}}
+function resetFields(){FORM_IDS.forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null)}
+// 失敗時把欄位放回去（使用者已經開始填下一筆就不動）
+function restoreFields(s){if(FORM_IDS.some(id=>$(id).value.trim()))return;
+  FORM_IDS.forEach((id,i)=>$(id).value=s.v[i]);growNote();$("opChk").checked=s.op;if(!abcd&&!sub&&!struct){abcd=s.abcd;sub=s.sub;struct=s.struct}if(s.link&&!linkCheck)setLink(s.link);renderChips()}
+function dropPend(ps){ps.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb)});pending=pending.filter(p=>!ps.includes(p));renderPending()}
 function clearForm(){
   pending.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb)});pending=[];renderPending();
   ["stakeIn","countIn","spIn","noteIn"].forEach(id=>$(id).value="");growNote();$("opChk").checked=false;abcd="";sub="";struct="";renderChips();$("stakeHint").hidden=true;setLink(null);
@@ -1907,23 +1918,26 @@ $("recForm").onsubmit=async e=>{
   if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("至少拍一張照片或填一個欄位。",true);return}
   if(pending.length&&!assets){showMsg("這個檢視無法上傳照片（需用你自己的帳號開啟）。",true);return}
   saving=true;$("saveBtn").disabled=true;
+  // 這一筆的照片與欄位先固定下來（之後的拍照、輸入都算下一筆）；新增時表單馬上清空，編輯則存完才清
+  const snapP=[...pending],snap=formSnap(),wasEditing=!!editing;
+  snapP.forEach(p=>{p._sv=1});if(!wasEditing)resetFields();renderPending();
   try{
     const blobs=[];
-    for(let i=0;i<pending.length;i++){let blob;try{blob=await compress(pending[i].file)}catch(err){blob=pending[i].file}blobs.push(blob)}
+    for(let i=0;i<snapP.length;i++){let blob;try{blob=await compress(snapP[i].file)}catch(err){blob=snapP[i].file}blobs.push(blob)}
     // 照片還在等定位就先等（最多10秒），存太快也不會漏掉GPS
-    if(pending.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(10000);
-      if(g)pending.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})})}
-    const gp=pending.find(p=>p.ex.lat!=null);const tp=pending.find(p=>p.ex.taken);
+    if(snapP.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(10000);
+      if(g)snapP.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})})}
+    const gp=snapP.find(p=>p.ex.lat!=null);const tp=snapP.find(p=>p.ex.taken);
     // 樁號欄空白但有GPS：存檔時補上推估樁號（離中心線60m內才補）
     if(!f.stake&&gp){const v=fillOf(nearestStation(gp.ex.lat,gp.ex.lng));if(v)f.stake=v}
-    const body={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",sub:hasSub(cat)?sub:"",struct:cat==="棲地影像"&&sub==="構造物"?struct:"",...f};
-    if(linkCheck)body.checkId=linkCheck;else if(editing&&editing.checkId)body.checkId="";
-    if($("opChk").checked)body.op=true;else if(editing&&editing.op)body.op=false;
-    if(!editing){body.stage=curStage();const by=whoAsk();if(by)body.by=by}
+    const body={caseId:snap.caseId,category:snap.cat,abcd:isFM(snap.cat)?snap.abcd:"",sub:hasSub(snap.cat)?snap.sub:"",struct:snap.cat==="棲地影像"&&snap.sub==="構造物"?snap.struct:"",...f};
+    if(snap.link)body.checkId=snap.link;else if(editing&&editing.checkId)body.checkId="";
+    if(snap.op)body.op=true;else if(editing&&editing.op)body.op=false;
+    if(!editing){body.stage=snap.stage;const by=whoAsk();if(by)body.by=by}
     // 列入改善追蹤：先在改善意見清單加一條，這筆紀錄連到它
     let impFail=false,impAdded=false;
-    if(!editing&&!linkCheck&&!$("impBox").hidden&&$("impChk").checked){
-      const c=cases.find(x=>x.id===curCase),d=new Date(),by=who();
+    if(!editing&&!snap.link&&snap.imp){
+      const c=cases.find(x=>x.id===snap.caseId),d=new Date(),by=who();
       const item={id:"u"+Date.now().toString(36),abcd:"",text:f.note||f.species||"（待補說明）",stake:f.stake,
         src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase:"improve",added:true};
       if(c&&await saveChecks([...(c.checks||[]),item])){body.checkId=item.id;impAdded=true}else impFail=true;
@@ -1945,12 +1959,15 @@ $("recForm").onsubmit=async e=>{
         lat:gp?gp.ex.lat:null,lng:gp?gp.ex.lng:null,gpsSource:gp?(gp.ex.src||"exif"):"none",...(gp&&gp.ex.acc!=null?{gpsAcc:gp.ex.acc}:{})};
       queued=(await saveNew(doc,blobs))==="queued";
     }
-    clearForm();
-    showMsg((queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。")+(impFail?"（改善追蹤項目沒加成功，有訊號時到「改善意見」手動新增）":impAdded?"已列入改善意見清單。":""),queued||impFail||(!gp&&blobs.length>0));
+    dropPend(snapP);if(wasEditing)resetFields();
+    const fresh=pending.length; // 上傳期間新拍的，留在表單上當下一筆
+    showMsg((queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。")+(impFail?"（改善追蹤項目沒加成功，有訊號時到「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued||impFail||(!gp&&blobs.length>0));
+    if(fresh)suggestStake();
   }catch(err){
     const c=err&&err.code;
-    showMsg(editing&&isNetErr(err)?"編輯既有紀錄需要網路，資料還在表單上，有訊號時再按一次。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
-  }finally{saving=false;$("saveBtn").disabled=false}
+    if(!wasEditing)restoreFields(snap);
+    showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄需要網路，資料還在表單上，有訊號時再按一次。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
+  }finally{saving=false;$("saveBtn").disabled=false;snapP.forEach(p=>{p._sv=0});renderPending()}
 };
 
 /* ---------- 啟動 ---------- */
