@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="aa2114366b"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="b9415d5fd2"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -62,7 +62,11 @@ function wrapSelect(sel,mirror){
   b.type="button";b.className="wsel-btn";w.appendChild(b);if(!mirror)sel.hidden=true;
   const sync=()=>{const o=sel.options[sel.selectedIndex];b.textContent=(o&&o.textContent)||"（選擇）";b.classList.toggle("ph",!sel.value);if(mirror){b.classList.toggle("on",sel.classList.contains("on"));b.classList.toggle("unf",sel.classList.contains("unf"));w.hidden=sel.hidden}};
   if(mirror){sel.classList.add("wsrc");new MutationObserver(sync).observe(sel,{attributes:true,attributeFilter:["hidden","class"]})} // mirror：原select仍由程式控制顯示與樣式，畫面只顯示這個按鈕
-  const pick=o=>{sel.value=o.value;sel.dispatchEvent(new Event("change",{bubbles:true}));sync()};
+  // 選單開著時頁面若剛好重畫（例如資料存回雲端後），原 select 已被換掉：改找畫面上同一格的新 select 套用，否則點了沒反應
+  const live=()=>{if(sel.isConnected)return sel;
+    const q=Object.entries(sel.dataset).map(([k,v])=>`[data-${k.replace(/[A-Z]/g,m=>"-"+m.toLowerCase())}="${String(v).replace(/["\\]/g,"\\$&")}"]`).join("");
+    return (q&&document.querySelector("select"+q))||sel};
+  const pick=o=>{const s=live();s.value=o.value;s.dispatchEvent(new Event("change",{bubbles:true}));sync()};
   b.onclick=()=>{const rows=[];[...sel.children].forEach(ch=>{if(ch.tagName==="OPTGROUP"){rows.push({grp:ch.label});[...ch.children].forEach(o=>rows.push({text:o.textContent,on:o.value===sel.value,fn:()=>pick(o)}))}
       else rows.push({text:ch.textContent,on:ch.value===sel.value,fn:()=>pick(ch)})});popList(b,rows)};
   new MutationObserver(sync).observe(sel,{childList:true,subtree:true,characterData:true});sync();return w;
