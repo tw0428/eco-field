@@ -2286,7 +2286,7 @@ function renderDl(){
   if(dlDay&&!days.includes(dlDay))dlDay="";
   const sel=$("dlDay");sel.innerHTML="";[["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===dlDay;sel.appendChild(o)});
   const list=dlList(),n=list.reduce((s,r)=>s+r.photos.length,0),gps=list.filter(r=>r.lat!=null&&r.lng!=null).reduce((s,r)=>s+r.photos.length,0);
-  $("dlInfo").textContent=n?`${list.length} 筆紀錄、${n} 張照片（${gps} 張有GPS）。照片會寫入GPS與拍攝時間，檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，每批20張。":""):"這個範圍沒有照片。";
+  $("dlInfo").textContent=n?`${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，每批20張。":""):"這個範圍沒有照片。";
   $("zipBtn").disabled=!n;apLabel();renderAlbum();
 }
 function openDl(){if(!curCase&&!camFiles.length)return;$("dlSheet").hidden=false;renderDl()}
