@@ -305,7 +305,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
   <div class="vbar">
     <span class="vtitle" id="mapTitle">地圖</span>
     <button type="button" id="mapBase">正射影像</button>
-    <button type="button" id="mapMe"><i class="ic ic-pin"></i>我</button>
+    <button type="button" id="mapMe"><i class="ic ic-pin"></i>目前位置</button>
     <button type="button" id="mapClose" class="primary">關閉</button>
   </div>
   <div id="mapBox" style="flex:1"></div>
@@ -323,7 +323,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <label for="camIn" id="fab" class="fab" hidden aria-label="拍照"><i class="ic ic-cam"></i></label>
 <div class="pagehead" id="pagehead">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html" id="toHab">棲地評估</a>｜<a href="admin.html">管理</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-  <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
+  <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="姓名" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
   <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
   <div class="row">
     <select id="caseSel" class="grow" aria-label="案件"><option value="">（尚無案件，請先新增）</option></select>
@@ -339,7 +339,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <div class="wrap">
   <section class="panel" id="tokBox" hidden aria-label="金鑰設定">
     <h2 style="font-size:16px;margin:0">第一次使用：貼上 GitHub 金鑰</h2>
-    <div class="hint" style="color:var(--muted)">金鑰只存在這支手機，用來讀寫私人資料專案 eco-field-data。建立方式見使用說明。</div>
+    <div class="hint" style="color:var(--muted)">金鑰僅儲存於本機，用於讀寫私人資料專案 eco-field-data，建立方式詳使用說明。</div>
     <input type="password" id="tokIn" placeholder="github_pat_… 或 ghp_…" autocomplete="off">
     <button class="primary" type="button" id="tokSave">儲存並連線</button>
     <div id="tokMsg" class="msg err" hidden></div>
@@ -347,13 +347,13 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <section class="panel caseinfo" aria-label="案件資訊">
     <div id="stageBox" hidden>
-      <span class="lbl">本次階段（之後新增的紀錄都會標上）</span>
+      <span class="lbl">本次階段（其後新增之紀錄均標註此階段）</span>
       <div class="chips" id="stageChips"></div>
     </div>
     <div class="row" id="areaRow" hidden><label class="lbl" for="areaIn" style="margin:0;white-space:nowrap">地區</label><input type="text" id="areaIn" list="areaList" placeholder="自動帶入" enterkeyhint="done"><datalist id="areaList"></datalist></div>
     <div class="row" id="areaPick" hidden style="flex-wrap:wrap;font-size:13px;color:var(--muted)"></div>
     <div class="hint" id="caseStakeInfo" hidden></div>
-    <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、我的位置）</button>
+    <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、目前位置）</button>
     <details id="planBox" class="plans checks" hidden>
       <summary><span style="flex:1">平面圖／圖說</span><span class="status" id="planCount"></span></summary>
       <div id="planList" class="planlist"></div>
@@ -364,7 +364,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 
   <details class="panel checks" id="chkBox" hidden>
     <summary><span id="chkTitle">現場核對清單</span><span class="status" id="chkCount"></span></summary>
-    <div class="hint">按「<i class="ic ic-cam"></i>記錄」會帶入措施分類與樁號，存下的照片會連到這一項。</div>
+    <div class="hint">按「<i class="ic ic-cam"></i>記錄」帶入措施分類與樁號，儲存之照片連結至該項。</div>
     <div id="chkList" class="chklist"></div>
   </details>
 
@@ -431,13 +431,13 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
       <button type="button" id="zipBtn"><i class="ic ic-down"></i>下載壓縮檔（zip，依階段分資料夾）</button>
       <div id="dlCam" class="expbox" hidden style="border-top:1px solid #ccc;padding-top:10px">
         <b>拍照原檔（<span id="dlCamN"></span> 張）</b>
-        <div class="hint">工具內拍的照片原檔，畫質比上傳版好；iPhone 不會自動存進相簿，存了才會從工具內移除。與上面的範圍無關。</div>
+        <div class="hint">工具內拍攝之照片原檔，畫質優於上傳版本；iPhone 不會自動存入相簿，存入後即自工具內移除，不受上方範圍限制。</div>
         <button type="button" id="albumBtn"></button>
         <button type="button" id="albumClr" class="mini" style="align-self:flex-end;font-size:12px;padding:3px 8px">不存相簿了，刪掉這些原檔</button>
       </div>
     </div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
-    <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄會列在這裡。</div></div>
+    <div id="recList" class="list"><div class="empty">選擇或新增案件後，紀錄列示於此。</div></div>
   </section>
 </div>
 
@@ -467,8 +467,8 @@ const whoAsk=who;
 // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
 function share(){
   const tok=ghToken;
-  if(!tok){alert("這支手機還沒設定金鑰，無法分享。");return}
-  const text="生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n"+new URL("./",location.href).href+"#k="+encodeURIComponent(tok);
+  if(!tok){alert("本機尚未設定金鑰，無法分享。");return}
+  const text="生態現場紀錄工具：以手機開啟本連結即自動設定金鑰（連結含金鑰，請勿外傳）\n"+new URL("./",location.href).href+"#k="+encodeURIComponent(tok);
   shareBox(text);
 }
 function shareBox(text){
@@ -483,7 +483,7 @@ function shareBox(text){
     try{navigator.clipboard.writeText(text).then(ok,()=>{t.select();try{document.execCommand("copy");ok()}catch(_){st.textContent="請手動全選複製"}})}catch(_){t.select();try{document.execCommand("copy");ok()}catch(e){st.textContent="請手動全選複製"}}});
   if(navigator.share&&matchMedia("(pointer:coarse)").matches)mk("分享…",()=>navigator.share({text}).catch(()=>{}));
   mk("關閉",()=>b.remove());row.appendChild(st);
-  b.append("連結含金鑰，只傳給同事或自己備份：",t,row);
+  b.append("本連結含金鑰，僅限提供同仁或自行備份：",t,row);
   document.querySelector(".sub").after(b);
 }
 
@@ -710,7 +710,7 @@ function renderOutbox(){
   const box=$("obBox");if(!box)return;box.hidden=!outbox.length;if(!outbox.length)return;
   const recs=outbox.filter(i=>i.kind==="record"),chks=outbox.filter(i=>i.kind==="check");
   $("obCount").textContent=`${outbox.length} 筆`;
-  $("obMsg").textContent=flushing?"上傳中…":obErr||(navigator.onLine===false?"目前沒訊號，有訊號時會自動上傳":"有訊號時會自動上傳，也可以按「立即上傳」");
+  $("obMsg").textContent=flushing?"上傳中…":obErr||(navigator.onLine===false?"目前無訊號，有訊號時自動上傳":"有訊號時自動上傳，亦得按「立即上傳」");
   $("obFlush").disabled=flushing;
   const list=$("obList");list.innerHTML="";
   recs.forEach(it=>{
@@ -740,7 +740,7 @@ function geoStart(force){
   geoWatch=navigator.geolocation.watchPosition(
     p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr="";geoDenied=false;geoLateApply();renderGeo()},
     e=>{geoDenied=e.code===1; // 只有「被拒」才算定位不可用；訊號弱逾時（2、3）會繼續等下一筆，不能當成放棄
-      geoErr=geoDenied?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
+      geoErr=geoDenied?"定位遭拒：請於iPhone「設定→隱私權與安全性→定位服務→Safari網站」設為「使用App期間」，並於Safari網址列左側選單「網站設定→位置」改為允許":"定位訊號不足，到空曠處再試";
       if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
     {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
 }
@@ -850,14 +850,14 @@ async function addFiles(list,fromCam){
   renderPending();renderAlbum();
   // 從相簿選的照片檔案裡本來就沒有位置：明講是檔案的問題（手機從相簿交給網頁時，系統常把位置移除），不是工具沒讀到
   const nog=add.filter(p=>!p.ex.fresh&&p.ex.lat==null&&p.ex.x);
-  if(nog.length)showMsg(`${nog.length} 張照片的檔案裡沒有位置資料（${nog[0].ex.x==="notjpeg"?"不是一般JPEG格式":"手機從相簿交給網頁時，系統常把位置移除"}），不是工具沒讀到。要自動帶GPS請用工具內的拍照，或在樁號欄選位置。`,true);
+  if(nog.length)showMsg(`${nog.length} 張照片之檔案未含位置資料（${nog[0].ex.x==="notjpeg"?"非一般JPEG格式":"手機自相簿提供照片予網頁時，系統常移除位置資訊"}），非工具讀取錯誤。需自動帶入GPS者，請使用工具內拍照，或於樁號欄選取位置。`,true);
   if(nog.length)gpsNote=true;
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
     const g=geoFresh()||await geoWait(30000);
     if(g)add.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})});
     else{add.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)geoLate.push({ex:p.ex,at:p.ex.at})});
-      showMsg(geoDenied?geoErr:"還沒取得定位，收到訊號後會自動補上這張的GPS（3分鐘內），也可以從樁號清單選位置。",true)}
+      showMsg(geoDenied?geoErr:"尚未取得定位，3分鐘內收到訊號將自動補上本張GPS，亦得自樁號清單選取位置。",true)}
     renderPending();
   }
   suggestStake();
@@ -899,7 +899,7 @@ function renderPending(){
 /* ---------- 批次：每張照片各一筆，說明之後補 ---------- */
 $("batchBtn").onclick=async()=>{
   if(saving)return;
-  if(!db||!assets){showMsg("尚未連上儲存空間，請確認已登入claude.ai並重新整理。",true);return}
+  if(!db||!assets){showMsg("尚未連線至儲存空間，請確認已登入claude.ai後重新整理。",true);return}
   if(!curCase){showMsg("請先選擇或新增案件。",true);return}
   const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
@@ -938,10 +938,10 @@ $("batchBtn").onclick=async()=>{
       showMsg(`存到手機 ${i+1}/${total}…`);
       const r=await saveNew(docOf(p),[await cmp(p)]);r==="queued"?queued++:done++;drop([p])}
     const fresh=pending.filter(p=>!list.includes(p)).length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?`已存 ${done} 筆；${queued} 筆沒訊號，先存在手機（見上方「待上傳」），有訊號會自動上傳。`:`已建立 ${done} 筆紀錄，之後在列表按「編輯」補說明。`)+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued>0);
+    showMsg((queued?`已存 ${done} 筆；${queued} 筆因無訊號暫存於手機（見上方「待上傳」），有訊號時自動上傳。`:`已建立 ${done} 筆紀錄，說明得於列表按「編輯」補充。`)+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued>0);
   }catch(err){
     console.error(err);restoreFields(snap);
-    showMsg(`已存 ${done+queued} 筆，之後失敗（${(err&&err.code)||"錯誤"}）。剩下的照片還在上面，可以再按一次。`,true);
+    showMsg(`已存 ${done+queued} 筆，其後失敗（${(err&&err.code)||"錯誤"}）。其餘照片仍保留於上方，得再按一次。`,true);
   }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;list.forEach(p=>{p._sv=0});renderPending()}
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
@@ -1009,12 +1009,12 @@ function renderCases(){
   });
   // 從棲地評估切過來：同id優先、再找同名；找不到就留在上次的案件並提示
   const j=live.length&&takeJump("field");
-  if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name);if(hit){curCase=hit.id;lsSet("eco-case",curCase)}else jumpNote(`棲地評估的「${j.name}」在現場紀錄沒有同名案件，目前顯示上次的案件。`)}
+  if(j){const hit=live.find(c=>c.id===j.id)||live.find(c=>c.name===j.name);if(hit){curCase=hit.id;lsSet("eco-case",curCase)}else jumpNote(`棲地評估的「${j.name}」於現場紀錄無同名案件，目前顯示前次案件。`)}
   if(!live.find(c=>c.id===curCase))curCase=live.find(c=>c.id===lsGet("eco-case"))?lsGet("eco-case"):(live[0]?.id||"");
   sel.value=curCase;
   const c=cases.find(x=>x.id===curCase),info=$("caseStakeInfo");
   if(c&&Array.isArray(c.stakes)&&c.stakes.length>1){const rs=[...new Set(c.stakes.map(p=>p.r).filter(Boolean))];
-    info.textContent=rs.length?`已載入設計樁號（${rs.join("、")}），照片有GPS會自動推估樁號`:`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片有GPS會自動推估樁號`;info.hidden=false}
+    info.textContent=rs.length?`已載入設計樁號（${rs.join("、")}），照片具GPS者將自動推估樁號`:`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片具GPS者將自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
   renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);flushStages();
@@ -1023,7 +1023,7 @@ function renderCases(){
   // 座標跨兩個以上鄉鎮（溪流是界線）：列出候選，點一下就存
   const ap=$("areaPick"),cand=c&&!c.area&&areaCand[c.id];ap.hidden=!cand;ap.innerHTML="";
   if(cand){ap.append("工區跨鄉鎮界，選實務上的：");cand.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
-    b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區沒存上（"+(e.code||"網路")+"），有訊號時再點一次。",true)}};ap.appendChild(b)})}
+    b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區沒存上（"+(e.code||"網路")+"），請於有訊號時重新操作。",true)}};ap.appendChild(b)})}
   $("areaList").innerHTML="";[...new Set(cases.map(x=>x.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant")).forEach(a=>{const o=document.createElement("option");o.value=a;$("areaList").appendChild(o)});
   const vals=stakeVals(c);$("stakeArrow").hidden=!vals.length;
   stakePick($("stakeArrow"),$("stakeIn"),vals,()=>{$("stakeHint").hidden=true});
@@ -1254,7 +1254,7 @@ const fmtMB=b=>b>=1048576?(b/1048576).toFixed(b>=104857600?0:1)+" MB":Math.max(1
 const fmtAt=t=>{const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
 let offBusy=null; // 下載中：{id,done,total}
 async function offDownload(c){
-  if(offBusy)return;if(navigator.onLine===false){offErr="目前沒網路，請在有訊號的地方下載。";offRender();return}
+  if(offBusy)return;if(navigator.onLine===false){offErr="目前無網路，請於有訊號處下載。";offRender();return}
   offErr="";try{await navigator.storage.persist()}catch(e){}
   // 同群組的工區一次下載：平面圖、設計圖、照片、地圖取各工區聯集
   const zs=zoneMates(c.id),mates=zs.length?zs:[c],zid=mates.map(z=>z.id);
@@ -1295,7 +1295,7 @@ function offShow(c){
   const s=offGet(c.id);
   setBt(b,"down",offBusy&&offBusy.id===c.id?`離線包：下載中 ${offBusy.done}/${offBusy.total}`:s?`離線包：已下載（${fmtAt(s.at)}）`:"離線包：未下載");
   const zset=new Set([c.id,...(Array.isArray(s&&s.zones)?s.zones:[])]),newer=s&&records.some(r=>zset.has(r.caseId)&&(r.photos||[]).some(p=>!s.files.includes?.(p)));
-  m.hidden=!newer;if(newer)m.textContent="下載後有新增照片，出發前可以按進去「更新」。";
+  m.hidden=!newer;if(newer)m.textContent="下載後已有新增照片，出發前得按入「更新」。";
 }
 function offRender(){
   const c=cases.find(x=>x.id===curCase);offShow(c);
@@ -1307,11 +1307,11 @@ function offRender(){
     sec.appendChild(el("div","lbl","本案："+c.name));
     const go=el("button","primary",offBusy&&offBusy.id===c.id?`下載中 ${offBusy.done}/${offBusy.total}…`:s?"更新本案離線包":"下載本案離線包");if(!(offBusy&&offBusy.id===c.id))go.prepend(ic("down"));
     go.type="button";go.id="offGo";go.disabled=!!offBusy;go.onclick=()=>offDownload(c);sec.appendChild(go);
-    sec.appendChild(el("div","hint",offErr||"含平面圖、對位設計圖、照片、工區周圍約300m的地圖；同群組的工區一次全下載。出發前有網路時下載；下載中可以繼續操作，頁面先不要關。"));
-    if(s&&s.noMap)sec.appendChild(el("div","hint","本案沒有樁號或定位紀錄，地圖沒有下載。"));
+    sec.appendChild(el("div","hint",offErr||"內含平面圖、對位設計圖、照片及工區周圍約300 m之地圖，同群組工區一併下載。請於出發前有網路時下載；下載期間得繼續操作，惟不得關閉頁面。"));
+    if(s&&s.noMap)sec.appendChild(el("div","hint","本案無樁號或定位紀錄，未下載地圖。"));
     box.appendChild(sec);
   }
-  box.appendChild(el("div","lbl",packs.length?`手機上的離線包（${packs.length} 個）`:"手機上還沒有離線包。"));
+  box.appendChild(el("div","lbl",packs.length?`手機上的離線包（${packs.length} 個）`:"本機尚無離線包。"));
   packs.forEach(p=>{
     const cc=cases.find(x=>x.id===p.id),row=el("div","offitem");
     const info=el("div","offinfo");info.appendChild(el("b",null,(cc?cc.name:"（案件已刪除）")+(Array.isArray(p.zones)&&p.zones.length>1?`（含同群組共 ${p.zones.length} 個工區）`:"")));
@@ -1329,7 +1329,7 @@ function offRender(){
     box.appendChild(all)}
   // 先放上次的用量文字，估算回來再換，避免高度忽有忽無
   const use=el("div","hint",offUse||"本工具在手機上的用量計算中…");box.appendChild(use);
-  try{navigator.storage.estimate().then(e=>{offUse=`本工具在手機上共用了約 ${fmtMB(e.usage||0)}（含離線包、平時看過的照片、待上傳資料）。刪除離線包不會刪到金鑰和待上傳的紀錄。`;use.textContent=offUse})}catch(e){}
+  try{navigator.storage.estimate().then(e=>{offUse=`本工具於手機上共占用約 ${fmtMB(e.usage||0)}（含離線包、已瀏覽照片、待上傳資料）。刪除離線包不影響金鑰及待上傳紀錄。`;use.textContent=offUse})}catch(e){}
 }
 $("offBtn").onclick=()=>{$("offSheet").hidden=false;offRender()};
 $("offClose").onclick=()=>{$("offSheet").hidden=true};
@@ -1407,10 +1407,10 @@ function renderChecks(){
     items:repItems,
     canAdd:!!c&&stage!=="提報"&&!(stage==="設計"&&!repItems.length),labels:stLabels(stage),
     titleText:stage==="設計"?"提審意見納入確認":pre?"設計意見落實確認":"現場核對清單",
-    addPhase:stage==="設計"?"report":pre?"design":"start",addLabel:pre?"＋ 補登設計意見（清單漏列的）":"＋ 新增核對事項（會議、現場討論的新意見）"});
+    addPhase:stage==="設計"?"report":pre?"design":"start",addLabel:pre?"＋ 補登設計意見（清單漏列的）":"＋ 新增核對事項（會議、現場討論之新增意見）"});
   // 第二區：設計＝預計提出意見；開工前＝開工前提出的意見（phase:"start"，施工中併入現場核對清單追蹤落實）；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
   const imp=stage==="施工中"||stage==="完工";
-  $("propHint").textContent=imp?"施工中發現的問題與改善意見，之後每次現勘追蹤改善情形。":pre?"開工說明會、開工前現勘本團隊提出的意見，記錄施工單位當場回應；施工中會出現在現場核對清單，追蹤是否落實。":"本團隊準備提給設計單位的意見。現場能確定的記同意／調整／做不到，無法當場決定的記待回覆，之後等設計單位書面回覆。";
+  $("propHint").textContent=imp?"施工中發現之問題與改善意見，於其後每次現勘追蹤改善情形。":pre?"開工說明會、開工前現勘本團隊提出之意見，記錄施工單位當場回應；施工中列入現場核對清單，追蹤落實情形。":"本團隊預計提供設計單位之意見。現場可確定者記同意／調整／做不到，無法當場決定者記待回覆，俟設計單位書面回覆。";
   renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
     items:stage==="設計"?all.filter(i=>i.phase==="propose"):pre?all.filter(i=>i.phase==="start"):imp?all.filter(i=>i.phase==="improve"):[],
     canAdd:!!c&&(stage==="設計"||pre||imp),labels:imp?CHK_IMP:pre?CHK_PRE:CHK_PROP,
@@ -1524,7 +1524,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"做不到的原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實的部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
@@ -1596,7 +1596,7 @@ async function saveChecks(checks){
   // 先改畫面（不用等上傳），背景存回；失敗才還原並提示
   const prev=c.checks;c.checks=checks;renderChecks();renderLinkSel();
   db.doc("cases/"+c.id).update({checks}).catch(e=>{if(c.checks===checks){c.checks=prev;renderChecks();renderLinkSel()}
-    showMsg("核對事項儲存失敗（"+(isNetErr(e)?"需要網路":e.code||e.message)+"），剛才的修改已還原，有訊號時再做一次。",true)});
+    showMsg("核對事項儲存失敗（"+(isNetErr(e)?"需要網路":e.code||e.message)+"），本次修改已還原，請於有訊號時重新操作。",true)});
   return true
 }
 async function setCheck(id,v,note){
@@ -1612,7 +1612,7 @@ async function putRes(doc){
     if(navigator.onLine===false)throw new TypeError("offline");
     await db.doc("checkres/"+rid).set(doc);if(outbox.some(x=>x.qid==="chk_"+rid))obRemove("chk_"+rid);
   }catch(e){
-    if(isNetErr(e)){try{await obAddCheck(rid,doc)}catch(_){showMsg("核對狀態儲存失敗，有訊號時再按一次。",true)}}
+    if(isNetErr(e)){try{await obAddCheck(rid,doc)}catch(_){showMsg("核對狀態儲存失敗，請於有訊號時重新操作。",true)}}
     else showMsg("核對狀態儲存失敗（"+(e.code||e.message)+"）。",true);
   }
 }
@@ -1641,7 +1641,7 @@ $("caseDelBtn").onclick=async()=>{
   if(b.dataset.armed!=="1"){
     b.dataset.armed="1";b.textContent="確認刪除";
     const m=$("caseDelMsg");m.hidden=false;
-    m.textContent=recs.length?`「${c.name}」連同 ${recs.length} 筆紀錄和照片會一起刪掉，無法復原。確定請再按「確認刪除」。`:`確定刪除「${c.name}」？請再按「確認刪除」。`;
+    m.textContent=recs.length?`「${c.name}」及其 ${recs.length} 筆紀錄與照片將一併刪除，無法復原。確認刪除請再按「確認刪除」。`:`確定刪除「${c.name}」？請再按「確認刪除」。`;
     delArmTimer=setTimeout(disarmCaseDel,6000);return;
   }
   clearTimeout(delArmTimer);b.disabled=true;b.textContent="刪除中…";
@@ -1698,9 +1698,9 @@ function renderRecords(){
   const list=records.filter(r=>r.caseId===curCase).sort((a,b)=>b.createdAt-a.createdAt);
   const todo=list.filter(r=>!r.species&&!r.note).length;
   $("listCount").textContent=list.length?list.length+" 筆"+(todo?`（${todo} 筆待補說明）`:""):"";
-  if(!c){$("filtRow").hidden=true;box.innerHTML='<div class="empty">選擇或新增案件後，紀錄會列在這裡。</div>';return}
+  if(!c){$("filtRow").hidden=true;box.innerHTML='<div class="empty">選擇或新增案件後，紀錄列示於此。</div>';return}
   $("listTools").hidden=!list.length;$("filtRow").hidden=!list.length;renderNear();
-  if(!list.length){box.innerHTML='<div class="empty">本案還沒有紀錄。拍照或填寫上面的欄位後按「儲存紀錄」。</div>';return}
+  if(!list.length){box.innerHTML='<div class="empty">本案尚無紀錄。拍照或填寫上方欄位後，按「儲存紀錄」。</div>';return}
   const shown=renderFilt(list);rvShown=listMode()==="wall"?shown.filter(r=>r.photos&&r.photos.length):shown;
   try{apLabel()}catch(e){}
   if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
@@ -1737,7 +1737,7 @@ function recCard(r,c,onEdit){
         if(onEdit&&r.photos.length>1){const b=document.createElement("button");b.type="button";b.className="mini splitone";b.textContent="拆出這張（另成一筆）";
           b.onclick=async()=>{if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="再按一次確認拆出";b.classList.add("danger");
               setTimeout(()=>{if(b.isConnected&&!b.disabled){b.dataset.armed="";b.textContent="拆出這張（另成一筆）";b.classList.remove("danger")}},4000);return}
-            b.disabled=true;b.textContent="拆出中…";try{await splitOne(r,p);rvDirty=null;closeRec();showMsg("已拆出成獨立一筆，說明文字先照抄，請再修改。")}catch(e){b.disabled=false;b.textContent="失敗，再按一次"}};
+            b.disabled=true;b.textContent="拆出中…";try{await splitOne(r,p);rvDirty=null;closeRec();showMsg("已拆出為獨立一筆，說明文字暫沿用原內容，請再修正。")}catch(e){b.disabled=false;b.textContent="失敗，再按一次"}};
           im.appendChild(b)}});
       el.appendChild(im);
     }
@@ -1768,7 +1768,7 @@ function recCard(r,c,onEdit){
         await db.collection("records").doc(nid).set(doc);const nr={...doc,id:nid};if(!records.some(x=>x.id===nid))records.push(nr);
         openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存";
         // 明顯提示：分類區上方加綠色提示條、分類按鈕閃一下框，並捲到分類區
-        const q=document.querySelector("#rvBody .rvq");if(q){const t=document.createElement("div");t.className="cpnote";t.textContent="✓ 已複製成新的一筆（照片共用）。請在下面選新的分類，再按儲存。";q.prepend(t);
+        const q=document.querySelector("#rvBody .rvq");if(q){const t=document.createElement("div");t.className="cpnote";t.textContent="✓ 已複製為新的一筆（照片共用），請於下方選取新分類後儲存。";q.prepend(t);
           const cb=q.querySelector(".chips");if(cb)cb.classList.add("flash");setTimeout(()=>t.scrollIntoView({block:"start",behavior:"smooth"}),50)}}
       catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
     if(onEdit){eb.textContent="完整編輯";eb.title="改ABCD、對應核對項目、一次改多欄"}
@@ -1789,7 +1789,7 @@ function recCard(r,c,onEdit){
           if(r.lat==null&&ex0&&ex0.lat!=null){upd.lat=ex0.lat;upd.lng=ex0.lng;upd.gpsSource=ex0.src||"exif";if(ex0.acc!=null)upd.gpsAcc=ex0.acc}
           if(!r.takenAt&&ex0&&ex0.taken)upd.takenAt=fmtExifTime(ex0.taken);
           await db.doc("records/"+r.id).update(upd);Object.assign(r,upd);rvDirty=null;openRec(r);showMsg(`已加入 ${ids.length} 張照片。`)}
-        catch(e){ab.disabled=false;ab.textContent=isNetErr(e)?"沒訊號，再按一次":"加照片失敗，再按一次"}};
+        catch(e){ab.disabled=false;ab.textContent=isNetErr(e)?"無訊號，請再按一次":"加照片失敗，再按一次"}};
       acts.append(ab,fi);
     }
     // 多工區：這筆移到其他工區（點了展開工區按鈕）
@@ -1804,7 +1804,7 @@ function recCard(r,c,onEdit){
     if(onEdit&&(r.photos||[]).length>1){const sp_=document.createElement("button");sp_.type="button";sp_.textContent=`拆成單張（${r.photos.length}筆）`;
       sp_.onclick=async()=>{if(sp_.dataset.armed!=="1"){sp_.dataset.armed="1";sp_.textContent=`再按一次：拆成 ${r.photos.length} 筆`;setTimeout(()=>{if(sp_.isConnected&&!sp_.disabled){sp_.dataset.armed="";sp_.textContent=`拆成單張（${r.photos.length}筆）`}},4000);return}
         sp_.disabled=true;sp_.textContent="拆開中…";
-        try{const n=await splitRec(r);rvDirty=null;closeRec();showMsg(`已拆成 ${n} 筆，說明文字每筆都先照抄，請再各自修改。`)}
+        try{const n=await splitRec(r);rvDirty=null;closeRec();showMsg(`已拆成 ${n} 筆，說明文字暫沿用原內容，請逐筆修正。`)}
         catch(e){sp_.disabled=false;sp_.dataset.armed="";sp_.textContent="拆開失敗，再試一次"}};
       acts.appendChild(sp_)}
     acts.appendChild(db_);el.appendChild(acts);
@@ -1898,7 +1898,7 @@ function rvQuick(r){
 function rvGo(d){if(!rvCur||!rvOk())return;const i=rvShown.findIndex(x=>x.id===rvCur.id),j=i+d;if(i<0||j<0||j>=rvShown.length)return;openRec(rvShown[j])}
 // 詳情窗的補說明有改動還沒存：關閉／換筆前先問
 let rvDirty=null;
-const rvOk=()=>!rvDirty||!rvDirty()||confirm("這筆的修改還沒儲存，確定不儲存就離開？");
+const rvOk=()=>!rvDirty||!rvDirty()||confirm("本筆修改尚未儲存，是否不儲存並離開？");
 function closeRec(){if(!rvOk())return false;rvDirty=null;$("recView").hidden=true;$("rvBody").innerHTML="";document.body.style.overflow="";rvCur=null}
 // 編輯中看平面圖：只有一張直接開，多張列清單（設計圖在前、意見原文在後）；看完關掉回到小窗原位
 $("rvPlan").onclick=()=>{const c=cases.find(x=>x.id===(rvCur&&rvCur.caseId||curCase));const ps=(c&&c.plans)||[];if(!ps.length)return;
@@ -1947,11 +1947,11 @@ function clearForm(){
 /* ---------- 儲存 ---------- */
 $("recForm").onsubmit=async e=>{
   e.preventDefault();if(saving)return;
-  if(!db){showMsg("尚未連上儲存空間，請確認已登入claude.ai並重新整理。",true);return}
+  if(!db){showMsg("尚未連線至儲存空間，請確認已登入claude.ai後重新整理。",true);return}
   if(!curCase){showMsg("請先選擇或新增案件。",true);return}
   const f={stake:$("stakeIn").value.trim(),count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("至少拍一張照片或填一個欄位。",true);return}
-  if(pending.length&&!assets){showMsg("這個檢視無法上傳照片（需用你自己的帳號開啟）。",true);return}
+  if(pending.length&&!assets){showMsg("本檢視無法上傳照片（須以本人帳號開啟）。",true);return}
   saving=true;$("saveBtn").disabled=true;
   // 這一筆的照片與欄位先固定下來（之後的拍照、輸入都算下一筆）；新增時表單馬上清空，編輯則存完才清
   const snapP=[...pending],snap=formSnap(),wasEditing=!!editing;
@@ -1996,12 +1996,12 @@ $("recForm").onsubmit=async e=>{
     }
     dropPend(snapP);if(wasEditing)resetFields();
     const fresh=pending.length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?"沒訊號，已先存在手機（見上方「待上傳」），有訊號時會自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片沒有帶GPS，記得在樁號欄補位置。")+(impFail?"（改善追蹤項目沒加成功，有訊號時到「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued||impFail||(!gp&&blobs.length>0));
+    showMsg((queued?"無訊號，已暫存於手機（見上方「待上傳」），有訊號時自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片未含GPS，請於樁號欄補填位置。")+(impFail?"（改善追蹤項目新增失敗，請於有訊號時至「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued||impFail||(!gp&&blobs.length>0));
     if(fresh)suggestStake();
   }catch(err){
     const c=err&&err.code;
     if(!wasEditing)restoreFields(snap);
-    showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄需要網路，資料還在表單上，有訊號時再按一次。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
+    showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄須連網，資料仍保留於表單，請於有訊號時重新儲存。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
   }finally{saving=false;$("saveBtn").disabled=false;snapP.forEach(p=>{p._sv=0});renderPending()}
 };
 
@@ -2013,7 +2013,7 @@ db=ghDb;assets=ghAssets;
 // 下載：獨立網頁直接用<a download>
 downloads={async save({filename,data}){const u=URL.createObjectURL(data),a=document.createElement("a");a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}};
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
-const TOK_REPO_MSG="這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定確認：Repository access 選「Only select repositories」並勾 eco-field-data，Permissions 的 Contents 設 Read and write（可直接編輯原金鑰，不用重貼）。若你是被邀請的協作者，要改用傳統金鑰（classic，勾 repo），並確認已接受邀請。";
+const TOK_REPO_MSG="本金鑰無法存取私人專案 eco-field-data。請至 GitHub 金鑰設定確認：Repository access 選「Only select repositories」並勾選 eco-field-data，Permissions 之 Contents 設為 Read and write（得直接編輯原金鑰，無須重新貼上）。受邀之協作者應改用傳統金鑰（classic，勾選 repo），並確認已接受邀請。";
 async function repoCheck(){
   const r=await fetch(GH_REPO_URL,{cache:"no-store",headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json"}});
   if(r.status===401){const e=new Error("401");e.code="bad_token";throw e}
@@ -2026,7 +2026,7 @@ async function connect(){
   const t0=performance.now();
   try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
-    if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
+    if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生後貼上。";$("tokMsg").hidden=false}}
 }
 $("tokSave").onclick=()=>{let t=$("tokIn").value.trim();const m=t.match(/[#&]k=([^&\s]+)/);if(m)t=decodeURIComponent(m[1]);if(!t)return;ghToken=t;lsSet("gh-token",t);$("tokIn").value="";$("tokMsg").hidden=true;connect()};
 $("reloadBtn").onclick=async e=>{e.preventDefault();if(saving)return;if(await appUpd()){location.reload();return}connect()};
@@ -2066,19 +2066,19 @@ function renderAlbum(){
   const n=camFiles.length,b=$("albumBtn"),ok=n&&navigator.canShare&&navigator.canShare({files:camFiles});
   // 存原檔只在「下載照片」面板裡；拍照區與按鈕上只提示，不再另放下載鈕
   $("dlCam").hidden=!n;$("dlCamN").textContent=n;b.hidden=!ok;if(ok){setBt(b,"save","存到相簿（含GPS）");camPrepAll()}
-  $("camHint").hidden=!n;$("camHint").textContent=`${n} 張拍照原檔還沒存到相簿 → 到「下載照片」存`;
+  $("camHint").hidden=!n;$("camHint").textContent=`${n} 張拍照原檔尚未存入相簿，請至「下載照片」存檔`;
   setBt($("dlBtn"),"down",n?`下載照片（${n}張原檔未存）`:"下載照片");
 }
 $("camHint").onclick=e=>{e.preventDefault();openDl()};
 $("albumBtn").onclick=async()=>{
   const b=$("albumBtn"),orig=[...camFiles];
   if(orig.some(f=>f._ex&&f._ex.lat!=null&&!camPrep.has(f._k))){b.disabled=true;b.textContent="寫入GPS中…";
-    try{await camPrepAll()}finally{b.disabled=false}setBt(b,"save","GPS已寫好，再點一次存");return}
+    try{await camPrepAll()}finally{b.disabled=false}setBt(b,"save","GPS已寫入，請再點一次存檔");return}
   const sent=orig.map(f=>camPrep.get(f._k)||f);
   try{await navigator.share({files:sent});camDrop(orig)}
   catch(e){if(e.name!=="AbortError")showMsg("無法開啟分享選單："+(e.message||e.name),true)}
 };
-$("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪了就救不回來，再按一次";setTimeout(()=>{b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔"},4000);return}
+$("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪除後無法復原，請再按一次確認";setTimeout(()=>{b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔"},4000);return}
   b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔";camDrop([...camFiles])};
 camLoad();
 
@@ -2132,7 +2132,7 @@ function srtBar(bar,list){
   if(multiPh.length){const sb=document.createElement("button");sb.type="button";sb.className="mini";sb.style.alignSelf="flex-start";
     const np=multiPh.reduce((s,r)=>s+r.photos.length,0);sb.textContent=`拆成單張（${multiPh.length}筆→${np}筆）`;
     sb.onclick=async()=>{bar.querySelectorAll("button").forEach(b=>b.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
-      try{for(const r of multiPh)await splitRec(r);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已拆成 ${np} 筆，說明文字每筆都先照抄，請再各自修改。`)}
+      try{for(const r of multiPh)await splitRec(r);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已拆成 ${np} 筆，說明文字暫沿用原內容，請逐筆修正。`)}
       catch(e){showMsg("拆開失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
       srtBusy=false;srtFM=false;renderRecords()};
     bar.appendChild(sb)}
@@ -2166,10 +2166,10 @@ async function srtDo(bar,list,v,merge){srtPick=null;
   const h=bar.querySelector(".hint");if(h)h.textContent=merge?`合併 ${sel.length} 筆中…`:`更新 ${sel.length} 筆中…`;
   if(merge){
     try{await mergeRecs(curCase,sel,u);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併成一筆並改成${[u.category,u.sub,u.struct].filter(Boolean).join("・")}，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
-    catch(e){showMsg(`沒合併成功（${(e&&e.code)||"網路"}），照片還勾著，再試一次。`,true)}
+    catch(e){showMsg(`合併未完成（${(e&&e.code)||"網路"}），照片仍維持勾選，請再操作一次。`,true)}
     srtBusy=false;srtFM=false;renderRecords();return}
   try{await updateMany("records",curCase,sel.map(r=>r.id),u);sel.forEach(r=>{Object.assign(r,u);srtSel.delete(r.id)})}
-  catch(e){showMsg(`沒改成功（${(e&&e.code)||"網路"}），照片還勾著，再點一次類別。`,true)}
+  catch(e){showMsg(`分類變更未完成（${(e&&e.code)||"網路"}），照片仍維持勾選，請再點選類別。`,true)}
   srtBusy=false;srtFM=false;renderRecords();
 }
 function renderWall(box,list,all){
@@ -2216,7 +2216,7 @@ function renderWall(box,list,all){
   });
     box.appendChild(w)}
   if(srtOn){srtBar(bar,list);box.appendChild(bar)}
-  if(none&&!srtOn){const n=document.createElement("div");n.className="empty";n.textContent=`另有 ${none} 筆沒有照片的紀錄，切到「列表」查看。`;box.appendChild(n)}
+  if(none&&!srtOn){const n=document.createElement("div");n.className="empty";n.textContent=`另有 ${none} 筆無照片之紀錄，請切換至「列表」查看。`;box.appendChild(n)}
 }
 
 /* ---------- 下載本案照片（zip，依階段分資料夾，檔名帶日期、類別、樁號） ---------- */
@@ -2299,7 +2299,7 @@ function renderDl(){
   const sel=$("dlDay");sel.innerHTML="";[["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===dlDay;sel.appendChild(o)});
   const list=dlList(),n=list.reduce((s,r)=>s+r.photos.length,0),gps=list.filter(r=>r.lat!=null&&r.lng!=null).reduce((s,r)=>s+r.photos.length,0);
   const zn=ids.length>1?ids.map(id=>{const k=list.filter(r=>r.caseId===id).reduce((s,r)=>s+r.photos.length,0);return `${zoneInfo(cases.find(c=>c.id===id)).zone} ${k}張`}).join("、")+"。":"";
-  $("dlInfo").textContent=n?zn+`共 ${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，一次全部；系統收不下時會自動分批並標明第幾張。":""):"這個範圍沒有照片。";
+  $("dlInfo").textContent=n?zn+`共 ${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張之紀錄具GPS。下載時寫入紀錄之GPS與拍攝時間（紀錄無GPS者不含位置），檔名與Word匯出一致。`+(apOk()?"手機建議使用「存到相簿」一次存入；系統無法一次收受時自動分批，並標明張次範圍。":""):"本範圍無照片。";
   $("zipBtn").disabled=!n;apLabel();renderAlbum();
 }
 function openDl(){if(!curCase&&!camFiles.length)return;$("dlSheet").hidden=false;renderDl()}
@@ -2341,9 +2341,9 @@ function apItems(){const list=dlList(),names=dlNames(list),multi=dlIds().length>
 function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,done:new Set(),n:Infinity,files:null,batch:null};
   const n=its.length,left=its.filter(x=>!ap.done.has(x.id)),d=n-left.length;b.hidden=!apOk()||!n;if(b.hidden)return;
   const split=ap.n<n?`（分批：每批${ap.n}張）`:"";
-  setBt(b,"save",ap.files?`準備好了，點這裡存 ${ap.files.length} 張（${apRange(its,ap.batch)}）`+split
-    :!left.length?`${n} 張都已存到相簿（再點全部重存）`
-    :d?`已存 ${d}/${n} 張，點這裡存剩下的（${apRange(its,left.slice(0,ap.n))}）`+split
+  setBt(b,"save",ap.files?`已備妥，點選存入 ${ap.files.length} 張（${apRange(its,ap.batch)}）`+split
+    :!left.length?`${n} 張均已存入相簿（再點選則全部重存）`
+    :d?`已存 ${d}/${n} 張，點選存入其餘照片（${apRange(its,left.slice(0,ap.n))}）`+split
     :`存到相簿（共 ${n} 張）`+split)}
 async function apPrep(b,its,batch){const fs=[];
   for(const [i,x] of batch.entries()){b.textContent=`準備中 ${i+1}/${batch.length}…`;
@@ -2358,15 +2358,15 @@ $("apBtn").onclick=async()=>{
     try{await navigator.share({files:ap.files});batch.forEach(x=>ap.done.add(x.id));ap.files=null;ap.batch=null}
     catch(e){if(e&&e.name==="AbortError"){apLabel();return} // 自己取消：保留已準備的，再點就能存
       ap.files=null;ap.batch=null;
-      if(batch.length>1){ap.n=Math.ceil(batch.length/2);b.textContent=`一次存 ${batch.length} 張失敗，改成每批 ${ap.n} 張，再點一次`}
-      else b.textContent="儲存失敗（"+(e&&e.message||"未知原因")+"），再點一次重試";
+      if(batch.length>1){ap.n=Math.ceil(batch.length/2);b.textContent=`一次存入 ${batch.length} 張失敗，改為每批 ${ap.n} 張，請再點一次`}
+      else b.textContent="儲存失敗（"+(e&&e.message||"未知原因")+"），請再點一次";
       setTimeout(apLabel,3000);return}
     apLabel();return}
   let left=its.filter(x=>!ap.done.has(x.id));if(!left.length){ap.done.clear();left=its}
   const batch=left.slice(0,ap.n);if(!batch.length)return;
   b.disabled=true;
   try{await apPrep(b,its,batch)}
-  catch(e){b.textContent="準備失敗（"+(e.message||"網路")+"），再點一次";setTimeout(apLabel,2500)}
+  catch(e){b.textContent="準備失敗（"+(e.message||"網路")+"），請再點一次";setTimeout(apLabel,2500)}
   finally{b.disabled=false;apLabel()}
 };
 
@@ -2409,7 +2409,7 @@ function renderExp(){
   const {c,H1,R1,H2,R2}=expData(expDay);
   const info=document.createElement("div");info.className="hint";
   const nAll=records.filter(r=>zids.includes(r.caseId)&&(!expDay||recDay(r)===expDay)).length;
-  info.textContent=(multi?`Word一次匯出${zids.length}個工區（共 ${nAll} 筆，依工區分節）；下面的複製和CSV只含目前的${zoneInfo(c).zone}：`:"")+`紀錄 ${R1.length} 筆`+(expDay?`、核對結果 ${R2.length} 項`:"（核對結果要選單一日期）")+"。複製後貼到Word或Excel會是表格；照片檔名對應「下載照片」的檔案。";
+  info.textContent=(multi?`Word一次匯出${zids.length}個工區（共 ${nAll} 筆，依工區分節）；下方之複製及CSV僅含目前之${zoneInfo(c).zone}：`:"")+`紀錄 ${R1.length} 筆`+(expDay?`、核對結果 ${R2.length} 項`:"（核對結果要選單一日期）")+"。複製後貼至Word或Excel即為表格；照片檔名與「下載照片」之檔案一致。";
   const bw=document.createElement("div");bw.className="expbtns";const bs=document.createElement("div");bs.className="row";bs.style.margin="0";
   const mk=(t,f,to)=>{const b=document.createElement("button");b.type="button";b.textContent=t;b.onclick=()=>f(b);(to||bs).appendChild(b);return b};
   const wb=mk("下載Word（含照片）",b=>makeDocx(expDay,b),bw);wb.prepend(ic("file"));wb.className="primary";wb.disabled=!nAll;bw.appendChild(bs);
@@ -2636,7 +2636,7 @@ function renderNear(){
   if(!g||!curCase){e.hidden=true;return}
   const kx=Math.cos(g.lat*Math.PI/180)*111320,ky=110540,cut=Date.now()-3*3600e3;
   const n=records.filter(r=>r.caseId===curCase&&r.lat!=null&&r.photos&&r.photos.length&&r.createdAt<cut&&Math.hypot((r.lng-g.lng)*kx,(r.lat-g.lat)*ky)<=30).length;
-  e.hidden=!n;if(n){e.textContent="";e.append(ic("cam"),`這附近（30m 內）有 ${n} 筆前次紀錄，點開地圖看 ›`)}
+  e.hidden=!n;if(n){e.textContent="";e.append(ic("cam"),`附近30 m內有 ${n} 筆前次紀錄，點選開啟地圖 ›`)}
 }
 $("nearBox").onclick=ev=>{ev.preventDefault();openMap(true)};
 
