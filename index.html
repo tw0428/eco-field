@@ -76,13 +76,9 @@ button:disabled{opacity:.5}
 button.danger{color:var(--danger);border-color:var(--danger)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .hint{font-size:12px;color:var(--accent);margin-top:4px}
-.geotip{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 .viewer{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
 .vbar{display:flex;gap:6px;align-items:center;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
 .vbar button{padding:6px 12px}
-.vbar{overflow-x:auto;scrollbar-width:none}.vbar::-webkit-scrollbar{display:none}.vbar button{white-space:nowrap;flex-shrink:0}
-/* 手機：可雙指縮放，－／＋和新分頁收掉，按鈕縮小，一排放得下 */
-@media (max-width:600px){#viewer #vOut,#viewer #vIn,#viewer #vTab{display:none}.vbar{gap:4px;padding-left:8px;padding-right:8px}.vbar button{padding:6px 10px}}
 .vtitle{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
 .vcontent{transform-origin:0 0}
@@ -388,7 +384,6 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <button type="button" id="albumBtn" hidden></button>
     <button type="button" id="albumClr" class="mini" hidden style="align-self:flex-end;font-size:12px;padding:3px 8px">不存相簿了，刪掉這些原檔</button>
     <div class="hint" id="geoState" hidden></div>
-    <div class="geotip"><b>工具內拍照</b>：位置用手機定位，訊號差時較慢<br><b>iPhone相機拍→從相簿選</b>：位置用照片檔的GPS，較準（選照片時按「選項」打開位置）</div>
     <a href="#" class="hint near" id="nearBox" hidden></a>
     <div class="thumbs" id="pendThumbs"></div>
 
@@ -736,10 +731,6 @@ function geoStart(force){
       geoErr=geoDenied?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
       if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
     {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
-  // 先拿大概位置（基地台/WiFi/手機剛記住的位置，幾秒內就有），精準GPS來了會蓋掉；已有更準的就不用
-  navigator.geolocation.getCurrentPosition(p=>{const g=geoFresh(),acc=Math.round(p.coords.accuracy);if(g&&g.acc<=acc)return;
-    geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc,t:Math.min(p.timestamp||Date.now(),Date.now())};geoErr="";renderGeo()},()=>{},
-    {enableHighAccuracy:false,maximumAge:120000,timeout:15000});
 }
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
@@ -750,9 +741,8 @@ function geoLateApply(){const g=geoFresh();if(!g||!geoLate.length)return;let hit
   if(hit){renderPending();suggestStake();showMsg("定位到了，已補上等待中照片的GPS。")}}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&geoWatch!=null)geoStart(true)});
 function renderGeo(){const e=$("geoState");const g=geoFresh();
-  const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
-  e.textContent="";if(gt)e.append(ic("pin"),gt);
-  e.hidden=!gt;renderNear()}
+  const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
+  e.textContent="";if(gt)e.append(ic("pin"),gt);e.hidden=!gt;renderNear()}
 
 let gpsNote=false; // 目前顯示的是「照片檔案沒有位置」提示（照片移除或補上GPS後要自動收掉）
 function showMsg(t,err){gpsNote=false;const m=$("formMsg");m.textContent=t;m.className="msg"+(err?" err":"");m.hidden=!t}
@@ -2020,10 +2010,9 @@ async function repoCheck(){
 }
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
-  geoStart(); // 定位不靠網路，先開始抓（GPS要時間暖機），不要等資料讀完；網路差時讀取會很久甚至失敗
   $("conn").textContent=Object.keys(store.cases).length?"更新中…":"讀取中…";
   const t0=performance.now();
-  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`}
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
@@ -2232,11 +2221,15 @@ function exifApp1(lat,lng,dt){
 }
 async function withExif(blob,lat,lng,dt){
   try{const seg=exifApp1(lat,lng,dt);if(!seg)return blob;const a=new Uint8Array(await blob.arrayBuffer());if(a[0]!==0xFF||a[1]!==0xD8)return blob;
-    let at=2; // 已有EXIF就不動
-    while(a[at]===0xFF&&(a[at+1]===0xE0||a[at+1]===0xE1)){if(a[at+1]===0xE1&&a[at+4]===0x45&&a[at+5]===0x78)return blob;at+=2+(a[at+2]<<8|a[at+3])}
-    // 照相機照片的結構：EXIF緊接檔頭，沒有JFIF段（canvas壓縮產生的JFIF拿掉）。存進iPhone相簿時位置被丟掉，改成標準結構試試
-    const cut=a[2]===0xFF&&a[3]===0xE0&&a[6]===0x4A&&a[7]===0x46?4+(a[4]<<8|a[5]):2;
-    return new Blob([a.subarray(0,2),seg,a.subarray(cut)],{type:"image/jpeg"})}catch(e){return blob}
+    // 檔案自己已有GPS才不動。iPhone瀏覽器壓縮的照片會帶一段只有色彩空間／尺寸的EXIF（沒GPS），
+    // 原本「有EXIF就不動」使手機上傳的照片下載後全都沒GPS（10/30 九份二山實測）→ 換成帶GPS的EXIF
+    if((await readExif(new Blob([a]))).lat!=null)return blob;
+    // 開頭的JFIF段與舊EXIF段拿掉（照相機照片的結構：EXIF緊接檔頭），其餘段落原樣保留
+    const keep=[];let at=2;
+    while(at+4<=a.length&&a[at]===0xFF&&(a[at+1]===0xE0||a[at+1]===0xE1)){const n=2+(a[at+2]<<8|a[at+3]);
+      const jfif=a[at+1]===0xE0&&a[at+4]===0x4A&&a[at+5]===0x46,exif=a[at+1]===0xE1&&a[at+4]===0x45&&a[at+5]===0x78;
+      if(!jfif&&!exif)keep.push(a.subarray(at,at+n));at+=n}
+    return new Blob([a.subarray(0,2),seg,...keep,a.subarray(at)],{type:"image/jpeg"})}catch(e){return blob}
 }
 // 照片檔名（下載zip與匯出表格共用，兩邊對得上）：階段資料夾/日期時間_類別ABCD_樁號_物種.jpg
 function zipNames(list){const used=new Set();return list.map(r=>{const day=(r.takenAt||fmtMs(r.createdAt)).replace(/[\/: ]/g,"").slice(0,12);
