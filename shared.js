@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="fb06c8ddca"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="c236f86a61"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
@@ -14,7 +14,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:"){
     // 剛打開（8 秒內）、還沒動手輸入：直接換新版，不用再按一次（30 秒內只自動換一次，避免連續重整）
     try{const t=+sessionStorage.getItem("eco-autoupd")||0,ae=document.activeElement,typing=ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)&&ae.value;
       if(performance.now()<8000&&!typing&&Date.now()-t>30000){sessionStorage.setItem("eco-autoupd",String(Date.now()));location.reload();return}}catch(_){}
-    const b=document.createElement("button");b.id="updBar";b.type="button";b.textContent="有新版本，點這裡更新";
+    const b=document.createElement("button");b.id="updBar";b.type="button";b.textContent="有新版本，請點選更新";
     b.style.cssText="position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:99;padding:14px;border-radius:10px;border:0;background:#657359;color:#fff;font:inherit;font-size:16px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3)";
     b.onclick=()=>{Promise.resolve(window.ecoBeforeReload?window.ecoBeforeReload():0).catch(()=>0).finally(()=>location.reload())};document.body.appendChild(b)};
   navigator.serviceWorker.register("sw.js").catch(()=>{});
@@ -90,7 +90,7 @@ function zoneInfo(c){if(!c)return null;if(c.group)return {base:c.group,zone:c.zo
 const zoneNo=z=>{const m=/工區\s*([一二三四五六七八九十]|\d+)/.exec(z||"");return m?(/\d/.test(m[1])?+m[1]:ZNUM.indexOf(m[1])+1):99};
 function zoneMates(id){const c=cases.find(x=>x.id===id),z=zoneInfo(c);if(!z)return c&&!c.trashedAt?[c]:[];
   return cases.filter(x=>!x.trashedAt&&(zoneInfo(x)||{}).base===z.base).sort((a,b)=>zoneNo(zoneInfo(a).zone)-zoneNo(zoneInfo(b).zone)||(a.name||"").localeCompare(b.name||"","zh-Hant"))}
-// ops：add(name)建立並切到新案件、trash(id)移到垃圾桶、restore(id)復原、trashed()垃圾桶清單[{id,name}]
+// ops：add(name)建立並切到新案件、trash(id)移至垃圾桶、restore(id)復原、trashed()垃圾桶清單[{id,name}]
 // 手機全螢幕、電腦置中面板；第一列「＋新增案件」，每列右邊📌釘選＋紅色垃圾桶（按兩次才移除），垃圾桶在最下面可復原
 const TRASH_SVG='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg>';
 function makePicker(sel,recentKey,metaOf,ops){
@@ -99,7 +99,7 @@ function makePicker(sel,recentKey,metaOf,ops){
   const zbar=document.createElement("div");zbar.className="zonebar";zbar.hidden=true;btn.parentElement.after(zbar);
   const pick=v=>{if(sel.value!==v){sel.value=v;sel.dispatchEvent(new Event("change",{bubbles:true}))}};
   const sync=()=>{const o=sel.options[sel.selectedIndex],m=o&&o.value?metaOf(o.value):{};
-    btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，點這裡新增）");
+    btnName(btn,o&&o.value?(m.group||o.textContent):"（尚無案件，請點選新增）");
     const zs=o&&o.value&&m.group?zoneMates(o.value):[];zbar.hidden=zs.length<2;
     // 同一組工區只改按下狀態、不重建按鈕（頁面每次重畫都會觸發這裡，重建會讓捲動位置歸零而跳動）
     const ids=zs.length>1?zs.map(c=>c.id+"|"+zoneInfo(c).zone).join(","):"",fresh=ids!==zIds;zIds=ids;
@@ -169,7 +169,7 @@ function makePicker(sel,recentKey,metaOf,ops){
             // 計畫編號只存數字（25116）；貼了「115-B (25116)」這種總表分頁名也會取出數字
             const extra={},pm=/\d{4,6}/.exec(addPlan);if(pm)extra.plan=pm[0];else if(addPlan.trim())extra.plan=addPlan.trim();
             if(addStage)extra.stage=addStage;
-            try{await ops.add(n,extra);addVal=addPlan="";addStage="";close()}catch(e){ok.disabled=false;ok.textContent="失敗，再按一次"}};
+            try{await ops.add(n,extra);addVal=addPlan="";addStage="";close()}catch(e){ok.disabled=false;ok.textContent="失敗，請再按一次"}};
           ok.onclick=go;inp.onkeydown=pin.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();go()}};li.append(ok,cc);setTimeout(()=>inp.focus(),0)}
         ul.appendChild(li)}
       const item=e=>{const li=document.createElement("li");if(e.ids.includes(sel.value))li.className="on";
@@ -179,8 +179,8 @@ function makePicker(sel,recentKey,metaOf,ops){
         pb.onclick=ev=>{ev.stopPropagation();togglePin(e);draw()};
         li.append(nm,pb);
         if(ops.trash){const tb=document.createElement("button");tb.type="button";tb.className="pin trash";const arm=armed===e.key;
-          if(arm){tb.classList.add("armed");tb.textContent=e.opts.length>1?`${e.opts.length}個工區都移到垃圾桶？`:"移到垃圾桶？";li.classList.add("arming")}else tb.innerHTML=TRASH_SVG;
-          tb.setAttribute("aria-label","移到垃圾桶");
+          if(arm){tb.classList.add("armed");tb.textContent=e.opts.length>1?`${e.opts.length}個工區均移至垃圾桶？`:"移至垃圾桶？";li.classList.add("arming")}else tb.innerHTML=TRASH_SVG;
+          tb.setAttribute("aria-label","移至垃圾桶");
           tb.onclick=async ev=>{ev.stopPropagation();clearTimeout(armT);
             if(!arm){armed=e.key;armT=setTimeout(()=>{armed=null;draw()},4000);draw();return}
             armed=null;tb.disabled=true;tb.textContent="移除中…";
@@ -195,13 +195,13 @@ function makePicker(sel,recentKey,metaOf,ops){
       else{const key=e=>metaOf(e.value)[mode]||"",keys=[...new Set(R.map(key))];
         keys.sort((a,b)=>!a?1:!b?-1:mode==="plan"?b.localeCompare(a):a.localeCompare(b,"zh-Hant"));
         keys.forEach(g=>{head(g||(mode==="area"?"未設定地區":"未設定計畫編號"));R.filter(e=>key(e)===g).sort(byRank).forEach(item)})}
-      if(!hit.length&&k)head("找不到符合的案件");
+      if(!hit.length&&k)head("查無符合之案件");
       // 垃圾桶：移除的案件資料都還在，點「復原」放回清單
       const T=ops.trashed?ops.trashed().filter(c=>!k||(c.name||"").toLowerCase().includes(k)):[];
       if(T.length){const h=document.createElement("li");h.className="grp trashgrp";h.textContent=`${trOpen?"▾":"▸"} 垃圾桶（${T.length}）・可復原`;h.onclick=()=>{trOpen=!trOpen;draw()};ul.appendChild(h);
         if(trOpen)T.forEach(c=>{const li=document.createElement("li");li.className="trashed";const nm=document.createElement("span");nm.className="pkname";nameEl(nm,c.name||"");
           const rb=document.createElement("button");rb.type="button";rb.className="restore";rb.textContent="復原";
-          rb.onclick=async ev=>{ev.stopPropagation();rb.disabled=true;rb.textContent="復原中…";try{await ops.restore(c.id);draw()}catch(_){rb.disabled=false;rb.textContent="失敗，再按一次"}};
+          rb.onclick=async ev=>{ev.stopPropagation();rb.disabled=true;rb.textContent="復原中…";try{await ops.restore(c.id);draw()}catch(_){rb.disabled=false;rb.textContent="失敗，請再按一次"}};
           li.append(nm,rb);ul.appendChild(li)})}
     };
     q.oninput=draw;draw();document.body.appendChild(ov);document.body.style.overflow="hidden";
