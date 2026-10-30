@@ -408,7 +408,8 @@ function geoStart(force){
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&geoWatch!=null)geoStart(true)});
-function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt)}
+function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt);
+ if(gt&&!geoDenied&&(!g||g.acc>100)){const t=document.createElement('div');t.textContent='定位慢？先開Google地圖等藍點穩定再回來拍；或用iPhone相機拍，再從相簿選（選照片時按「選項」打開位置）';e.appendChild(t)}}
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
 async function repoCheck(){
  const r=await fetch(GH_REPO_URL,{cache:'no-store',headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json'}});
