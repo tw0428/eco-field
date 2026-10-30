@@ -76,9 +76,13 @@ button:disabled{opacity:.5}
 button.danger{color:var(--danger);border-color:var(--danger)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .hint{font-size:12px;color:var(--accent);margin-top:4px}
+.geotip{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 .viewer{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
 .vbar{display:flex;gap:6px;align-items:center;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
 .vbar button{padding:6px 12px}
+.vbar{overflow-x:auto;scrollbar-width:none}.vbar::-webkit-scrollbar{display:none}.vbar button{white-space:nowrap;flex-shrink:0}
+/* 手機：可雙指縮放，－／＋和新分頁收掉，按鈕縮小，一排放得下 */
+@media (max-width:600px){#viewer #vOut,#viewer #vIn,#viewer #vTab{display:none}.vbar{gap:4px;padding-left:8px;padding-right:8px}.vbar button{padding:6px 10px}}
 .vtitle{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
 .vcontent{transform-origin:0 0}
@@ -383,6 +387,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     </div>
     <a href="#" class="hint" id="camHint" hidden></a>
     <div class="hint" id="geoState" hidden></div>
+    <div class="geotip"><b>工具內拍照</b>：位置採手機定位，訊號不佳時較慢<br><b>以iPhone相機拍攝後自相簿選取</b>：位置採照片檔GPS，精度較佳（選取照片時應按「選項」開啟位置）</div>
     <a href="#" class="hint near" id="nearBox" hidden></a>
     <div class="thumbs" id="pendThumbs"></div>
 
@@ -396,7 +401,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     </div>
 
     <div class="two" id="stkRow">
-      <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><button type="button" class="stkbtn" id="stakeArrow" aria-label="從樁號清單選" hidden>▾</button></div><div class="hint" id="stakeHint" hidden></div></div>
+      <div><label class="sr" for="stakeIn">樁號／位置</label><div class="stkwrap"><input type="text" id="stakeIn" placeholder="樁號／位置"><button type="button" class="stkbtn" id="stakeArrow" aria-label="自樁號清單選取" hidden>▾</button></div><div class="hint" id="stakeHint" hidden></div></div>
       <div id="countWrap"><label class="sr" for="countIn">數量</label><input type="text" id="countIn" placeholder="數量（3隻、1株）"></div>
     </div>
     <div id="spWrap"><label class="sr" for="spIn">物種／對象</label><input type="text" id="spIn" placeholder="物種／對象（臺灣白魚、胸徑60cm榕樹）"></div>
@@ -404,12 +409,12 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div><label class="sr" for="noteIn">說明</label><textarea id="noteIn" rows="2" placeholder="說明：現況、建議、待確認事項"></textarea></div>
     <div class="ckrow">
       <label id="impBox" hidden><input type="checkbox" id="impChk" checked>列入改善追蹤</label>
-      <label><input type="checkbox" id="opChk"><i class="ic ic-star"></i>寫進意見</label>
+      <label><input type="checkbox" id="opChk"><i class="ic ic-star"></i>列入意見</label>
     </div>
 
     <div id="formMsg" class="msg" hidden></div>
     <button class="primary" type="submit" id="saveBtn">儲存紀錄</button>
-    <button type="button" id="batchBtn" hidden>每張照片各存一筆（說明之後補）</button>
+    <button type="button" id="batchBtn" hidden>每張照片各存一筆（說明事後補填）</button>
   </form>
 
   <section class="panel" id="obBox" hidden aria-label="待上傳">
@@ -433,7 +438,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
         <b>拍照原檔（<span id="dlCamN"></span> 張）</b>
         <div class="hint">工具內拍攝之照片原檔，畫質優於上傳版本；iPhone 不會自動存入相簿，存入後即自工具內移除，不受上方範圍限制。</div>
         <button type="button" id="albumBtn"></button>
-        <button type="button" id="albumClr" class="mini" style="align-self:flex-end;font-size:12px;padding:3px 8px">不存相簿了，刪掉這些原檔</button>
+        <button type="button" id="albumClr" class="mini" style="align-self:flex-end;font-size:12px;padding:3px 8px">不存入相簿，刪除上列原檔</button>
       </div>
     </div></div></div>
     <div id="expSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">匯出</b><button type="button" id="expClose">關閉</button></div><div id="expBox" class="expbox"></div></div></div>
@@ -479,7 +484,7 @@ function shareBox(text){
   const row=document.createElement("div");row.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
   const mk=(l,f)=>{const x=document.createElement("button");x.type="button";x.className="act";x.textContent=l;x.style.cssText="padding:6px 12px";x.onclick=f;row.appendChild(x);return x};
   const st=document.createElement("span");st.style.color="var(--muted,var(--mute))";
-  const cp=mk("複製",()=>{const ok=()=>{st.textContent="已複製，貼到LINE傳給同事或自己"};
+  const cp=mk("複製",()=>{const ok=()=>{st.textContent="已複製，得貼至LINE提供同仁或自行備份"};
     try{navigator.clipboard.writeText(text).then(ok,()=>{t.select();try{document.execCommand("copy");ok()}catch(_){st.textContent="請手動全選複製"}})}catch(_){t.select();try{document.execCommand("copy");ok()}catch(e){st.textContent="請手動全選複製"}}});
   if(navigator.share&&matchMedia("(pointer:coarse)").matches)mk("分享…",()=>navigator.share({text}).catch(()=>{}));
   mk("關閉",()=>b.remove());row.appendChild(st);
@@ -703,7 +708,7 @@ async function flushOutbox(){
       }else if(it.kind==="check")await db.doc("checkres/"+it.rid).set(it.doc);
       await obRemove(it.qid);
     }
-  }catch(e){obErr=isNetErr(e)?"":"補傳失敗（"+(e.code||e.message)+"），稍後會再試"}
+  }catch(e){obErr=isNetErr(e)?"":"補傳失敗（"+(e.code||e.message)+"），稍後將自動重試"}
   finally{flushing=false;renderOutbox()}
 }
 function renderOutbox(){
@@ -740,9 +745,13 @@ function geoStart(force){
   geoWatch=navigator.geolocation.watchPosition(
     p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr="";geoDenied=false;geoLateApply();renderGeo()},
     e=>{geoDenied=e.code===1; // 只有「被拒」才算定位不可用；訊號弱逾時（2、3）會繼續等下一筆，不能當成放棄
-      geoErr=geoDenied?"定位遭拒：請於iPhone「設定→隱私權與安全性→定位服務→Safari網站」設為「使用App期間」，並於Safari網址列左側選單「網站設定→位置」改為允許":"定位訊號不足，到空曠處再試";
+      geoErr=geoDenied?"定位遭拒：請於iPhone「設定→隱私權與安全性→定位服務→Safari網站」設為「使用App期間」，並於Safari網址列左側選單「網站設定→位置」改為允許":"定位訊號不足，請移至空曠處再試";
       if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
     {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
+  // 先拿大概位置（基地台/WiFi/手機剛記住的位置，幾秒內就有），精準GPS來了會蓋掉；已有更準的就不用
+  navigator.geolocation.getCurrentPosition(p=>{const g=geoFresh(),acc=Math.round(p.coords.accuracy);if(g&&g.acc<=acc)return;
+    geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc,t:Math.min(p.timestamp||Date.now(),Date.now())};geoErr="";renderGeo()},()=>{},
+    {enableHighAccuracy:false,maximumAge:120000,timeout:15000});
 }
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
@@ -750,10 +759,10 @@ async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!ge
 function geoLateApply(){const g=geoFresh();if(!g||!geoLate.length)return;let hit=false;
   geoLate=geoLate.filter(x=>{if(Date.now()-x.at>180000||x.ex.lat!=null)return false;
     if(!pending.some(p=>p.ex===x.ex))return false;Object.assign(x.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"});hit=true;return false});
-  if(hit){renderPending();suggestStake();showMsg("定位到了，已補上等待中照片的GPS。")}}
+  if(hit){renderPending();suggestStake();showMsg("已取得定位，並補上待定位照片之GPS。")}}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&geoWatch!=null)geoStart(true)});
 function renderGeo(){const e=$("geoState");const g=geoFresh();
-  const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
+  const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照時自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
   e.textContent="";if(gt)e.append(ic("pin"),gt);e.hidden=!gt;renderNear()}
 
 let gpsNote=false; // 目前顯示的是「照片檔案沒有位置」提示（照片移除或補上GPS後要自動收掉）
@@ -831,7 +840,7 @@ function fillOf(r){if(!r)return "";return r.site?(r.off<=1500?r.site:""):(r.off<
 function stationText(r){if(!r)return "";if(r.site)return r.off>1500?`離最近工區${(r.off/1000).toFixed(1)}km，可能不在工區`:`近${r.site}（離工區標示點${Math.round(r.off)}m）`;return r.off>60?`距中心線${Math.round(r.off)}m，可能不在工區`:`約${fmtSt(r.st,r.r)}（距中心線${Math.round(r.off)}m）`}
 function suggestStake(){
   const gp=pending.find(p=>p.ex.lat!=null);
-  if(!gp){const c=cases.find(x=>x.id===curCase);if(pending.length&&c&&(c.stakes||c.sites)){$("stakeHint").textContent="照片無GPS，點樁號欄可從清單選";$("stakeHint").hidden=false}return}
+  if(!gp){const c=cases.find(x=>x.id===curCase);if(pending.length&&c&&(c.stakes||c.sites)){$("stakeHint").textContent="照片無GPS，得點選樁號欄自清單選取";$("stakeHint").hidden=false}return}
   const r=nearestStation(gp.ex.lat,gp.ex.lng);if(!r)return;
   if(!$("stakeIn").value.trim()&&fillOf(r))$("stakeIn").value=fillOf(r);
   $("stakeHint").textContent="GPS推估："+stationText(r);$("stakeHint").hidden=false;
@@ -850,7 +859,7 @@ async function addFiles(list,fromCam){
   renderPending();renderAlbum();
   // 從相簿選的照片檔案裡本來就沒有位置：明講是檔案的問題（手機從相簿交給網頁時，系統常把位置移除），不是工具沒讀到
   const nog=add.filter(p=>!p.ex.fresh&&p.ex.lat==null&&p.ex.x);
-  if(nog.length)showMsg(`${nog.length} 張照片之檔案未含位置資料（${nog[0].ex.x==="notjpeg"?"非一般JPEG格式":"手機自相簿提供照片予網頁時，系統常移除位置資訊"}），非工具讀取錯誤。需自動帶入GPS者，請使用工具內拍照，或於樁號欄選取位置。`,true);
+  if(nog.length)showMsg(`${nog.length} 張照片之檔案未含位置資料（${nog[0].ex.x==="notjpeg"?"非一般JPEG格式":"手機自相簿提供照片予網頁時，系統常移除位置資訊"}），非工具讀取錯誤。需帶入GPS者，請使用工具內拍照，或選取照片時按「選項」開啟位置，或於樁號欄選取位置。`,true);
   if(nog.length)gpsNote=true;
   if(fromCam){const fm=$("recForm").getBoundingClientRect();if(fm.top<0||fm.top>innerHeight*0.6)$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})}
   if(add.some(p=>p.ex.fresh)){
@@ -872,11 +881,11 @@ function mkThumb(p){if(p._th)return;p._th=1;thQ=thQ.then(async()=>{if(!pending.i
   catch(e){if(p._img)p._img.src=p.url}})}
 function renderPending(){
   const box=$("pendThumbs");box.innerHTML="";
-  // 編輯時先列出原有照片（可移除），點了看大圖
+  // 編輯時先列出原有照片（可移除），點了檢視大圖
   if(editing)editKeep.forEach((id,i)=>{
     const d=document.createElement("div");d.className="thumb";
     const im=document.createElement("img");setImg(im,id);im.alt="原有照片";im.style.cursor="pointer";im.onclick=()=>openViewer(id,"image/jpeg","原有照片");
-    const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","從這筆紀錄移除");
+    const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","自本筆紀錄移除");
     x.onclick=()=>{editKeep.splice(i,1);renderPending()};
     const o=document.createElement("span");o.className="old";o.textContent="原有";
     d.append(im,x,o);box.appendChild(d);
@@ -885,7 +894,7 @@ function renderPending(){
     const d=document.createElement("div");d.className="thumb"+(p._sv?" sv":"");p._el=d;
     // 原檔當縮圖太吃效能（類單眼一張六千萬畫素）→ 背景做小縮圖，好了再換上
     const im=document.createElement("img");im.alt="待上傳照片";im.decoding="async";p._img=im;if(p.thumb)im.src=p.thumb;else mkThumb(p);
-    const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除這張");
+    const x=document.createElement("button");x.type="button";x.textContent="×";x.setAttribute("aria-label","移除本張");
     x.onclick=()=>{if(p._sv)return;URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);pending.splice(pending.indexOf(p),1);renderPending()};
     const g=document.createElement("div");g.className="gps";
     g.textContent=p.ex.lat!=null?`${p.ex.lat}, ${p.ex.lng}`+(p.ex.src==="device"?` ±${p.ex.acc}m`:""):p.ex.fresh&&!geoDenied&&Date.now()-(p.ex.at||0)<180000?"定位中…":"無GPS"+(p.ex.x&&p.ex.x!=="ok"?"（檔案內無位置）":"");
@@ -938,7 +947,7 @@ $("batchBtn").onclick=async()=>{
       showMsg(`存到手機 ${i+1}/${total}…`);
       const r=await saveNew(docOf(p),[await cmp(p)]);r==="queued"?queued++:done++;drop([p])}
     const fresh=pending.filter(p=>!list.includes(p)).length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?`已存 ${done} 筆；${queued} 筆因無訊號暫存於手機（見上方「待上傳」），有訊號時自動上傳。`:`已建立 ${done} 筆紀錄，說明得於列表按「編輯」補充。`)+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued>0);
+    showMsg((queued?`已存 ${done} 筆；${queued} 筆因無訊號暫存於手機（見上方「待上傳」），有訊號時自動上傳。`:`已建立 ${done} 筆紀錄，說明得於列表按「編輯」補充。`)+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued>0);
   }catch(err){
     console.error(err);restoreFields(snap);
     showMsg(`已存 ${done+queued} 筆，其後失敗（${(err&&err.code)||"錯誤"}）。其餘照片仍保留於上方，得再按一次。`,true);
@@ -963,7 +972,7 @@ $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
     let fs=[...e.dataTransfer.files];
     if(ens.some(x=>x.isDirectory)){showMsg("讀取資料夾…");fs=[];for(const en of ens)fs.push(...await walk(en))}
     fs=fs.filter(f=>f&&isImg(f));
-    if(!fs.length){showMsg("拖進來的沒有照片。",true);return}showMsg("");
+    if(!fs.length){showMsg("拖曳之檔案未含照片。",true);return}showMsg("");
     if(editing)cancelEdit();addFiles(fs,false);$("pendThumbs").scrollIntoView({behavior:"smooth",block:"center"})})}
 $("camIn").onclick=()=>geoStart();/* ---------- 案件 ---------- */
 /* 兩個工具切換時帶著目前案件：點頂端連結時記下 eco-jump，另一頁讀到案件清單後套用一次（5分鐘內有效） */
@@ -996,7 +1005,7 @@ async function autoArea(){
   }}finally{areaBusy=false}
 }
 $("areaIn").onchange=async()=>{const c=cases.find(x=>x.id===curCase),v=$("areaIn").value.trim();if(!c||(c.area||"")===v)return;
-  try{await db.doc("cases/"+c.id).update({area:v})}catch(e){$("areaIn").value=c.area||"";showMsg("地區沒存上（"+(e.code||"網路")+"），有訊號時再改一次。",true)}};
+  try{await db.doc("cases/"+c.id).update({area:v})}catch(e){$("areaIn").value=c.area||"";showMsg("地區儲存失敗（"+(e.code||"網路")+"），請於有訊號時重新操作。",true)}};
 function renderCases(){
   const sel=$("caseSel");sel.innerHTML="";
   // 移到垃圾桶的案件（trashedAt）不列在選單，資料都還在，可在案件清單最下面復原
@@ -1022,8 +1031,8 @@ function renderCases(){
   $("areaRow").hidden=!c;if(c&&document.activeElement!==$("areaIn"))$("areaIn").value=c.area||"";
   // 座標跨兩個以上鄉鎮（溪流是界線）：列出候選，點一下就存
   const ap=$("areaPick"),cand=c&&!c.area&&areaCand[c.id];ap.hidden=!cand;ap.innerHTML="";
-  if(cand){ap.append("工區跨鄉鎮界，選實務上的：");cand.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
-    b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區沒存上（"+(e.code||"網路")+"），請於有訊號時重新操作。",true)}};ap.appendChild(b)})}
+  if(cand){ap.append("工區跨鄉鎮界，請選取實際所屬鄉鎮：");cand.forEach(t=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
+    b.onclick=async()=>{b.disabled=true;try{await db.doc("cases/"+c.id).update({area:t});delete areaCand[c.id]}catch(e){b.disabled=false;showMsg("地區儲存失敗（"+(e.code||"網路")+"），請於有訊號時重新操作。",true)}};ap.appendChild(b)})}
   $("areaList").innerHTML="";[...new Set(cases.map(x=>x.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant")).forEach(a=>{const o=document.createElement("option");o.value=a;$("areaList").appendChild(o)});
   const vals=stakeVals(c);$("stakeArrow").hidden=!vals.length;
   stakePick($("stakeArrow"),$("stakeIn"),vals,()=>{$("stakeHint").hidden=true});
@@ -1069,7 +1078,7 @@ function stakePick(btn,inp,vals,after){
 function stakeField(inp,c){
   const w=document.createElement("div");w.className="stkwrap grow";w.appendChild(inp);
   const vals=stakeVals(c);if(!vals.length)return w;
-  const a=document.createElement("button");a.type="button";a.className="stkbtn";a.setAttribute("aria-label","從樁號清單選");a.textContent="▾";
+  const a=document.createElement("button");a.type="button";a.className="stkbtn";a.setAttribute("aria-label","自樁號清單選取");a.textContent="▾";
   stakePick(a,inp,vals);w.append(a);return w;
 }
 $("caseSel").onchange=e=>{curCase=e.target.value;lsSet("eco-case",curCase);disarmCaseDel();cancelEdit();setLink(null);renderCases();renderRecords()};
@@ -1147,11 +1156,11 @@ async function openViewer(id,type,title){
       await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;blobUrl(id,type).then(u=>{img.src=u},rej)});
       if(tok!==vToken)return;box.innerHTML="";box.appendChild(img);vBase=[img.naturalWidth];vImg=img;img.style.marginBottom="0";vFit();
     }
-  }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟這個檔案（'+(e.message||"載入失敗")+'）。</div>'}
+  }catch(e){if(tok===vToken)box.innerHTML='<div class="vmsg">無法開啟本檔案（'+(e.message||"載入失敗")+'）。</div>'}
 }
 function closeViewer(){vToken++;$("viewer").hidden=true;$("vContent").innerHTML="";document.body.style.overflow=$("recView").hidden?"":"hidden";
   if(vNav){vNav=null;["vPrev","vNext","vPick"].forEach(k=>$(k).hidden=true);renderRecords()}}
-// 整理分類看大圖：‹ › 換張（鍵盤←→）、勾選（空白鍵），關閉後照片牆的勾選同步
+// 整理分類檢視大圖：‹ › 換張（鍵盤←→）、勾選（空白鍵），關閉後照片牆的勾選同步
 let vNav=null;
 function vNavShow(){const {items,i}=vNav,{r,p}=items[i];
   openViewer(p,"image/jpeg",`${i+1}/${items.length}　${catText(r)}${r.stake?"　"+r.stake:""}`);
@@ -1166,7 +1175,7 @@ addEventListener("keydown",e=>{if(!vNav||$("viewer").hidden)return;
 $("vClose").onclick=closeViewer;
 // 平面圖／照片在新分頁開（電腦可並排看）：先同步開空白分頁避免被擋，檔案備好再導過去
 $("vTab").onclick=async()=>{if(!vCur)return;const b=$("vTab"),o=b.textContent,w=window.open("about:blank","_blank");
-  if(!w){b.textContent="彈出視窗被擋住";setTimeout(()=>b.textContent=o,2500);return}
+  if(!w){b.textContent="彈出視窗遭封鎖";setTimeout(()=>b.textContent=o,2500);return}
   try{b.textContent="開啟中…";const bl=await fileBlob(vCur.id,vCur.type);w.location.href=URL.createObjectURL(new Blob([bl],{type:vCur.type||bl.type}))}
   catch(e){w.close();b.textContent="開啟失敗"}finally{setTimeout(()=>b.textContent=o,1800)}};
 $("vIn").onclick=()=>vSetZoom(vZoom*1.5);
@@ -1311,7 +1320,7 @@ function offRender(){
     if(s&&s.noMap)sec.appendChild(el("div","hint","本案無樁號或定位紀錄，未下載地圖。"));
     box.appendChild(sec);
   }
-  box.appendChild(el("div","lbl",packs.length?`手機上的離線包（${packs.length} 個）`:"本機尚無離線包。"));
+  box.appendChild(el("div","lbl",packs.length?`本機離線包（${packs.length} 個）`:"本機尚無離線包。"));
   packs.forEach(p=>{
     const cc=cases.find(x=>x.id===p.id),row=el("div","offitem");
     const info=el("div","offinfo");info.appendChild(el("b",null,(cc?cc.name:"（案件已刪除）")+(Array.isArray(p.zones)&&p.zones.length>1?`（含同群組共 ${p.zones.length} 個工區）`:"")));
@@ -1328,7 +1337,7 @@ function offRender(){
       all.disabled=true;for(const p of offPacks())await offDelete(p.id);offRender()};
     box.appendChild(all)}
   // 先放上次的用量文字，估算回來再換，避免高度忽有忽無
-  const use=el("div","hint",offUse||"本工具在手機上的用量計算中…");box.appendChild(use);
+  const use=el("div","hint",offUse||"本工具於本機之用量計算中…");box.appendChild(use);
   try{navigator.storage.estimate().then(e=>{offUse=`本工具於手機上共占用約 ${fmtMB(e.usage||0)}（含離線包、已瀏覽照片、待上傳資料）。刪除離線包不影響金鑰及待上傳紀錄。`;use.textContent=offUse})}catch(e){}
 }
 $("offBtn").onclick=()=>{$("offSheet").hidden=false;offRender()};
@@ -1393,7 +1402,7 @@ function resId(){if(!byDay())return curCase+"_"+curStage();
 function curRes(){const k=resId();if(checkRes[k])return checkRes[k];if(byDay())return null;const s=curStage();
   return Object.values(checkRes).filter(d=>d.caseId===curCase&&d.stage===s&&d.st&&Object.keys(d.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0]||null}
 // 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄 ok同意/adj調整/ng做不到/wait待回覆
-const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 做不到"],["wait","… 待回覆"]];
+const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 無法辦理"],["wait","… 待回覆"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
@@ -1407,15 +1416,15 @@ function renderChecks(){
     items:repItems,
     canAdd:!!c&&stage!=="提報"&&!(stage==="設計"&&!repItems.length),labels:stLabels(stage),
     titleText:stage==="設計"?"提審意見納入確認":pre?"設計意見落實確認":"現場核對清單",
-    addPhase:stage==="設計"?"report":pre?"design":"start",addLabel:pre?"＋ 補登設計意見（清單漏列的）":"＋ 新增核對事項（會議、現場討論之新增意見）"});
+    addPhase:stage==="設計"?"report":pre?"design":"start",addLabel:pre?"＋ 補登設計意見（清單未列者）":"＋ 新增核對事項（會議、現場討論之新增意見）"});
   // 第二區：設計＝預計提出意見；開工前＝開工前提出的意見（phase:"start"，施工中併入現場核對清單追蹤落實）；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
   const imp=stage==="施工中"||stage==="完工";
-  $("propHint").textContent=imp?"施工中發現之問題與改善意見，於其後每次現勘追蹤改善情形。":pre?"開工說明會、開工前現勘本團隊提出之意見，記錄施工單位當場回應；施工中列入現場核對清單，追蹤落實情形。":"本團隊預計提供設計單位之意見。現場可確定者記同意／調整／做不到，無法當場決定者記待回覆，俟設計單位書面回覆。";
+  $("propHint").textContent=imp?"施工中發現之問題與改善意見，於其後每次現勘追蹤改善情形。":pre?"開工說明會、開工前現勘本團隊提出之意見，記錄施工單位當場回應；施工中列入現場核對清單，追蹤落實情形。":"本團隊預計提供設計單位之意見。現場可確定者記同意／調整／無法辦理，無法當場決定者記待回覆，俟設計單位書面回覆。";
   renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
     items:stage==="設計"?all.filter(i=>i.phase==="propose"):pre?all.filter(i=>i.phase==="start"):imp?all.filter(i=>i.phase==="improve"):[],
     canAdd:!!c&&(stage==="設計"||pre||imp),labels:imp?CHK_IMP:pre?CHK_PRE:CHK_PROP,
     titleText:imp?"改善意見（追蹤改善情形）":pre?"開工前提出意見":"預計提出意見",
-    addPhase:imp?"improve":pre?"start":"propose",addLabel:imp?"＋ 新增改善意見":pre?"＋ 新增開工前意見":"＋ 新增預計提出的意見"});
+    addPhase:imp?"improve":pre?"start":"propose",addLabel:imp?"＋ 新增改善意見":pre?"＋ 新增開工前意見":"＋ 新增預計提出意見"});
 }
 function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleText,addPhase,addLabel}){
   items=[...items];
@@ -1426,7 +1435,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   const past=Object.values(checkRes).filter(d=>d!==cr&&d.caseId===curCase&&(byDay()?(d.date||"")<=((cr&&cr.date)||today()):d.stage!==stage)).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const lastOf=it=>{const d=past.find(d=>d.st&&d.st[it.id]);if(!d)return "";const k=d.st[it.id];
     const lb=it.phase==="propose"||it.phase==="improve"?(((it.phase==="propose"?CHK_PROP:CHK_IMP).find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
-    const nt=(d.notes||{})[it.id];return `上次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`+(nt?`（${nt}）`:"")};
+    const nt=(d.notes||{})[it.id];return `前次 ${d.date.slice(4,6)}/${d.date.slice(6)}${d.stage?" "+d.stage:""}：${lb}`+(nt?`（${nt}）`:"")};
   count.textContent=items.length?`已核對 ${items.filter(i=>st[i.id]).length}/${items.length}`:"";
   // 核對日期（同棲地評估）：每階段一份結果；第一次核對時存入今天，之後不會自己變，要改日期直接改
   if(c&&(!list.closest("#propBox")||$("chkBox").hidden)){const dr=document.createElement("div");dr.className="row chkday";
@@ -1442,7 +1451,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       const nb=document.createElement("button");nb.type="button";nb.textContent="＋新增一次現勘";nb.style.cssText="padding:5px 10px;font-size:13px";
       nb.disabled=!vs.some(([k])=>k===rid);nb.onclick=()=>{chkVisit=curCase+"_施工中_"+Date.now().toString(36);chkEditId=null;chkSort=null;renderChecks()};
       sel.className="grow";nb.style.whiteSpace="nowrap";const vr=document.createElement("div");vr.className="row chkday";const sw=wrapSelect(sel);sw.classList.add("grow");vr.append(sw,nb);list.appendChild(vr)}
-    if(!sv){const m=document.createElement("span");m.className="hint";m.textContent="（今天，開始核對時存入）";dr.appendChild(m)}
+    if(!sv){const m=document.createElement("span");m.className="hint";m.textContent="（本日，開始核對時存入）";dr.appendChild(m)}
     list.appendChild(dr)}
   // 有 group（工區）時依群組首次出現順序分組並加標題
   const gOrder=[...new Set(items.map(i=>i.group||""))];
@@ -1457,7 +1466,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
   if(c&&items.length>1){const tb=document.createElement("div");tb.className="sortbar";
     const sb=document.createElement("button");sb.type="button";sb.className=sorting?"mini primary":"mini";sb.textContent=sorting?"✓ 完成排序":"⇅ 調整順序";
     sb.onclick=async()=>{if(sorting){sb.disabled=true;chkSort=null;if(!await saveChecks(c.checks))renderChecks()}else{chkSort=box.id;chkEditId=null;renderChecks()}};
-    tb.appendChild(sb);if(sorting){const h=document.createElement("span");h.className="hint";h.textContent="按 ▲▼ 移動；分類整組一起移";tb.appendChild(h)}
+    tb.appendChild(sb);if(sorting){const h=document.createElement("span");h.className="hint";h.textContent="按 ▲▼ 移動；同分類整組移動";tb.appendChild(h)}
     list.appendChild(tb)}
   let lastG=null,dest=list;
   items.forEach(it=>{
@@ -1496,10 +1505,10 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     const phRow=(rs,cls,lab)=>{const g=document.createElement("div");g.className="chkph"+(cls?" "+cls:"");
       if(lab){const s=document.createElement("span");s.className="phlab";s.textContent=lab;g.appendChild(s)}
       rs.forEach(r=>r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openRec(r)};
-        const i=document.createElement("img");i.alt=cls?"上次的照片":"連結的照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
+        const i=document.createElement("img");i.alt=cls?"前次照片":"連結照片";i.loading="lazy";setImg(i,p);a.appendChild(i);g.appendChild(a)}));
       el.appendChild(g)};
     if(lr.length)phRow(lr,"","");
-    if(pr.length)phRow(pr,"prev",`上次 ${pd.slice(4,6)}/${pd.slice(6)}${pr[0].stage&&pr[0].stage!==stage?" "+pr[0].stage:""}`);
+    if(pr.length)phRow(pr,"prev",`前次 ${pd.slice(4,6)}/${pd.slice(6)}${pr[0].stage&&pr[0].stage!==stage?" "+pr[0].stage:""}`);
     // 排序模式：卡片內容照常顯示，只把按鈕列換成 ▲▼
     if(sorting){const ix=items.indexOf(it),sameG=j=>items[j]&&(items[j].group||"")===(it.group||"");
       const bs=document.createElement("div");bs.className="btns";const mv=mvBtns(sameG(ix-1),sameG(ix+1),d=>mvItem(it,d));mv.style.marginLeft="auto";
@@ -1524,7 +1533,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後的調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後之調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
@@ -1547,7 +1556,7 @@ function grpChips(groups,get,set){
   nb.onclick=()=>{ip.hidden=false;ip.focus()};g.appendChild(nb);
   ip.oninput=()=>{set(ip.value.trim());mark()};
   mark();
-  const w=document.createElement("div");const l=document.createElement("span");l.className="lbl";l.style.margin="0";l.textContent="分類（不選＝其他）";w.append(l,g,ip);return w;
+  const w=document.createElement("div");const l=document.createElement("span");l.className="lbl";l.style.margin="0";l.textContent="分類（未選取者歸為其他）";w.append(l,g,ip);return w;
 }
 function chkAddForm(c,phase,label,groups=[]){
   const f=document.createElement("div");f.className="chkadd";
@@ -1596,7 +1605,7 @@ async function saveChecks(checks){
   // 先改畫面（不用等上傳），背景存回；失敗才還原並提示
   const prev=c.checks;c.checks=checks;renderChecks();renderLinkSel();
   db.doc("cases/"+c.id).update({checks}).catch(e=>{if(c.checks===checks){c.checks=prev;renderChecks();renderLinkSel()}
-    showMsg("核對事項儲存失敗（"+(isNetErr(e)?"需要網路":e.code||e.message)+"），本次修改已還原，請於有訊號時重新操作。",true)});
+    showMsg("核對事項儲存失敗（"+(isNetErr(e)?"須連網":e.code||e.message)+"），本次修改已還原，請於有訊號時重新操作。",true)});
   return true
 }
 async function setCheck(id,v,note){
@@ -1653,7 +1662,7 @@ $("caseDelBtn").onclick=async()=>{
     for(const k of Object.keys(checkRes).filter(k=>checkRes[k].caseId===c.id)){try{await db.doc("checkres/"+k).delete()}catch(e){}}
     await db.doc("cases/"+c.id).delete();
     curCase="";lsSet("eco-case","");
-  }catch(e){$("caseDelMsg").hidden=false;$("caseDelMsg").textContent="刪除失敗，請有訊號時再試。"}
+  }catch(e){$("caseDelMsg").hidden=false;$("caseDelMsg").textContent="刪除失敗，請於有訊號時重新操作。"}
   finally{b.disabled=false;disarmCaseDel()}
 };
 $("caseAddBtn").onclick=()=>{$("caseAddRow").hidden=!$("caseAddRow").hidden;if(!$("caseAddRow").hidden)$("caseNameIn").focus()};
@@ -1705,7 +1714,7 @@ function renderRecords(){
   try{apLabel()}catch(e){}
   if(shown.length<list.length)$("listCount").textContent=`${shown.length}／${list.length} 筆`;
   if(listMode()==="wall"){renderWall(box,shown,list);return}
-  if(!shown.length){box.innerHTML='<div class="empty">這個篩選沒有紀錄。</div>';return}
+  if(!shown.length){box.innerHTML='<div class="empty">本篩選條件下無紀錄。</div>';return}
   // 拍攝日期跨兩天以上：依日期分段（新的在上），每段有標題與筆數
   const dm=new Map();shown.forEach(r=>{const d=recDay(r);if(!dm.has(d))dm.set(d,[]);dm.get(d).push(r)});
   if(dm.size<2){shown.forEach(r=>box.appendChild(recCard(r,c)));return}
@@ -1716,7 +1725,7 @@ function renderRecords(){
     rs.forEach(r=>box.appendChild(recCard(r,c)))});
 }
 // 一筆紀錄的卡片（列表與照片牆點開共用）
-// 同一張照片可被多筆紀錄共用（複製到其他分類）：刪紀錄時，照片沒有別筆在用才刪檔
+// 同一張照片可被多筆紀錄共用（複製至其他分類）：刪紀錄時，照片沒有別筆在用才刪檔
 const photoShared=(p,exceptIds)=>records.some(x=>!exceptIds.includes(x.id)&&(x.photos||[]).includes(p));
 function recCard(r,c,onEdit){
     const el=document.createElement("article");el.className="rec "+stgCls(r.stage);
@@ -1734,10 +1743,10 @@ function recCard(r,c,onEdit){
       const im=document.createElement("div");im.className="imgs";
       r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a);
         // 詳情窗：多張時每張下面可「拆出這張」成獨立一筆
-        if(onEdit&&r.photos.length>1){const b=document.createElement("button");b.type="button";b.className="mini splitone";b.textContent="拆出這張（另成一筆）";
+        if(onEdit&&r.photos.length>1){const b=document.createElement("button");b.type="button";b.className="mini splitone";b.textContent="拆出本張（另成一筆）";
           b.onclick=async()=>{if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="再按一次確認拆出";b.classList.add("danger");
-              setTimeout(()=>{if(b.isConnected&&!b.disabled){b.dataset.armed="";b.textContent="拆出這張（另成一筆）";b.classList.remove("danger")}},4000);return}
-            b.disabled=true;b.textContent="拆出中…";try{await splitOne(r,p);rvDirty=null;closeRec();showMsg("已拆出為獨立一筆，說明文字暫沿用原內容，請再修正。")}catch(e){b.disabled=false;b.textContent="失敗，再按一次"}};
+              setTimeout(()=>{if(b.isConnected&&!b.disabled){b.dataset.armed="";b.textContent="拆出本張（另成一筆）";b.classList.remove("danger")}},4000);return}
+            b.disabled=true;b.textContent="拆出中…";try{await splitOne(r,p);rvDirty=null;closeRec();showMsg("已拆出為獨立一筆，說明文字暫沿用原內容，請再修正。")}catch(e){b.disabled=false;b.textContent="失敗，請再按一次"}};
           im.appendChild(b)}});
       el.appendChild(im);
     }
@@ -1760,25 +1769,25 @@ function recCard(r,c,onEdit){
         await db.doc("records/"+r.id).delete();
         if(assets)for(const p of (r.photos||[])){if(!photoShared(p,[r.id]))try{await assets.delete(p)}catch(e){}}
         if(onEdit){rvDirty=null;onEdit()}
-      }catch(e){db_.disabled=false;db_.textContent="刪除失敗，再試一次"}
+      }catch(e){db_.disabled=false;db_.textContent="刪除失敗，請再試一次"}
     };
-    const cp=document.createElement("button");cp.type="button";cp.textContent="複製到其他分類";
+    const cp=document.createElement("button");cp.type="button";cp.textContent="複製至其他分類";
     cp.onclick=async()=>{cp.disabled=true;cp.textContent="複製中…";
       try{const {id,...rest}=r,nid=newId(),doc={...rest,createdAt:(r.createdAt||Date.now())+1,copyOf:r.id};delete doc.op;
         await db.collection("records").doc(nid).set(doc);const nr={...doc,id:nid};if(!records.some(x=>x.id===nid))records.push(nr);
-        openRec(nr);$("rvTitle").textContent="複製的紀錄：請改分類後按儲存";
+        openRec(nr);$("rvTitle").textContent="複製之紀錄：請變更分類後儲存";
         // 明顯提示：分類區上方加綠色提示條、分類按鈕閃一下框，並捲到分類區
         const q=document.querySelector("#rvBody .rvq");if(q){const t=document.createElement("div");t.className="cpnote";t.textContent="✓ 已複製為新的一筆（照片共用），請於下方選取新分類後儲存。";q.prepend(t);
           const cb=q.querySelector(".chips");if(cb)cb.classList.add("flash");setTimeout(()=>t.scrollIntoView({block:"start",behavior:"smooth"}),50)}}
-      catch(e){cp.disabled=false;cp.textContent="複製失敗，再試一次"}};
-    if(onEdit){eb.textContent="完整編輯";eb.title="改ABCD、對應核對項目、一次改多欄"}
+      catch(e){cp.disabled=false;cp.textContent="複製失敗，請再試一次"}};
+    if(onEdit){eb.textContent="完整編輯";eb.title="修改ABCD、對應核對項目及多項欄位"}
     acts.append(eb,cp);
     // 直接幫這筆加照片（拍照或相簿都行，可多張）：不用先開新紀錄再合併，也不用進完整編輯
     if(onEdit&&assets){
       const ab=document.createElement("button");ab.type="button";ab.textContent="＋加照片";
       const fi=document.createElement("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.hidden=true;
       ab.onclick=()=>{if(!rvOk())return; // 補說明有改動還沒存：加完照片視窗會重畫，先問
-        if(navigator.onLine===false){showMsg("加照片需要網路，有訊號時再加。",true);return}geoStart();fi.click()};
+        if(navigator.onLine===false){showMsg("加入照片須連網，請於有訊號時操作。",true);return}geoStart();fi.click()};
       fi.onchange=async()=>{const fs=[...fi.files];fi.value="";if(!fs.length)return;
         ab.disabled=true;
         try{const ids=[];let ex0=null;
@@ -1789,23 +1798,23 @@ function recCard(r,c,onEdit){
           if(r.lat==null&&ex0&&ex0.lat!=null){upd.lat=ex0.lat;upd.lng=ex0.lng;upd.gpsSource=ex0.src||"exif";if(ex0.acc!=null)upd.gpsAcc=ex0.acc}
           if(!r.takenAt&&ex0&&ex0.taken)upd.takenAt=fmtExifTime(ex0.taken);
           await db.doc("records/"+r.id).update(upd);Object.assign(r,upd);rvDirty=null;openRec(r);showMsg(`已加入 ${ids.length} 張照片。`)}
-        catch(e){ab.disabled=false;ab.textContent=isNetErr(e)?"無訊號，請再按一次":"加照片失敗，再按一次"}};
+        catch(e){ab.disabled=false;ab.textContent=isNetErr(e)?"無訊號，請再按一次":"加入照片失敗，請再按一次"}};
       acts.append(ab,fi);
     }
-    // 多工區：這筆移到其他工區（點了展開工區按鈕）
+    // 多工區：這筆移至其他工區（點了展開工區按鈕）
     const zo=onEdit?zoneMates(r.caseId).filter(x=>x.id!==r.caseId):[];
-    if(zo.length){const mv=document.createElement("button");mv.type="button";mv.textContent="移到其他工區";acts.appendChild(mv);
-      mv.onclick=()=>{const row=document.createElement("div");row.className="chips zmove";row.append("移到：");
+    if(zo.length){const mv=document.createElement("button");mv.type="button";mv.textContent="移至其他工區";acts.appendChild(mv);
+      mv.onclick=()=>{const row=document.createElement("div");row.className="chips zmove";row.append("移至：");
         zo.forEach(z=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=zoneInfo(z).zone;
           b.onclick=async()=>{row.querySelectorAll("button").forEach(x=>x.disabled=true);b.textContent="移動中…";
-            try{await moveRecs(r.caseId,z.id,[r]);rvDirty=null;closeRec();showMsg(`已移到${zoneInfo(z).zone}。`)}
-            catch(e){b.disabled=false;b.textContent=zoneInfo(z).zone+"（失敗，再按一次）"}};row.appendChild(b)});
+            try{await moveRecs(r.caseId,z.id,[r]);rvDirty=null;closeRec();showMsg(`已移至${zoneInfo(z).zone}。`)}
+            catch(e){b.disabled=false;b.textContent=zoneInfo(z).zone+"（失敗，請再按一次）"}};row.appendChild(b)});
         mv.replaceWith(row)}}
     if(onEdit&&(r.photos||[]).length>1){const sp_=document.createElement("button");sp_.type="button";sp_.textContent=`拆成單張（${r.photos.length}筆）`;
       sp_.onclick=async()=>{if(sp_.dataset.armed!=="1"){sp_.dataset.armed="1";sp_.textContent=`再按一次：拆成 ${r.photos.length} 筆`;setTimeout(()=>{if(sp_.isConnected&&!sp_.disabled){sp_.dataset.armed="";sp_.textContent=`拆成單張（${r.photos.length}筆）`}},4000);return}
         sp_.disabled=true;sp_.textContent="拆開中…";
         try{const n=await splitRec(r);rvDirty=null;closeRec();showMsg(`已拆成 ${n} 筆，說明文字暫沿用原內容，請逐筆修正。`)}
-        catch(e){sp_.disabled=false;sp_.dataset.armed="";sp_.textContent="拆開失敗，再試一次"}};
+        catch(e){sp_.disabled=false;sp_.dataset.armed="";sp_.textContent="拆開失敗，請再試一次"}};
       acts.appendChild(sp_)}
     acts.appendChild(db_);el.appendChild(acts);
     if(onEdit)return el;
@@ -1826,7 +1835,7 @@ function recCard(r,c,onEdit){
     el.appendChild(body);
     return el;
 }
-// 照片牆點開：顯示該筆紀錄的完整資料，可編輯/刪除；點照片再看大圖
+// 照片牆點開：顯示該筆紀錄的完整資料，可編輯/刪除；點照片再檢視大圖
 // ‹ › 依目前列表／照片牆顯示的順序（含篩選）換上一筆、下一筆；電腦可按 ←→，Esc 關閉
 let rvShown=[],rvCur=null;
 const RV_WIDE=matchMedia("(min-width:900px) and (pointer:fine)"); // 電腦寬螢幕：紀錄小窗改左右兩欄（同下方CSS條件）
@@ -1845,7 +1854,7 @@ function rvQuick(r){
   const mk=(ph,v,ta)=>{const e=document.createElement(ta?"textarea":"input");if(!ta)e.type="text";else e.rows=3;e.placeholder=ph;e.value=v||"";e.setAttribute("aria-label",ph);return e};
   const ns=!r.stake&&r.lat!=null?fillOf(nearestStation(r.lat,r.lng)):"";
   const st=mk("樁號／位置",r.stake||ns),sp=mk("物種／對象",r.species),ct=mk("數量",r.count),nt=mk("說明：現況、建議、待確認事項",r.note,true);
-  const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,ic("star"),"寫進意見");
+  const op=document.createElement("label");op.className="ckrow";const ck=document.createElement("input");ck.type="checkbox";ck.checked=!!r.op;op.append(ck,ic("star"),"列入意見");
   const row=document.createElement("div");row.className="two";row.append(stakeField(st,cases.find(x=>x.id===r.caseId)),ct);  // 分類（同新增紀錄：類別鈕＋細項選單／棲地鈕＋構造物選單），依這筆紀錄的階段列類別
   let qc=r.category||"其他",qs=r.sub||"",qt=r.struct||"";
   const cb=document.createElement("div"),sb2=document.createElement("div");cb.className="chips";sb2.className="row subrow";
@@ -1877,7 +1886,7 @@ function rvQuick(r){
     if(lk.value!==(r.checkId||""))u.checkId=lk.value;
     sv.disabled=sn.disabled=true;msg.textContent="儲存中…";
     try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);init=snap();if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
-    catch(e){msg.textContent="沒存成功（"+((e&&e.code)||"網路")+"），再按一次。";sv.disabled=sn.disabled=false}};
+    catch(e){msg.textContent="儲存失敗（"+((e&&e.code)||"網路")+"），請再按一次。";sv.disabled=sn.disabled=false}};
   sv.onclick=()=>save(false);sn.onclick=()=>save(true);
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
   f.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();save(true)}});
@@ -1920,7 +1929,7 @@ function startEdit(r){
   $("stakeIn").value=r.stake||"";$("countIn").value=r.count||"";$("spIn").value=r.species||"";$("noteIn").value=r.note||"";growNote();$("opChk").checked=!!r.op;
   // 樁號欄原本空白、但紀錄有GPS：帶入GPS推估的樁號（卡片上顯示的那個），存檔就會寫進去
   $("stakeHint").hidden=true;
-  if(!r.stake&&r.lat!=null){const ns=nearestStation(r.lat,r.lng);if(ns){if(fillOf(ns))$("stakeIn").value=fillOf(ns);$("stakeHint").textContent="GPS推估："+stationText(ns)+"（原本未填樁號）";$("stakeHint").hidden=false}}
+  if(!r.stake&&r.lat!=null){const ns=nearestStation(r.lat,r.lng);if(ns){if(fillOf(ns))$("stakeIn").value=fillOf(ns);$("stakeHint").textContent="GPS推估："+stationText(ns)+"（原未填樁號）";$("stakeHint").hidden=false}}
   $("formTitle").textContent="編輯紀錄（可再加照片）";$("cancelEdit").hidden=false;$("saveBtn").textContent="儲存修改";
   renderChips();renderPending();showMsg("");$("recForm").scrollIntoView({behavior:"smooth"});
 }
@@ -1950,7 +1959,7 @@ $("recForm").onsubmit=async e=>{
   if(!db){showMsg("尚未連線至儲存空間，請確認已登入claude.ai後重新整理。",true);return}
   if(!curCase){showMsg("請先選擇或新增案件。",true);return}
   const f={stake:$("stakeIn").value.trim(),count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
-  if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("至少拍一張照片或填一個欄位。",true);return}
+  if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("請至少拍攝一張照片或填寫一個欄位。",true);return}
   if(pending.length&&!assets){showMsg("本檢視無法上傳照片（須以本人帳號開啟）。",true);return}
   saving=true;$("saveBtn").disabled=true;
   // 這一筆的照片與欄位先固定下來（之後的拍照、輸入都算下一筆）；新增時表單馬上清空，編輯則存完才清
@@ -1978,7 +1987,7 @@ $("recForm").onsubmit=async e=>{
       if(c&&await saveChecks([...(c.checks||[]),item])){body.checkId=item.id;impAdded=true}else impFail=true;
     }
     let queued=false;
-    if(editing){ // 編輯既有紀錄需要網路（不進待上傳）
+    if(editing){ // 編輯既有紀錄須連網（不進待上傳）
       const ids=[];
       for(let i=0;i<blobs.length;i++){showMsg(`上傳照片 ${i+1}/${blobs.length}…`);ids.push((await assets.upload(blobs[i])).id)}
       const upd={...body,photos:[...editKeep,...ids]};
@@ -1996,12 +2005,12 @@ $("recForm").onsubmit=async e=>{
     }
     dropPend(snapP);if(wasEditing)resetFields();
     const fresh=pending.length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?"無訊號，已暫存於手機（見上方「待上傳」），有訊號時自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片未含GPS，請於樁號欄補填位置。")+(impFail?"（改善追蹤項目新增失敗，請於有訊號時至「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍的 ${fresh} 張還在表單上。`:""),queued||impFail||(!gp&&blobs.length>0));
+    showMsg((queued?"無訊號，已暫存於手機（見上方「待上傳」），有訊號時自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片未含GPS，請於樁號欄補填位置。")+(impFail?"（改善追蹤項目新增失敗，請於有訊號時至「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued||impFail||(!gp&&blobs.length>0));
     if(fresh)suggestStake();
   }catch(err){
     const c=err&&err.code;
     if(!wasEditing)restoreFields(snap);
-    showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄須連網，資料仍保留於表單，請於有訊號時重新儲存。":"儲存失敗（"+(c||"錯誤")+"），資料還在表單上。",true);
+    showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄須連網，資料仍保留於表單，請於有訊號時重新儲存。":"儲存失敗（"+(c||"錯誤")+"），資料仍保留於表單。",true);
   }finally{saving=false;$("saveBtn").disabled=false;snapP.forEach(p=>{p._sv=0});renderPending()}
 };
 
@@ -2022,9 +2031,10 @@ async function repoCheck(){
 }
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
+  geoStart(); // 定位不靠網路，先開始抓（GPS要時間暖機），不要等資料讀完；網路差時讀取會很久甚至失敗
   $("conn").textContent=Object.keys(store.cases).length?"更新中…":"讀取中…";
   const t0=performance.now();
-  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生後貼上。";$("tokMsg").hidden=false}}
 }
@@ -2078,8 +2088,8 @@ $("albumBtn").onclick=async()=>{
   try{await navigator.share({files:sent});camDrop(orig)}
   catch(e){if(e.name!=="AbortError")showMsg("無法開啟分享選單："+(e.message||e.name),true)}
 };
-$("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪除後無法復原，請再按一次確認";setTimeout(()=>{b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔"},4000);return}
-  b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔";camDrop([...camFiles])};
+$("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪除後無法復原，請再按一次確認";setTimeout(()=>{b.dataset.armed="";b.textContent="不存入相簿，刪除上列原檔"},4000);return}
+  b.dataset.armed="";b.textContent="不存入相簿，刪除上列原檔";camDrop([...camFiles])};
 camLoad();
 
 /* ---------- 列表／照片牆 ---------- */
@@ -2101,12 +2111,12 @@ function srtBar(bar,list){
   const n=document.createElement("span");n.className="hint";n.style.flex="none";n.textContent=sel.length?`已選 ${sel.length} 筆`:"點照片勾選（可多選）";bar.appendChild(n);
   if(!sel.length){srtFM=false;srtPick=null;return}
   if(srtPick){const v=srtPick,box=document.createElement("div");box.className="row";box.style.margin="0";box.style.flexWrap="wrap";
-    const h=document.createElement("span");h.className="hint";h.style.flex="1 1 100%";h.textContent=`把這 ${sel.length} 筆改成：${[v.category,v.sub,v.struct].filter(Boolean).join("・")}`;
-    const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent=sel.length>1?"只改分類":"確定套用";ok.onclick=()=>srtDo(bar,list,v);
+    const h=document.createElement("span");h.className="hint";h.style.flex="1 1 100%";h.textContent=`將所選 ${sel.length} 筆改為：${[v.category,v.sub,v.struct].filter(Boolean).join("・")}`;
+    const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent=sel.length>1?"僅變更分類":"確定套用";ok.onclick=()=>srtDo(bar,list,v);
     const no=document.createElement("button");no.type="button";no.textContent="取消";no.onclick=()=>{srtPick=null;srtBar(bar,list)};
     box.append(h,ok);
-    // 多筆時可一次「合併成一筆＋改分類」（只寫一次）
-    if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="primary";mg.textContent=`合併成一筆＋改分類（${sel.flatMap(r=>r.photos||[]).length} 張）`;mg.onclick=()=>srtDo(bar,list,v,true);box.append(mg)}
+    // 多筆時可一次「合併為一筆並變更分類」（只寫一次）
+    if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="primary";mg.textContent=`合併為一筆並變更分類（${sel.flatMap(r=>r.photos||[]).length} 張）`;mg.onclick=()=>srtDo(bar,list,v,true);box.append(mg)}
     box.append(no);bar.appendChild(box);return}
   const stg=[...new Set(sel.map(r=>r.stage||"施工中"))],cats=CATS_BY[stg.length===1?stg[0]:curStage()]||CATS_BY["施工中"];
   const box=document.createElement("div");box.className="chips";
@@ -2121,10 +2131,10 @@ function srtBar(bar,list){
   if(srtFM){const h=document.createElement("span");h.className="hint";h.textContent=[s.c,s.sub].filter(Boolean).join("・")+" →";box.prepend(h)}
   bar.appendChild(box);
   // 合併：勾選的多筆併成一筆（照片依拍攝時間排、文字欄位不重複地接起來），照片檔不刪
-  if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="mini";mg.style.alignSelf="flex-start";mg.textContent=`合併成一筆（${sel.flatMap(r=>r.photos||[]).length} 張照片）`;
+  if(sel.length>1){const mg=document.createElement("button");mg.type="button";mg.className="mini";mg.style.alignSelf="flex-start";mg.textContent=`合併為一筆（${sel.flatMap(r=>r.photos||[]).length} 張照片）`;
     mg.onclick=async()=>{bar.querySelectorAll("button").forEach(b=>b.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
-      try{await mergeRecs(curCase,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併成一筆，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
-      catch(e){showMsg("合併失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+      try{await mergeRecs(curCase,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併為一筆，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
+      catch(e){showMsg("合併失敗（"+((e&&e.code)||"網路")+"），請再試一次。",true)}
       srtBusy=false;srtFM=false;renderRecords()};
     bar.appendChild(mg)}
   // 拆開：勾選的紀錄裡有多張照片的，各拆成一張一筆
@@ -2133,27 +2143,27 @@ function srtBar(bar,list){
     const np=multiPh.reduce((s,r)=>s+r.photos.length,0);sb.textContent=`拆成單張（${multiPh.length}筆→${np}筆）`;
     sb.onclick=async()=>{bar.querySelectorAll("button").forEach(b=>b.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
       try{for(const r of multiPh)await splitRec(r);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已拆成 ${np} 筆，說明文字暫沿用原內容，請逐筆修正。`)}
-      catch(e){showMsg("拆開失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+      catch(e){showMsg("拆開失敗（"+((e&&e.code)||"網路")+"），請再試一次。",true)}
       srtBusy=false;srtFM=false;renderRecords()};
     bar.appendChild(sb)}
   // 多工區：勾選的紀錄搬到其他工區（忘了切工區時用）
   const zo=zoneMates(curCase).filter(c=>c.id!==curCase);
-  if(zo.length){const zr=document.createElement("div");zr.className="chips";const h=document.createElement("span");h.className="hint";h.textContent="移到：";zr.appendChild(h);
+  if(zo.length){const zr=document.createElement("div");zr.className="chips";const h=document.createElement("span");h.className="hint";h.textContent="移至：";zr.appendChild(h);
     zo.forEach(c=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=zoneInfo(c).zone;
       b.onclick=async()=>{bar.querySelectorAll("button").forEach(x=>x.disabled=true);srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
-        try{await moveRecs(curCase,c.id,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已把 ${sel.length} 筆移到${zoneInfo(c).zone}。`)}
-        catch(e){showMsg("移動失敗（"+((e&&e.code)||"網路")+"），再試一次。",true)}
+        try{await moveRecs(curCase,c.id,sel);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已將 ${sel.length} 筆移至${zoneInfo(c).zone}。`)}
+        catch(e){showMsg("移動失敗（"+((e&&e.code)||"網路")+"），請再試一次。",true)}
         srtBusy=false;srtFM=false;renderRecords()};zr.appendChild(b)});
     bar.appendChild(zr)}
   // 刪除勾選的紀錄（連照片）：按兩次確認
-  const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除這 ${sel.length} 筆`;
-  del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（連照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除這 ${sel.length} 筆`}},4000);return}
+  const del=document.createElement("button");del.type="button";del.className="danger mini";del.style.alignSelf="flex-start";del.textContent=`刪除所選 ${sel.length} 筆`;
+  del.onclick=async()=>{if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent=`再按一次確認刪除 ${sel.length} 筆（含照片）`;setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent=`刪除所選 ${sel.length} 筆`}},4000);return}
     bar.querySelectorAll("button").forEach(b=>b.disabled=true);del.textContent="刪除中…";
     srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
     // 紀錄一次刪掉（畫面立刻消失），照片檔在背景慢慢刪
     try{await deleteMany("records",curCase,sel.map(r=>r.id));sel.forEach(r=>srtSel.delete(r.id));srtBusy=false;srtFM=false;renderRecords();
       const ps=sel.flatMap(r=>r.photos||[]).filter(p=>!photoShared(p,sel.map(r=>r.id)));let k=0;for(const p of ps){k++;showMsg(`已刪除 ${sel.length} 筆紀錄；背景清除照片檔 ${k}/${ps.length}…`);try{await assets.delete(p)}catch(e){}}showMsg(`已刪除 ${sel.length} 筆紀錄。`)}
-    catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），再試一次。",true);srtBusy=false;srtFM=false;renderRecords()}};
+    catch(e){showMsg("刪除失敗（"+((e&&e.code)||"網路")+"），請再試一次。",true);srtBusy=false;srtFM=false;renderRecords()}};
   bar.appendChild(del);
 }
 // 點類別不直接改：先顯示「把 N 筆改成：…」，按「確定套用」才寫入
@@ -2165,7 +2175,7 @@ async function srtDo(bar,list,v,merge){srtPick=null;
   srtBusy=true;document.querySelectorAll(".wall,.srttools").forEach(x=>x.classList.add("busy"));
   const h=bar.querySelector(".hint");if(h)h.textContent=merge?`合併 ${sel.length} 筆中…`:`更新 ${sel.length} 筆中…`;
   if(merge){
-    try{await mergeRecs(curCase,sel,u);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併成一筆並改成${[u.category,u.sub,u.struct].filter(Boolean).join("・")}，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
+    try{await mergeRecs(curCase,sel,u);sel.forEach(r=>srtSel.delete(r.id));showMsg(`已合併為一筆並改為${[u.category,u.sub,u.struct].filter(Boolean).join("・")}，共 ${sel.flatMap(r=>r.photos||[]).length} 張照片。`)}
     catch(e){showMsg(`合併未完成（${(e&&e.code)||"網路"}），照片仍維持勾選，請再操作一次。`,true)}
     srtBusy=false;srtFM=false;renderRecords();return}
   try{await updateMany("records",curCase,sel.map(r=>r.id),u);sel.forEach(r=>{Object.assign(r,u);srtSel.delete(r.id)})}
@@ -2183,7 +2193,7 @@ function renderWall(box,list,all){
     ab.onclick=()=>{const vis=list.filter(r=>r.photos&&r.photos.length);const al=vis.every(r=>srtSel.has(r.id));vis.forEach(r=>al?srtSel.delete(r.id):srtSel.add(r.id));renderRecords()};
     tb.append(ab)}
   box.appendChild(tb);
-  if(srtOn&&!list.length){const e=document.createElement("div");e.className="empty";e.textContent="這個篩選沒有照片了。";box.appendChild(e)}
+  if(srtOn&&!list.length){const e=document.createElement("div");e.className="empty";e.textContent="本篩選條件下無照片。";box.appendChild(e)}
   const bar=document.createElement("div");bar.className="srtbar";
   // 依拍攝日期分組：跨兩天以上才顯示日期標題（整理模式下每天有「選此日」）
   const withPh=list.filter(r=>r.photos&&r.photos.length),none=list.length-withPh.length,dayMap=new Map();
@@ -2207,8 +2217,8 @@ function renderWall(box,list,all){
       const i=document.createElement("img");i.alt=recTitle(r);i.loading="lazy";setImg(i,p);
       const s=document.createElement("span");s.textContent=[r.stake,r.struct||r.sub||r.category].filter(Boolean).join(" ");
       a.append(i,s);w.appendChild(a);
-      // 整理中：左上🔍看大圖（電腦也可雙擊），大圖裡可換張、勾選
-      if(srtOn){const z=document.createElement("button");z.type="button";z.className="zoom";z.append(ic("search"));z.setAttribute("aria-label","看大圖");
+      // 整理中：左上🔍檢視大圖（電腦也可雙擊），大圖裡可換張、勾選
+      if(srtOn){const z=document.createElement("button");z.type="button";z.className="zoom";z.append(ic("search"));z.setAttribute("aria-label","檢視大圖");
         const open=ev=>{ev.preventDefault();ev.stopPropagation();const items=list.filter(x=>x.photos&&x.photos.length).flatMap(x=>x.photos.map(q=>({r:x,p:q})));
           vNav={items,i:Math.max(0,items.findIndex(t=>t.p===p))};vNavShow()};
         z.onclick=open;a.ondblclick=open;a.appendChild(z)}
@@ -2312,7 +2322,7 @@ $("zipBtn").onclick=async()=>{
   const b=$("zipBtn"),old=[...b.childNodes].map(x=>x.cloneNode(true)),c=cases.find(x=>x.id===curCase);if(!c)return;
   const restore=()=>{b.textContent="";b.append(...old)};
   const list=dlList();
-  const total=list.reduce((n,r)=>n+r.photos.length,0);if(!total){b.textContent="這個範圍沒有照片";setTimeout(restore,2000);return}
+  const total=list.reduce((n,r)=>n+r.photos.length,0);if(!total){b.textContent="本範圍無照片";setTimeout(restore,2000);return}
   b.disabled=true;
   try{
     await loadZip();const zip=new JSZip(),names=dlNames(list);let n=0;
@@ -2379,7 +2389,7 @@ function expData(day,cid){cid=cid||curCase;
   const all=records.filter(r=>r.caseId===cid).sort((a,b)=>a.createdAt-b.createdAt);
   const wp=all.filter(r=>r.photos&&r.photos.length),nm=zipNames(wp),nmOf=new Map(wp.map((r,i)=>[r,nm[i]]));
   const recs=all.filter(r=>!day||recDay(r)===day);
-  const H1=["時間","階段","類別","細項","ABCD","樁號／位置","物種／對象","數量","說明","對應核對項目","緯度","經度","紀錄者","照片檔名（同下載的照片）"];
+  const H1=["時間","階段","類別","細項","ABCD","樁號／位置","物種／對象","數量","說明","對應核對項目","緯度","經度","紀錄者","照片檔名（同下載照片）"];
   const R1=recs.map(r=>[r.takenAt||fmtMs(r.createdAt),r.stage||"",r.category||"",[r.sub,r.struct].filter(Boolean).join("・"),r.abcd||"",r.stake||"",r.species||"",r.count||"",r.note||"",
     (chk.find(i=>i.id===r.checkId)||{}).text||"",r.lat!=null?r.lat:"",r.lng!=null?r.lng:"",r.by||"",(nmOf.get(r)||[]).join("\n")]);
   const ymd=day&&day.replace(/\//g,""),d=day&&Object.values(checkRes).filter(x=>x.caseId===cid&&x.date===ymd&&x.st&&Object.keys(x.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
