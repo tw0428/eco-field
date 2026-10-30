@@ -2299,7 +2299,7 @@ function renderDl(){
   const sel=$("dlDay");sel.innerHTML="";[["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===dlDay;sel.appendChild(o)});
   const list=dlList(),n=list.reduce((s,r)=>s+r.photos.length,0),gps=list.filter(r=>r.lat!=null&&r.lng!=null).reduce((s,r)=>s+r.photos.length,0);
   const zn=ids.length>1?ids.map(id=>{const k=list.filter(r=>r.caseId===id).reduce((s,r)=>s+r.photos.length,0);return `${zoneInfo(cases.find(c=>c.id===id)).zone} ${k}張`}).join("、")+"。":"";
-  $("dlInfo").textContent=n?zn+`共 ${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，每批20張。":""):"這個範圍沒有照片。";
+  $("dlInfo").textContent=n?zn+`共 ${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，一次全部；系統收不下時會自動分批並標明第幾張。":""):"這個範圍沒有照片。";
   $("zipBtn").disabled=!n;apLabel();renderAlbum();
 }
 function openDl(){if(!curCase&&!camFiles.length)return;$("dlSheet").hidden=false;renderDl()}
@@ -2328,28 +2328,44 @@ $("zipBtn").onclick=async()=>{
   }catch(e){b.textContent="下載失敗（"+(e.message||"網路")+"）"}
   finally{b.disabled=false;setTimeout(restore,2500)}
 };
-/* 存到手機相簿：把目前畫面上（含篩選）的紀錄照片，連GPS與拍攝時間寫回後，透過分享選單「儲存影像」進相簿。
-   iPhone 要求分享必須在點擊當下才能呼叫，所以分兩步：先按一下準備（每批20張），再按一下存；存完按同一顆接著下一批 */
-const AP_N=20;let ap={key:"",off:0,files:null};
+/* 存到手機相簿：把面板範圍內的紀錄照片，連GPS與拍攝時間寫回後，透過分享選單「儲存影像」進相簿。
+   iPhone 要求分享必須在點擊當下才能呼叫，所以分兩步：先按一下準備，再按一下存。
+   預設一次全部（原本每批20張是沒根據的上限，使用者10/30反映35張只存20張、不知道剩哪些）；
+   系統不收（canShare否決或分享失敗）才自動對半分批，按鈕標明第幾張～第幾張與時間範圍，已存的依照片id記住 */
+let ap={key:"",done:new Set(),n:Infinity,files:null,batch:null};
+const apWhen=r=>(r.takenAt||fmtMs(r.createdAt)).slice(5);
+const apRange=(its,b)=>{const i0=its.indexOf(b[0])+1,i1=its.indexOf(b[b.length-1])+1;return `第${i0}–${i1}張，${apWhen(b[0].r)}～${apWhen(b[b.length-1].r)}`};
 const apOk=()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"a.jpg",{type:"image/jpeg"})]}))}catch(e){return false}};
 function apItems(){const list=dlList(),names=dlNames(list),multi=dlIds().length>1;
   return list.flatMap((r,ri)=>r.photos.map((id,i)=>{const p=names[ri][i].split("/");return {r,id,name:(multi?p[0]+"_":"")+p.pop()}}))}
-function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,off:0,files:null};
-  const n=its.length;b.hidden=!apOk()||!n;if(b.hidden)return;
-  setBt(b,"save",ap.files?`存這 ${ap.files.length} 張（${ap.gps}張有GPS，再點）`:ap.off>=n?"已存完（再點重來）":ap.off?`存下一批 ${ap.off+1}–${Math.min(n,ap.off+AP_N)}`:`存到相簿（${n}張）`)}
+function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,done:new Set(),n:Infinity,files:null,batch:null};
+  const n=its.length,left=its.filter(x=>!ap.done.has(x.id)),d=n-left.length;b.hidden=!apOk()||!n;if(b.hidden)return;
+  const split=ap.n<n?`（系統一次收不下，改每批${ap.n}張）`:"";
+  setBt(b,"save",ap.files?`準備好了，點這裡存 ${ap.files.length} 張（${apRange(its,ap.batch)}）`+split
+    :!left.length?`${n} 張都已存到相簿（再點全部重存）`
+    :d?`已存 ${d}/${n} 張，點這裡存剩下的（${apRange(its,left.slice(0,ap.n))}）`+split
+    :`存到相簿（共 ${n} 張）`+split)}
+async function apPrep(b,its,batch){const fs=[];
+  for(const [i,x] of batch.entries()){b.textContent=`準備中 ${i+1}/${batch.length}…`;
+    fs.push(new File([await withExif(await fileBlob(x.id),x.r.lat,x.r.lng,exifDt(x.r))],x.name,{type:"image/jpeg"}))}
+  // 系統先說不收（張數或總大小超過）→ 對半縮到收得下為止
+  while(fs.length>1&&!navigator.canShare({files:fs})){const k=Math.ceil(fs.length/2);fs.length=k;batch=batch.slice(0,k);ap.n=k}
+  ap.files=fs;ap.batch=batch}
 $("apBtn").onclick=async()=>{
   const b=$("apBtn"),its=apItems();apLabel();
   if(ap.files){ // 第二步：直接分享（維持點擊當下）
-    try{await navigator.share({files:ap.files});ap.off+=ap.files.length;ap.files=null}
-    catch(e){if(!e||e.name!=="AbortError"){b.textContent="儲存失敗，再點一次重試";setTimeout(apLabel,2500);ap.files=null;return}ap.files=null}
+    const batch=ap.batch;
+    try{await navigator.share({files:ap.files});batch.forEach(x=>ap.done.add(x.id));ap.files=null;ap.batch=null}
+    catch(e){if(e&&e.name==="AbortError"){apLabel();return} // 自己取消：保留已準備的，再點就能存
+      ap.files=null;ap.batch=null;
+      if(batch.length>1){ap.n=Math.ceil(batch.length/2);b.textContent=`一次存 ${batch.length} 張失敗，改成每批 ${ap.n} 張，再點一次`}
+      else b.textContent="儲存失敗（"+(e&&e.message||"未知原因")+"），再點一次重試";
+      setTimeout(apLabel,3000);return}
     apLabel();return}
-  if(ap.off>=its.length)ap.off=0;
-  const batch=its.slice(ap.off,ap.off+AP_N);if(!batch.length)return;
+  let left=its.filter(x=>!ap.done.has(x.id));if(!left.length){ap.done.clear();left=its}
+  const batch=left.slice(0,ap.n);if(!batch.length)return;
   b.disabled=true;
-  try{const fs=[];
-    for(const [i,x] of batch.entries()){b.textContent=`準備中 ${i+1}/${batch.length}…`;
-      fs.push(new File([await withExif(await fileBlob(x.id),x.r.lat,x.r.lng,exifDt(x.r))],x.name,{type:"image/jpeg"}))}
-    ap.files=fs;ap.gps=batch.filter(x=>x.r.lat!=null&&x.r.lng!=null).length} // 這批裡有幾張的紀錄本身有座標（沒座標的存進相簿也不會有GPS）
+  try{await apPrep(b,its,batch)}
   catch(e){b.textContent="準備失敗（"+(e.message||"網路")+"），再點一次";setTimeout(apLabel,2500)}
   finally{b.disabled=false;apLabel()}
 };
