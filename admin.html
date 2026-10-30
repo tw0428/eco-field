@@ -56,10 +56,10 @@ button:disabled{opacity:.5}
   <div id="saveBar" hidden><button type="button" class="primary" id="saveBtn">儲存</button><button type="button" id="undoBtn">放棄修改</button><span class="hint" id="saveMsg"></span></div>
 </div>
 <div class="wrap">
-  <div class="panel" id="tokBox" hidden><span class="lbl">這支裝置還沒設定金鑰：先到「現場紀錄」頁設定，或用同事分享的連結開一次。</span></div>
+  <div class="panel" id="tokBox" hidden><span class="lbl">本裝置尚未設定金鑰：請先至「現場紀錄」頁設定，或以同仁分享之連結開啟一次。</span></div>
   <div class="tabs" id="tabs"></div>
   <div class="panel" id="body"></div>
-  <p class="hint">這裡改的是案件檔本身（Claude 建立的內容）；紀錄、照片、核對結果不在這裡。改完按上方「儲存」才會寫回。刪除圖說／疊圖只是從案件拿掉，圖檔本身不會刪。</p>
+  <p class="hint">本頁編修案件檔本身（Claude 建立之內容），紀錄、照片、核對結果不在本頁。修改後應按上方「儲存」方寫回；刪除圖說／疊圖僅自案件移除，圖檔本身不刪除。</p>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -92,7 +92,7 @@ const same=(a,b)=>JSON.stringify(norm(a))===JSON.stringify(norm(b));
 const dirtyKeys=()=>doc?KEYS.filter(k=>!same(doc[k],orig[k])):[];
 // 沒有修改時整列收起來；有修改才出現「儲存／放棄修改」
 function markDirty(){const d=dirtyKeys();$("saveBtn").disabled=!d.length;$("undoBtn").hidden=$("saveBtn").hidden=!d.length;
-  $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存的修改":"";$("saveBar").hidden=!d.length}
+  $("saveMsg").className=d.length?"hint dirty":"hint";$("saveMsg").textContent=d.length?"有未儲存之修改":"";$("saveBar").hidden=!d.length}
 let syncing=0; // 背景同步其他工區進行中：離開頁面會讓沒寫完的工區停住，所以也要提醒
 window.addEventListener("beforeunload",e=>{if(dirtyKeys().length||syncing){e.preventDefault();e.returnValue=""}});
 
@@ -134,19 +134,19 @@ async function save(){
     try{shaOf[curCase]=await putFast(path,next,shaOf[curCase])}
     catch(e){
       if(!isStale(e))throw e;
-      const {data:cur,sha}=await getJson(path);if(!cur)throw new Error("案件檔不見了");
+      const {data:cur,sha}=await getJson(path);if(!cur)throw new Error("案件檔已不存在");
       const clash=d.filter(k=>!same(cur[k],orig[k]));
-      if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」剛在別處被改過（可能是手機App）。先按「放棄修改」重新載入再改，避免蓋掉。`;b.disabled=false;return}
+      if(clash.length){$("saveMsg").className="hint dirty";$("saveMsg").textContent=`「${clash.map(lab).join("、")}」已於他處修改（可能為手機App），請先按「放棄修改」重新載入後再修改，以免覆蓋。`;b.disabled=false;return}
       next=apply(cur);shaOf[curCase]=await putFast(path,next,sha);
     }
     const mine=curCase,sync=$("syncChk")&&$("syncChk").checked?d.filter(k=>SHARED.includes(k)):[],others=sync.length?mates().filter(c=>c.id!==mine):[],snap={};sync.forEach(k=>{snap[k]=clone(doc[k]??null)});
     orig=clone(next);doc=clone(next);const i=cases.findIndex(c=>c.id===mine);if(i>=0)cases[i]={...next,id:mine};
     if(d.includes("name"))fillSel();
     render();markDirty();$("saveBar").hidden=false;
-    const tail="。回現場紀錄按 ↻ 會看到。";
+    const tail="。返回現場紀錄按 ↻ 即可檢視。";
     if(!others.length){$("saveMsg").textContent="已儲存"+tail;return}
     // 背景同步其他工區（一個一個寫；GitHub 同時寫同一專案會互相卡）
-    let ok=0,fail=[];$("saveMsg").textContent=`已儲存；同步其他工區 0/${others.length}…（請先別離開這一頁）`;syncing++;
+    let ok=0,fail=[];$("saveMsg").textContent=`已儲存；同步其他工區 0/${others.length}…（請勿離開本頁）`;syncing++;
     try{for(const m of others){
       const p="cases/"+m.id+".json",ap=base=>{const nx={...base};sync.forEach(k=>{if(norm(snap[k])==null)delete nx[k];else nx[k]=snap[k]});return nx};
       try{
@@ -155,11 +155,11 @@ async function save(){
         catch(e){if(!isStale(e))throw e;const {data:o,sha}=await getJson(p);if(!o)throw e;nx=ap(o);shaOf[m.id]=await putFast(p,nx,sha)}
         const j=cases.findIndex(c=>c.id===m.id);if(j>=0)cases[j]={...nx,id:m.id};ok++;
       }catch(e){fail.push(m.zone||m.name||m.id)}
-      $("saveMsg").textContent=`已儲存；同步其他工區 ${ok+fail.length}/${others.length}…（請先別離開這一頁）`;
+      $("saveMsg").textContent=`已儲存；同步其他工區 ${ok+fail.length}/${others.length}…（請勿離開本頁）`;
     }}finally{syncing--}
     $("saveMsg").className=fail.length?"hint dirty":"hint";
-    $("saveMsg").textContent=fail.length?`已儲存，但這些工區同步失敗：${fail.join("、")}（再改一下樁號／圖說／疊圖後儲存即可重試）`:`已儲存，已同步 ${ok} 個工區${tail}`;
-  }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改還在畫面上，再按一次。";b.disabled=false}
+    $("saveMsg").textContent=fail.length?`已儲存，惟下列工區同步失敗：${fail.join("、")}（再改一下樁號／圖說／疊圖後儲存即可重試）`:`已儲存，已同步 ${ok} 個工區${tail}`;
+  }catch(e){$("saveMsg").className="hint dirty";$("saveMsg").textContent="儲存失敗（"+(e.code||e.message)+"），修改仍保留於畫面，請再按一次。";b.disabled=false}
 }
 function mates(){const c=cases.find(x=>x.id===curCase);if(!c||!c.group)return [];return cases.filter(x=>x.group===c.group&&!x.trashedAt)}
 
@@ -173,9 +173,9 @@ function render(){
   const t=$("tabs");t.innerHTML="";
   TABS.forEach(([k,l])=>{const n=doc&&Array.isArray(doc[k])?`（${doc[k].length}）`:"";
     const b=el("button",{type:"button",className:"tab"+(tab===k?" on":""),textContent:l+n});b.onclick=()=>{tab=k;lsSet("eco-admin-tab",k);render()};t.appendChild(b)});
-  const B=$("body");B.innerHTML="";if(!doc){B.textContent="沒有案件";return}
+  const B=$("body");B.innerHTML="";if(!doc){B.textContent="尚無案件";return}
   if(SHARED.includes(tab)&&mates().length>1){const w=el("label",{className:"hint"});const cb=el("input",{type:"checkbox",id:"syncChk",checked:lsGet("eco-admin-sync")!=="0"});
-    cb.onchange=()=>lsSet("eco-admin-sync",cb.checked?"1":"0");w.append(cb,` 樁號、圖說、疊圖的修改同步到同案其他 ${mates().length-1} 個工區（各工區共用同一張地圖）`);B.appendChild(w)}
+    cb.onchange=()=>lsSet("eco-admin-sync",cb.checked?"1":"0");w.append(cb,` 樁號、圖說、疊圖之修改同步至同案其他 ${mates().length-1} 個工區（各工區共用同一張地圖）`);B.appendChild(w)}
   ({basic,checks,stakes,sites,plans,overlays})[tab](B);
 }
 const inp=(v,on,ph="")=>{const i=el("input",{type:"text",value:v??"",placeholder:ph});i.oninput=()=>{on(i.value);markDirty()};return i};
@@ -193,12 +193,12 @@ function basic(B){
   const g=el("div",{className:"kv"});
   [["name","案名"],["group","群組（工程全名）"],["zone","工區"],["area","地區"],["plan","計畫編號"]].forEach(([k,l])=>{g.append(el("label",{textContent:l}),inp(doc[k],v=>{doc[k]=v.trim()?v:undefined}))});
   g.append(el("label",{textContent:"階段"}),sel(STAGES.map(s=>[s,s||"（未設定）"]),doc.stage,v=>{doc.stage=v||undefined}));
-  B.append(g,el("p",{className:"hint",textContent:"多工區案：「群組」相同的會合併成一案，「工區」是切換鈕上的名稱。改案名請保留「（工區X）」結尾。"}));
+  B.append(g,el("p",{className:"hint",textContent:"多工區案件：「群組」相同者合併為一案，「工區」為切換鈕上之名稱。變更案名時應保留「（工區X）」結尾。"}));
 }
 function checks(B){
   const a=doc.checks=doc.checks||[];
   const groups=[...new Set(a.map(i=>i.group).filter(Boolean))],dl=el("datalist",{id:"grpList"});groups.forEach(g=>dl.appendChild(el("option",{value:g})));B.appendChild(dl);
-  B.appendChild(el("p",{className:"hint",textContent:"分類可直接打新名稱，同名的排在一起。意見來源決定在App哪個階段出現：提審意見→設計；設計意見→開工前、施工中、完工；開工意見→施工中、完工；預計提出意見→設計；改善意見→施工中、完工。"}));
+  B.appendChild(el("p",{className:"hint",textContent:"分類得直接輸入新名稱，同名者排列在一起。意見來源決定於App何階段顯示：提審意見→設計；設計意見→開工前、施工中、完工；開工意見→開工前、施工中、完工；預計提出意見→設計；改善意見→施工中、完工。"}));
   a.forEach((it,i)=>{const c=el("div",{className:"item"});
     const r1=el("div",{className:"row"});
     r1.append(sel(PHASES,it.phase,v=>{it.phase=v}),sel(ABCD,it.abcd,v=>{it.abcd=v}),mvDel(a,i));
@@ -214,7 +214,7 @@ function checks(B){
 }
 function stakes(B){
   const a=doc.stakes=doc.stakes||[];
-  B.appendChild(el("p",{className:"hint",textContent:"座標與樁號數值由設計圖算出，這裡改路線名、註記（構造物名稱）、地圖上要不要顯示文字標籤，或刪掉不要的點。「標示」預設只有每條路線的起點、終點和有註記的點是勾的；自己勾選或取消後以你的為準。"}));
+  B.appendChild(el("p",{className:"hint",textContent:"座標與樁號數值係由設計圖算出，本頁得修改路線名、註記（構造物名稱）、地圖上是否顯示文字標籤，或刪除不需要之點位。「標示」預設僅勾選各路線起點、終點及有註記之點位；人工勾選或取消後，以人工設定為準。"}));
   const g=el("div",{className:"stk"});["路線","樁號","註記","標示",""].forEach(h=>g.appendChild(el("span",{className:"h",textContent:h})));
   // 預設是否標示（同 index.html 地圖）：該路線第一點、最後一點、有註記
   const dflt=s=>{const grp=a.filter(p=>(p.r||"")===(s.r||"")),i=grp.indexOf(s);return i===0||i===grp.length-1||!!(s.note&&s.note.trim())};
@@ -227,26 +227,26 @@ function stakes(B){
   B.appendChild(g);
 }
 function sites(B){
-  const a=doc.sites=doc.sites||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"這案沒有工區點（沒有樁號的工程才用）。"}));return}
+  const a=doc.sites=doc.sites||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"本案無工區點（僅無樁號之工程使用）。"}));return}
   a.forEach((s,i)=>{const c=el("div",{className:"item"});
     c.append(el("div",{className:"row"},inp(s.label,v=>{s.label=v},"名稱"),mvDel(a,i)),inp(s.note,v=>{s.note=v},"註記"),
-      area((s.parts||[]).join("、"),v=>{s.parts=v.split(/[、\n]/).map(x=>x.trim()).filter(Boolean)},"樁號欄下拉的構造物，用「、」隔開"));
+      area((s.parts||[]).join("、"),v=>{s.parts=v.split(/[、\n]/).map(x=>x.trim()).filter(Boolean)},"樁號欄下拉之構造物，以「、」分隔"));
     B.appendChild(c)});
 }
 function plans(B){
-  const a=doc.plans=doc.plans||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"沒有圖說。"}));return}
+  const a=doc.plans=doc.plans||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"尚無圖說。"}));return}
   a.forEach((p,i)=>{const c=el("div",{className:"item"});c.append(el("div",{className:"row"},inp(p.title,v=>{p.title=v},"標題"),mvDel(a,i)));B.appendChild(c)});
 }
 function overlays(B){
-  const a=doc.overlays=doc.overlays||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"沒有疊圖。"}));return}
+  const a=doc.overlays=doc.overlays||[];if(!a.length){B.appendChild(el("p",{className:"hint",textContent:"尚無疊圖。"}));return}
   a.forEach((p,i)=>{const c=el("div",{className:"item"});c.append(el("div",{className:"row"},inp(p.title,v=>{p.title=v},"標題"),mvDel(a,i)));B.appendChild(c)});
 }
 
 /* ---------- 啟動 ---------- */
-$("caseSel").onchange=async e=>{if(dirtyKeys().length&&!confirm("這案有未儲存的修改，要放棄嗎？")){e.target.value=curCase;return}await openCase(e.target.value)};
+$("caseSel").onchange=async e=>{if(dirtyKeys().length&&!confirm("本案有未儲存之修改，是否放棄？")){e.target.value=curCase;return}await openCase(e.target.value)};
 $("saveBtn").onclick=save;
-$("undoBtn").onclick=()=>{if(confirm("放棄這案所有未儲存的修改？"))openCase(curCase)};
-$("reloadBtn").onclick=async e=>{e.preventDefault();if(dirtyKeys().length&&!confirm("有未儲存的修改，重新載入會放棄，確定？"))return;if(await appUpd()){location.reload();return}start()};
+$("undoBtn").onclick=()=>{if(confirm("是否放棄本案所有未儲存之修改？"))openCase(curCase)};
+$("reloadBtn").onclick=async e=>{e.preventDefault();if(dirtyKeys().length&&!confirm("有未儲存之修改，重新載入將放棄修改，是否確定？"))return;if(await appUpd()){location.reload();return}start()};
 async function start(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
   try{await loadCases();fillSel();if(!$("caseSel").classList.contains("wsrc"))$("caseSel").after(wrapSelect($("caseSel"),1));await openCase(curCase)}
