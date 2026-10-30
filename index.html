@@ -833,7 +833,7 @@ async function addFiles(list,fromCam){
     // 不用檔案修改時間判斷：從工具下載的照片再選回來，修改時間是下載當下，會誤用現在位置；改看照片內的拍攝時間
     const tk=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(ex.taken||""),tkMs=tk?new Date(+tk[1],tk[2]-1,+tk[3],+tk[4],+tk[5]).getTime():0;
     ex.fresh=ex.lat==null&&(fromCam||(tkMs&&Math.abs(Date.now()-tkMs)<300000));ex.at=Date.now();
-    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f)}
+    const p={file:f,url:URL.createObjectURL(f),ex};pending.push(p);add.push(p);if(fromCam){camFiles.push(f);camKeep(f,ex)}
   }
   renderPending();renderAlbum();
   // 從相簿選的照片檔案裡本來就沒有位置：明講是檔案的問題（手機從相簿交給網頁時，系統常把位置移除），不是工具沒讀到
@@ -2033,19 +2033,33 @@ function camDb(){if(camP)return camP;camP=new Promise((res,rej)=>{const tm=setTi
     r.onsuccess=()=>{clearTimeout(tm);res(r.result)};r.onerror=r.onblocked=()=>{clearTimeout(tm);rej(r.error||new Error("idb_blocked"))}}catch(e){clearTimeout(tm);rej(e)}});
   camP.catch(()=>{camP=null});return camP}
 async function camTx(mode,fn){const d=await camDb();return new Promise((res,rej)=>{const t=d.transaction("f",mode);const out=fn(t.objectStore("f"));t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)})}
-async function camKeep(f){const k=Date.now()+"_"+Math.random().toString(36).slice(2,7);f._k=k;
-  try{const buf=await f.arrayBuffer();await camTx("readwrite",s=>s.put({k,name:f.name,type:f.type||"image/jpeg",lm:f.lastModified,buf}))}catch(e){}}
+// 原檔一併記拍照當下的定位（iPhone網頁拍的原檔不含GPS）；定位晚到（3分鐘內）時再補存一次，重開網頁後存相簿仍有GPS
+async function camKeep(f,ex){const k=Date.now()+"_"+Math.random().toString(36).slice(2,7);f._k=k;f._ex=ex||{};
+  try{const buf=await f.arrayBuffer(),put=()=>camTx("readwrite",s=>s.put({k,name:f.name,type:f.type||"image/jpeg",lm:f.lastModified,buf,lat:f._ex.lat,lng:f._ex.lng,taken:f._ex.taken}));await put();
+    if(f._ex.lat==null){const t0=Date.now();while(f._ex.lat==null&&camFiles.includes(f)&&Date.now()-t0<200000)await new Promise(r=>setTimeout(r,3000));if(f._ex.lat!=null&&camFiles.includes(f))await put()}}catch(e){}}
 async function camLoad(){try{const all=(await camTx("readonly",s=>s.getAll()))||[];const have=new Set(camFiles.map(f=>f._k));
-  all.filter(x=>!have.has(x.k)).forEach(x=>{const f=new File([x.buf],x.name||"photo.jpg",{type:x.type,lastModified:x.lm||Date.now()});f._k=x.k;camFiles.push(f)});renderAlbum()}catch(e){}}
-function camDrop(list){const ks=list.map(f=>f._k).filter(Boolean);camFiles=camFiles.filter(f=>!list.includes(f));renderAlbum();
+  all.filter(x=>!have.has(x.k)).forEach(x=>{const f=new File([x.buf],x.name||"photo.jpg",{type:x.type,lastModified:x.lm||Date.now()});f._k=x.k;f._ex={lat:x.lat,lng:x.lng,taken:x.taken};camFiles.push(f)});renderAlbum()}catch(e){}}
+// 存相簿前把GPS與拍攝時間寫進原檔（檔案自己已有GPS則不動；保留原本方向）
+const camDt=f=>{if(/^\d{4}:\d\d:\d\d \d\d:\d\d:\d\d$/.test(f._ex&&f._ex.taken||""))return f._ex.taken;
+  const d=new Date(f.lastModified||Date.now()),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}:${p(d.getMonth()+1)}:${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`};
+async function camWithGps(f){const x=f._ex||{};if(x.lat==null)return f;
+  const b=await withExif(f,x.lat,x.lng,camDt(f));if(b===f)return f;const o=new File([b],f.name,{type:"image/jpeg",lastModified:f.lastModified});o._k=f._k;return o}
+// iPhone分享須在點擊當下呼叫，寫GPS要時間 → 背景先備好；點的時候還沒好就備好後請再點一次
+const camPrep=new Map();let camPreping=null;
+function camPrepAll(){if(!camPreping)camPreping=(async()=>{for(const f of [...camFiles])if(!camPrep.has(f._k)&&f._ex&&f._ex.lat!=null)
+  try{camPrep.set(f._k,await camWithGps(f))}catch(e){}})().finally(()=>{camPreping=null});return camPreping}
+function camDrop(list){const ks=list.map(f=>f._k).filter(Boolean);ks.forEach(k=>camPrep.delete(k));camFiles=camFiles.filter(f=>!list.includes(f));renderAlbum();
   if(ks.length)camTx("readwrite",s=>ks.forEach(k=>s.delete(k))).catch(()=>{})}
 function renderAlbum(){
   const b=$("albumBtn"),ok=camFiles.length&&navigator.canShare&&navigator.canShare({files:camFiles});
-  b.hidden=!ok;$("albumClr").hidden=!camFiles.length;if(ok)setBt(b,"save",`拍的 ${camFiles.length} 張原檔還沒存到手機相簿，點這裡存`);
+  b.hidden=!ok;$("albumClr").hidden=!camFiles.length;if(ok){setBt(b,"save",`拍的 ${camFiles.length} 張原檔還沒存到手機相簿，點這裡存`);camPrepAll()}
 }
 $("albumBtn").onclick=async()=>{
-  const sent=[...camFiles];
-  try{await navigator.share({files:sent});camDrop(sent)}
+  const b=$("albumBtn"),orig=[...camFiles];
+  if(orig.some(f=>f._ex&&f._ex.lat!=null&&!camPrep.has(f._k))){b.disabled=true;b.textContent="寫入GPS中…";
+    try{await camPrepAll()}finally{b.disabled=false}setBt(b,"save","GPS已寫好，再點一次存");return}
+  const sent=orig.map(f=>camPrep.get(f._k)||f);
+  try{await navigator.share({files:sent});camDrop(orig)}
   catch(e){if(e.name!=="AbortError")showMsg("無法開啟分享選單："+(e.message||e.name),true)}
 };
 $("albumClr").onclick=()=>{const b=$("albumClr");if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="確定刪除？原檔刪了就救不回來，再按一次";setTimeout(()=>{b.dataset.armed="";b.textContent="不存相簿了，刪掉這些原檔"},4000);return}
@@ -2199,12 +2213,14 @@ function loadZip(){
 }
 const safeName=s=>String(s||"").replace(/[\\/:*?"<>|\s]+/g,"_").replace(/^_+|_+$/g,"");
 // 上傳前壓縮會清掉原本的EXIF → 下載時把紀錄的GPS與拍攝時間寫回照片（最小EXIF：DateTimeOriginal＋GPS）
-function exifApp1(lat,lng,dt){
+function exifApp1(lat,lng,dt,ori){
   const hasLL=lat!=null&&lng!=null&&isFinite(lat)&&isFinite(lng),hasDt=/^\d{4}:\d\d:\d\d \d\d:\d\d:\d\d$/.test(dt||"");if(!hasLL&&!hasDt)return null;
-  const b=new Uint8Array(400),v=new DataView(b.buffer),L=true;
+  const b=new Uint8Array(420),v=new DataView(b.buffer),L=true;
   const e=(pos,tag,type,cnt,val)=>{v.setUint16(pos,tag,L);v.setUint16(pos+2,type,L);v.setUint32(pos+4,cnt,L);v.setUint32(pos+8,val,L)};
   b.set([0x49,0x49]);v.setUint16(2,42,L);v.setUint32(4,8,L);
-  const n0=(hasDt?1:0)+(hasLL?1:0);v.setUint16(8,n0,L);let ep=10,q=10+n0*12+4;
+  const hasO=ori>1&&ori<=8,n0=(hasO?1:0)+(hasDt?1:0)+(hasLL?1:0);v.setUint16(8,n0,L);let ep=10,q=10+n0*12+4;
+  // 原檔的方向（相機原檔才有；換掉EXIF時要保留，否則照片會轉向）。標籤須由小到大排，0x0112排最前
+  if(hasO){e(ep,0x0112,3,1,ori);ep+=12}
   // Exif子目錄：ExifVersion 0232（相機照片都有，iPhone 讀位置時可能會看）＋拍攝時間
   if(hasDt){e(ep,0x8769,4,1,q);ep+=12;v.setUint16(q,2,L);e(q+2,0x9000,7,4,0);b.set([0x30,0x32,0x33,0x32],q+10);const s=q+30;e(q+14,0x9003,2,20,s);
     for(let i=0;i<19;i++)b[s+i]=dt.charCodeAt(i);q=s+20}
@@ -2219,8 +2235,15 @@ function exifApp1(lat,lng,dt){
     rat(d,lat);rat(d+24,lng);q=d+48}
   const len=2+6+q,seg=new Uint8Array(2+len);seg.set([0xFF,0xE1,len>>8,len&255,0x45,0x78,0x69,0x66,0,0]);seg.set(b.subarray(0,q),10);return seg;
 }
+// 讀原本EXIF裡的方向（IFD0 0x0112），沒有回0
+function exifOri(a){try{let at=2;
+  while(at+4<=a.length&&a[at]===0xFF&&a[at+1]>=0xE0&&a[at+1]<=0xEF){const n=2+(a[at+2]<<8|a[at+3]);
+    if(a[at+1]===0xE1&&a[at+4]===0x45&&a[at+5]===0x78){const t=at+10,v=new DataView(a.buffer,a.byteOffset),L=v.getUint16(t)===0x4949,i0=t+v.getUint32(t+4,L),c=v.getUint16(i0,L);
+      for(let k=0;k<c;k++){const p=i0+2+k*12;if(v.getUint16(p,L)===0x0112)return v.getUint16(p+8,L)}return 0}
+    at+=n}}catch(e){}return 0}
 async function withExif(blob,lat,lng,dt){
-  try{const seg=exifApp1(lat,lng,dt);if(!seg)return blob;const a=new Uint8Array(await blob.arrayBuffer());if(a[0]!==0xFF||a[1]!==0xD8)return blob;
+  try{const a=new Uint8Array(await blob.arrayBuffer());if(a[0]!==0xFF||a[1]!==0xD8)return blob;
+    const seg=exifApp1(lat,lng,dt,exifOri(a));if(!seg)return blob;
     // 檔案自己已有GPS才不動。iPhone瀏覽器壓縮的照片會帶一段只有色彩空間／尺寸的EXIF（沒GPS），
     // 原本「有EXIF就不動」使手機上傳的照片下載後全都沒GPS（10/30 九份二山實測）→ 換成帶GPS的EXIF
     if((await readExif(new Blob([a]))).lat!=null)return blob;
