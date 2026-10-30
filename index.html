@@ -731,6 +731,10 @@ function geoStart(force){
       geoErr=geoDenied?"定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」，並在Safari網址列左側選單→網站設定→位置改允許":"定位訊號不足，到空曠處再試";
       if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}renderGeo()},
     {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
+  // 先拿大概位置（基地台/WiFi/手機剛記住的位置，幾秒內就有），精準GPS來了會蓋掉；已有更準的就不用
+  navigator.geolocation.getCurrentPosition(p=>{const g=geoFresh(),acc=Math.round(p.coords.accuracy);if(g&&g.acc<=acc)return;
+    geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc,t:Math.min(p.timestamp||Date.now(),Date.now())};geoErr="";renderGeo()},()=>{},
+    {enableHighAccuracy:false,maximumAge:120000,timeout:15000});
 }
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
@@ -741,7 +745,7 @@ function geoLateApply(){const g=geoFresh();if(!g||!geoLate.length)return;let hit
   if(hit){renderPending();suggestStake();showMsg("定位到了，已補上等待中照片的GPS。")}}
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&geoWatch!=null)geoStart(true)});
 function renderGeo(){const e=$("geoState");const g=geoFresh();
-  const gt=g?`定位 ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
+  const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?"取得定位中…":"";
   e.textContent="";if(gt)e.append(ic("pin"),gt);e.hidden=!gt;renderNear()}
 
 let gpsNote=false; // 目前顯示的是「照片檔案沒有位置」提示（照片移除或補上GPS後要自動收掉）
