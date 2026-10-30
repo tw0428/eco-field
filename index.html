@@ -2334,13 +2334,13 @@ $("zipBtn").onclick=async()=>{
    系統不收（canShare否決或分享失敗）才自動對半分批，按鈕標明第幾張～第幾張與時間範圍，已存的依照片id記住 */
 let ap={key:"",done:new Set(),n:Infinity,files:null,batch:null};
 const apWhen=r=>(r.takenAt||fmtMs(r.createdAt)).slice(5);
-const apRange=(its,b)=>{const i0=its.indexOf(b[0])+1,i1=its.indexOf(b[b.length-1])+1;return `第${i0}–${i1}張，${apWhen(b[0].r)}～${apWhen(b[b.length-1].r)}`};
+const apRange=(its,b)=>{const ix=x=>its.findIndex(y=>y.id===x.id)+1,i0=ix(b[0]),i1=ix(b[b.length-1]);return `第${i0}–${i1}張，${apWhen(b[0].r)}～${apWhen(b[b.length-1].r)}`};
 const apOk=()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"a.jpg",{type:"image/jpeg"})]}))}catch(e){return false}};
 function apItems(){const list=dlList(),names=dlNames(list),multi=dlIds().length>1;
   return list.flatMap((r,ri)=>r.photos.map((id,i)=>{const p=names[ri][i].split("/");return {r,id,name:(multi?p[0]+"_":"")+p.pop()}}))}
 function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,done:new Set(),n:Infinity,files:null,batch:null};
   const n=its.length,left=its.filter(x=>!ap.done.has(x.id)),d=n-left.length;b.hidden=!apOk()||!n;if(b.hidden)return;
-  const split=ap.n<n?`（系統一次收不下，改每批${ap.n}張）`:"";
+  const split=ap.n<n?`（分批：每批${ap.n}張）`:"";
   setBt(b,"save",ap.files?`準備好了，點這裡存 ${ap.files.length} 張（${apRange(its,ap.batch)}）`+split
     :!left.length?`${n} 張都已存到相簿（再點全部重存）`
     :d?`已存 ${d}/${n} 張，點這裡存剩下的（${apRange(its,left.slice(0,ap.n))}）`+split
