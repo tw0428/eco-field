@@ -79,6 +79,9 @@ button.danger{color:var(--danger);border-color:var(--danger)}
 .viewer{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
 .vbar{display:flex;gap:6px;align-items:center;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
 .vbar button{padding:6px 12px}
+.vbar{overflow-x:auto;scrollbar-width:none}.vbar::-webkit-scrollbar{display:none}.vbar button{white-space:nowrap;flex-shrink:0}
+/* 手機：可雙指縮放，－／＋和新分頁收掉，按鈕縮小，一排放得下 */
+@media (max-width:600px){#viewer #vOut,#viewer #vIn,#viewer #vTab{display:none}.vbar{gap:4px;padding-left:8px;padding-right:8px}.vbar button{padding:6px 10px}}
 .vtitle{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vstage{flex:1;overflow:auto;touch-action:none;cursor:grab;-webkit-overflow-scrolling:touch;padding-bottom:env(safe-area-inset-bottom,0px)}
 .vcontent{transform-origin:0 0}
