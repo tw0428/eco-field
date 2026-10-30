@@ -113,7 +113,7 @@ body[data-view="creek"]{--accent:#40798c}body[data-view="slope"]{--accent:#7d6a5
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./" id="toField">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="你的名字" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
+<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="姓名" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -174,7 +174,7 @@ function lateral(s,high){
   const d0=d==null?0:(d<=5?0:d<=10?1:d<=20?2:3);
   const best=Math.min(3,lv+Math.max(s0,d0));
   const miss=[L==null?'長度':'',sl==null?'坡度':'',d==null?'落差':''].filter(Boolean).join('、');
-  return {pending:true,note:`尚缺${miss}（原表需三項同時判定）。依已選項目，最好只能到「${BAND[best]}」，不計入總分`};
+  return {pending:true,note:`尚缺${miss}（原表需三項同時判定）。依已選項目，最高僅達「${BAND[best]}」，不計入總分`};
  }
  // 表10/11：長度、坡度、落差各分0~3級；原表組合＝長度級＋坡度落差級（坡度與落差同級）
  // 坡度與落差不同級時取較差者（原表：優先考量坡度與最大落差），故級距＝長度級＋max(坡度級,落差級)
@@ -218,9 +218,9 @@ function addBy(q){const by=whoAsk();if(by){const l=(q.by||'').split('、').filte
 function share(){
  // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
  const tok=ghToken;
- if(!tok){alert('這支手機還沒設定金鑰，無法分享。');return}
+ if(!tok){alert('本機尚未設定金鑰，無法分享。');return}
  const url=new URL('./',location.href).href+'#k='+encodeURIComponent(tok);
- const text='生態現場工具：用手機點這個連結，金鑰會自動設定好（請勿外傳）\n'+url;
+ const text='生態現場紀錄工具：以手機開啟本連結即自動設定金鑰（連結含金鑰，請勿外傳）\n'+url;
  shareBox(text);
 }
 function shareBox(text){
@@ -231,11 +231,11 @@ function shareBox(text){
   const row=document.createElement("div");row.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
   const mk=(l,f)=>{const x=document.createElement("button");x.type="button";x.className="act";x.textContent=l;x.style.cssText="padding:6px 12px";x.onclick=f;row.appendChild(x);return x};
   const st=document.createElement("span");st.style.color="var(--muted,var(--mute))";
-  const cp=mk("複製",()=>{const ok=()=>{st.textContent="已複製，貼到LINE傳給同事或自己"};
+  const cp=mk("複製",()=>{const ok=()=>{st.textContent="已複製，得貼至LINE提供同仁或自行備份"};
     try{navigator.clipboard.writeText(text).then(ok,()=>{t.select();try{document.execCommand("copy");ok()}catch(_){st.textContent="請手動全選複製"}})}catch(_){t.select();try{document.execCommand("copy");ok()}catch(e){st.textContent="請手動全選複製"}}});
   if(navigator.share&&matchMedia("(pointer:coarse)").matches)mk("分享…",()=>navigator.share({text}).catch(()=>{}));
   mk("關閉",()=>b.remove());row.appendChild(st);
-  b.append("連結含金鑰，只傳給同事或自己備份：",t,row);
+  b.append("本連結含金鑰，僅限提供同仁或自行備份：",t,row);
   document.querySelector(".sub").after(b);
 }
 function msg(t){const m=$('caseMsg');m.hidden=!t;m.textContent=t||''}
@@ -247,7 +247,7 @@ function save(){
  const id=curCase,lk=curLoc;lastJson=j;clearTimeout(saveTimer);pendSet(pkey(id,lk),j);
  // 存失敗時清掉lastJson，下次render或恢復訊號（online事件）會重送，不用手動再改一次
  // 每次修改先存手機（pendSet），存上雲端才刪；離線拍的照片要先補傳，評分才不會指到雲端沒有的照片
- saveFn=async()=>{saveTimer=null;saveFn=null;try{await phFlush();await writePos(id,lk,JSON.parse(j));pendDel(pkey(id,lk),j);unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'沒訊號，評分與照片先存在手機（關掉網頁也不會不見），有訊號時會自動補存':'儲存失敗（'+(e.code||e.message)+'），資料已存在手機，有網路時會再試')}};
+ saveFn=async()=>{saveTimer=null;saveFn=null;try{await phFlush();await writePos(id,lk,JSON.parse(j));pendDel(pkey(id,lk),j);unsaved=false;msg('')}catch(e){lastJson='';unsaved=true;msg(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'?'無訊號，評分與照片暫存於手機（關閉網頁亦不遺失），有訊號時自動補存':'儲存失敗（'+(e.code||e.message)+'），資料已暫存於手機，有網路時將自動重試')}};
  saveTimer=setTimeout(saveFn,600);
 }
 async function flush(){if(saveTimer){clearTimeout(saveTimer);await saveFn()}}
@@ -398,7 +398,7 @@ function geoStart(force){
  geoWatch=navigator.geolocation.watchPosition(
   p=>{geo={lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy),t:Date.now()};geoErr='';geoDenied=false;geoShow()},
   e=>{geoDenied=e.code===1; // 只有「被拒」才算不可用；訊號弱逾時會繼續等下一筆，不能當成放棄
-   geoErr=geoDenied?'定位被拒：iPhone設定→隱私權與安全性→定位服務→Safari網站設為「使用App期間」':'定位訊號不足';if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}geoShow()},
+   geoErr=geoDenied?'定位遭拒：請於iPhone「設定→隱私權與安全性→定位服務→Safari網站」設為「使用App期間」':'定位訊號不足';if(geoDenied){navigator.geolocation.clearWatch(geoWatch);geoWatch=null}geoShow()},
   {enableHighAccuracy:true,maximumAge:30000,timeout:30000});
  // 先拿大概位置（基地台/WiFi/手機剛記住的位置，幾秒內就有），精準GPS來了會蓋掉；已有更準的就不用
  navigator.geolocation.getCurrentPosition(p=>{const g=geoFresh(),acc=Math.round(p.coords.accuracy);if(g&&g.acc<=acc)return;
@@ -408,7 +408,7 @@ function geoStart(force){
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&geoWatch!=null)geoStart(true)});
-function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt)}
+function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照時自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt)}
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
 async function repoCheck(){
  const r=await fetch(GH_REPO_URL,{cache:'no-store',headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json'}});
@@ -417,13 +417,13 @@ async function repoCheck(){
  if(!r.ok){const e=new Error('GitHub '+r.status);e.code='http_'+r.status;throw e}
 }
 async function connect(){
- if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
+ if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄共用；本機已於現場紀錄設定者，無須重新貼上）');return}
  geoStart(); // 定位不靠網路，先開始抓，不要等資料讀完
  $('conn').textContent=Object.keys(hStore).length?'更新中…':'讀取中…';
  const t0=performance.now();
  try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;habFlush()}
- catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾 eco-field-data，Contents 設 Read and write。')}
-  else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生一組貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
+ catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('本金鑰無法存取私人專案 eco-field-data。請至 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾選 eco-field-data，Contents 設為 Read and write。')}
+  else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生後貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
 }
 async function initDb(){
  db=ghDb;assets=ghAssets;
@@ -497,12 +497,12 @@ function locHtml(){
  if(L.length<2)locEdit=false;
  // 新增、編輯收進同一個下拉的最後兩項，這一排才不會因為按鈕多而換行
  return `<select id="locSel" aria-label="位置" style="margin-left:auto;max-width:36vw;min-width:0">${L.map((l,k)=>`<option value="${k}" ${k===curLoc?'selected':''}>${esc(l.name)}</option>`).join('')}<option value="+">＋ 新增位置…</option>${L.length>1?`<option value="e">${locEdit?'✕ 收起編輯':'✎ 編輯位置…'}</option>`:''}</select>`
-  +(locEdit?`<span style="flex-basis:100%;display:flex;gap:6px"><button class="act" data-locren="1">改位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></span>`:'');
+  +(locEdit?`<span style="flex-basis:100%;display:flex;gap:6px"><button class="act" data-locren="1">變更位置名稱</button><button class="act danger" data-locdel="1">刪除此位置</button></span>`:'');
 }
 async function switchLoc(k){await flush();curLoc=k;S.cur=0;msg('');loadCase(true);render()}
 async function addLoc(){
  const c=cases.find(x=>x.id===curCase);if(!c||!db)return;
- const n=locsOf(c).length,nm=(prompt('新位置的名稱（例：上游、橋下）','位置'+(n+1))||'').trim();if(!nm)return;
+ const n=locsOf(c).length,nm=(prompt('新位置名稱（例：上游、橋下）','位置'+(n+1))||'').trim();if(!nm)return;
  try{await flush();await hPatch(c.id,o=>({...o,locs:[...(Array.isArray(o.locs)?o.locs:[]),{name:nm,p:blank3()}],updatedAt:Date.now()}));
   curLoc=n;S.cur=0;msg('');loadCase(true);render()}catch(e){msg('新增位置失敗（'+(e.code||e.message)+'）')}
 }
@@ -514,7 +514,7 @@ async function renLoc(){
 }
 async function delLoc(b){
  const c=cases.find(x=>x.id===curCase),k=curLoc;if(!c||!db)return;const L=locsOf(c);if(L.length<2)return;
- if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${L[k].name}」的三期評分與照片會一起刪掉，無法復原。確定請再按「確認刪除」。`);
+ if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${L[k].name}」之三期評分與照片將一併刪除，無法復原。確認刪除請再按「確認刪除」。`);
   setTimeout(()=>{b.dataset.armed='';b.textContent='刪除此位置';msg('')},6000);return}
  b.dataset.armed='';msg('');clearTimeout(saveTimer);saveTimer=null;saveFn=null;
  const gone=L[k].p||[];
@@ -526,7 +526,7 @@ async function delLoc(b){
 }
 function render(){
  renderCases();
- if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'先按上方「新增」建立案件，每個案件各自保存施工前／施工中／完工三期評分。'}</div>`;save();return}
+ if(db&&!S.p){$('ptabs').innerHTML='';$('vtabs').innerHTML='';$('app').innerHTML=`<div class="card mut">${cases.length?'載入中…':'請先按上方「新增」建立案件，各案件分別保存施工前／施工中／完工三期評分。'}</div>`;save();return}
  // 第一層：期別（分段按鈕）；第二層：評估類型（分段按鈕）＋匯出、說明（文字連結）
  $('ptabs').innerHTML=S.p.map((p,i)=>`<button class="tab ${i===S.cur&&S.view!=='cmp'&&S.view!=='note'?'on':''}" data-p="${i}">${esc(p.name)}</button>`).join('')+locHtml();
  const v=[['creek','野溪評估'],['slope','坡地評估']];
@@ -545,7 +545,7 @@ const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${
 // 已有評分/照片但沒日期的舊期別不動，免得誤填
 function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
 const exifDay=s=>{const m=/^(\d{4}):(\d\d):(\d\d)/.exec(s||'');return m?`${m[1]}-${m[2]}-${m[3]}`:''};
-function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:84px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}" style="flex:1;min-width:0">${!p.date&&show?'<span class="mut">（今天，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
+function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:84px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}" style="flex:1;min-width:0">${!p.date&&show?'<span class="mut">（本日，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
@@ -557,15 +557,15 @@ function phItem(x,i,kind,cur){
  const ns=x.lat!=null?nearestStation(x.lat,x.lng):null;
  h+=x.lat!=null?`<div><a href="https://www.google.com/maps?q=${x.lat},${x.lng}" target="_blank">${x.lat}, ${x.lng}</a>${x.gps==='manual'?' <span class="mut">(手填)</span>':x.gps==='device'?` <span class="mut">(手機定位±${x.acc}m)</span>`:''}</div>${ns?`<div style="color:var(--acc)">${esc(stationText(ns))}</div>`:''}`
   :`<div><span style="color:var(--bad)">照片無GPS</span><input type="text" data-gps="${i}" data-kind="${kind}" placeholder="補座標：緯度, 經度" style="width:150px;font-size:12px;padding:3px 6px"></div>`;
- if(kind==='old')h+=`<button class="act sm" data-mv="${i}" data-to="${cur}">移到${KNAME[cur]}</button> `;
+ if(kind==='old')h+=`<button class="act sm" data-mv="${i}" data-to="${cur}">移至${KNAME[cur]}</button> `;
  return h+`<button class="act sm" data-phdel="${i}" data-kind="${kind}">刪除</button></div></div>`;
 }
 function photosHtml(p,kind){
  const ph=phGet(p,kind),old=p.photos||[];
- let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns three"><label class="cam"><i class="ic ic-cam"></i>拍照<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label><i class="ic ic-img"></i>相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label><button type="button" data-recpick="${kind}"><i class="ic ic-file"></i>現場紀錄</button></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div class="mut" style="font-size:12px;line-height:1.5"><b>工具內拍照</b>：位置用手機定位，訊號差時較慢<br><b>iPhone相機拍→從相簿選</b>：位置用照片檔的GPS，較準（選照片時按「選項」打開位置）</div><div id="phMsg" class="mut"></div><div class="phs">`;
+ let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns three"><label class="cam"><i class="ic ic-cam"></i>拍照<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label><i class="ic ic-img"></i>相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label><button type="button" data-recpick="${kind}"><i class="ic ic-file"></i>現場紀錄</button></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div class="mut" style="font-size:12px;line-height:1.5"><b>工具內拍照</b>：位置採手機定位，訊號不佳時較慢<br><b>以iPhone相機拍攝後自相簿選取</b>：位置採照片檔GPS，精度較佳（選取照片時應按「選項」開啟位置）</div><div id="phMsg" class="mut"></div><div class="phs">`;
  ph.forEach((x,i)=>{h+=phItem(x,i,kind)});
  h+=`</div>`;
- if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
+ if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張係改版前上傳、野溪坡地共用之照片，請按「移至${KNAME[kind]}」歸類（屬另一類者至另一頁籤移動）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
  return h+`</div>`;
 }/* 樁號推估：案件doc有 stakes:[{label,st,note,lat,lng}] 時，把GPS投影到設計中心線（同現場紀錄App） */
 function fmtSt(st,r){if(r)return `${r}+${String(Math.round(st)).padStart(3,"0")}`;const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
@@ -609,7 +609,7 @@ async function upPhotos(files,kind,fromCam){
    if(ex.lat==null){noGps++;if(ex.x&&ex.x!=='ok')fileNoLoc++}render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
- pm((queued?`沒訊號，${queued} 張先存在手機，有訊號時自動上傳。`:'')+(noGps?`完成，${noGps} 張沒有GPS，請在照片下補座標`+(fileNoLoc?`（其中 ${fileNoLoc} 張的檔案裡沒有位置資料，手機從相簿交給網頁時系統常把位置移除，不是工具沒讀到；用工具內拍照會自動帶GPS）`:'')+(geoDenied?'（'+geoErr+'）':''):'完成'));
+ pm((queued?`無訊號，${queued} 張暫存於手機，有訊號時自動上傳。`:'')+(noGps?`完成，${noGps} 張無GPS，請於照片下方補填座標`+(fileNoLoc?`（其中 ${fileNoLoc} 張之檔案未含位置資料，手機自相簿提供照片予網頁時，系統常移除位置資訊，非工具讀取錯誤；使用工具內拍照，或選取照片時按「選項」開啟位置，即可帶入GPS）`:'')+(geoDenied?'（'+geoErr+'）':''):'完成'));
 }
 /* 從現場紀錄選照片：讀同案件ID的 records/<案>.json；照片複製一份（兩邊各自刪除互不影響），位置與拍攝時間沿用該筆紀錄 */
 const recTaken=r=>{if(/^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(r.takenAt||""))return r.takenAt.replace(/\//g,":")+":00";
@@ -622,7 +622,7 @@ async function recPick(kind){
  const pk=document.createElement("div");pk.className="picker";
  pk.innerHTML=`<div class="pkh"><b style="flex:1;align-self:center">從現場紀錄選${KNAME[kind]}照片</b><button class="act" data-x="1">關閉</button></div>`+
   (items.length?`<div class="rpgrid">${items.map(({pid,r},i)=>`<label class="rpi"><input type="checkbox" data-i="${i}"><img data-blob="${esc(pid)}" alt=""><span>${esc([fmtExifTime(recTaken(r)).slice(5),r.stake,r.category].filter(Boolean).join(" "))}</span>${r.note?`<span class="mut">${esc(r.note)}</span>`:""}</label>`).join("")}</div><button class="act primary" data-ok="1" style="margin-top:8px">加入所選照片</button>`
-   :`<div class="mut">這個案件在現場紀錄還沒有照片（現場紀錄要用同一個案件）。</div>`);
+   :`<div class="mut">本案件於現場紀錄尚無照片（須為現場紀錄之同一案件）。</div>`);
  pk.querySelector("[data-x]").onclick=()=>pk.remove();
  const ok=pk.querySelector("[data-ok]");
  if(ok){const upd=()=>{const n=pk.querySelectorAll("input:checked").length;ok.textContent=n?`加入所選 ${n} 張`:"加入所選照片";ok.disabled=!n};pk.onchange=upd;upd();
@@ -646,7 +646,7 @@ function viewCreek(){
   // 還沒評到分的項目：卡片左側橘條＋「未填」，空的選單也標底色
   const todo=(it.sides?['L','R']:['']).some(sd=>evalItem(it,sd,p).empty);
   h+=`<div class="card${todo?' todo':''}"><h3><span>${it.no}. ${it.name}${todo?' <span class="unftag">未填</span>':''}</span><span class="mut">滿分${it.max}${it.sides?'（左右岸各'+it.max+'）':''}</span></h3>`;
-  if(it.id==='lat')h+=`<div class="flds"><div class="fld"><label>海拔 <span class="mut">（選一次三期都套用）</span></label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select></div></div>`;
+  if(it.id==='lat')h+=`<div class="flds"><div class="fld"><label>海拔 <span class="mut">（選取一次即套用三期）</span></label><select data-hi="1"><option value="0" ${p.high?'':'selected'}>低海拔（800 m以下）</option><option value="1" ${p.high?'selected':''}>中高海拔（800 m以上）</option></select></div></div>`;
   (it.sides?['L','R']:['']).forEach(sd=>{
    const r=evalItem(it,sd,p),st=r.st;
    h+=`<div class="${it.sides?'side':''}">`;
@@ -666,7 +666,7 @@ function viewCreek(){
 }
 /* 現場簡記：每期在評分頁下方隨手記（p.memo.{slope,creek}），匯出時列在該表後面，供寫前言／表9時參考；不取代前言草稿 */
 function memoCard(p,kind){const v=(p.memo||{})[kind]||'';
- return `<div class="card"><h3><span>現場簡記</span><span class="mut">${esc(p.name||'')}</span></h3><textarea data-memo="${kind}" rows="3" style="min-height:80px;font:15px/1.6 inherit;font-family:inherit" placeholder="隨手記：優勢植物、干擾、待確認事項…">${esc(v)}</textarea></div>`}
+ return `<div class="card"><h3><span>現場簡記</span><span class="mut">${esc(p.name||'')}</span></h3><textarea data-memo="${kind}" rows="3" style="min-height:80px;font:15px/1.6 inherit;font-family:inherit" placeholder="簡記：優勢植物、干擾、待確認事項…">${esc(v)}</textarea></div>`}
 function memoText(D,kind){const ix=kind==='slope'?D.sIdx:D.cIdx;return ix.map(i=>{const m=((S.p[i].memo||{})[kind]||'').trim();return m?`【${D.cn(i)}】${m}`:''}).filter(Boolean).join('\n')}function selHtml(attr,opts,val){
  val=val==null?'':String(val);
  const hit=val===''||opts.some(o=>String(o[0])===val);
@@ -674,7 +674,7 @@ function memoText(D,kind){const ix=kind==='slope'?D.sIdx:D.cIdx;return ix.map(i=
 }
 function fieldHtml(key,f,st,p,todo){
  const opts=typeof f.opts==='function'?f.opts(st,p):f.opts;
- if(!opts)return `<div class="fld"><label>${esc(f.label)}</label><span class="mut">先選原溪床寬度</span></div>`;
+ if(!opts)return `<div class="fld"><label>${esc(f.label)}</label><span class="mut">請先選取原溪床寬度</span></div>`;
  const unf=todo&&(st[f.k]==null||st[f.k]==='');
  // 與坡地同版型：題目一行、選單整行寬
  return `<div class="fld"><label>${esc(f.label)}</label>`+selHtml(`data-c="${key}" data-k="${f.k}"${unf?' class="unf"':''}`,opts,st[f.k])+`</div>`;
@@ -686,7 +686,7 @@ function noteHtml(p,key){
  return h;
 }
 function resHtml(it,sd,r){
- if(r.empty)return r.hint?`<div class="warn">${esc(r.hint)}</div>`:`<div class="mut">選完後顯示級距</div>`;
+ if(r.empty)return r.hint?`<div class="warn">${esc(r.hint)}</div>`:`<div class="mut">選取後顯示級距</div>`;
  if(r.zero)return `<div class="res"><span class="badge bz">0分</span><span class="score">0</span><span class="mut">${esc(r.note||'')}</span></div>`;
  return `<div class="res"><span class="badge b${r.b}">${BAND[r.b]}</span><span class="mut">級距 ${r.rng[0]}~${r.rng[1]} 分</span><label>採用</label><select data-o="${r.key}" data-min="${r.rng[0]}" data-max="${r.rng[1]}">${Array.from({length:r.rng[1]-r.rng[0]+1},(_,i)=>r.rng[1]-i).map(n=>`<option value="${n}" ${n===r.score?'selected':''}>${n} 分</option>`).join('')}</select><span class="mut">（建議 ${r.sug}）</span></div>${r.note?`<div class="warn">${esc(r.note)}</div>`:''}`;
 }
@@ -701,7 +701,7 @@ function viewSlope(){
   h+=selHtml(`data-sl="${x.k}"${val===''?' class="unf"':''}`,x.sel||x.opts,val);
   h+=`</div>`+noteHtml(p,'slope_'+x.k);
  });
- h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項填完才判定）</span>'}</div>`;
+ h+=`<div class="tot">總分 ${e.n===5?e.t:'—'} / 20　${e.g?`<span class="badge b${{'不理想':3,'尚可':2,'次理想':1,'最理想':0}[e.g]}">${e.g}</span>`:'<span class="mut">（5項均填寫後判定）</span>'}</div>`;
  h+=`<div class="mut">≤7不理想、7~10尚可、10~16.7次理想、>16.7最理想。樣區原則為10 m×10 m。</div></div>`+memoCard(p,'slope');
  return h;
 }
@@ -778,7 +778,7 @@ function viewCmp(){
  h+=tblHtml(D.creek,false);
  h+=`<div class="mut" style="margin-top:8px">前言草稿</div><textarea id="dC">${esc(draftCreek(D))}</textarea>
  <div class="row"><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-copy="cD">複製前言</button></div>
- <div class="mut">表格貼到Word會是真正的表格；前言可直接在框內修改後再複製。</div></div>`;
+ <div class="mut">表格貼至Word即為表格；前言得於框內修改後再複製。</div></div>`;
  return h;
 }
 /* ===== 匯出面板（與現場紀錄相同操作）：選範圍 → 下載Word（含照片）／複製表格／下載CSV ===== */
@@ -792,7 +792,7 @@ function renderExpSheet(){
  const box=$('expBody');if(!box||!S.p)return;const D=exportData(),ex=S.exp==='design'?'design':'build';
  const nPh=D.cIdx.reduce((s,i)=>s+phGet(S.p[i],'creek').length+phGet(S.p[i],'slope').length,0);
  box.innerHTML=`<div class="row" style="margin:0"><label>範圍</label><div class="tabs"><button class="tab ${ex==='design'?'on':''}" data-sexp="design">設計階段（施工前）</button><button class="tab ${ex==='build'?'on':''}" data-sexp="build">施工階段（前中後）</button></div></div>
- <div class="mut">${locsOf(cases.find(x=>x.id===curCase)).length>1?`Word含全部${locsOf(cases.find(x=>x.id===curCase)).length}個位置（依位置分節）；下面的數量、複製和CSV只含目前位置「${esc(locsOf(cases.find(x=>x.id===curCase))[curLoc].name)}」。`:''}${zoneMates(curCase).length>1?`Word一次匯出${zoneMates(curCase).length}個工區（依工區分節）；下面的數量、複製和CSV只含目前的${esc(zoneInfo(cases.find(x=>x.id===curCase)).zone)}：`:''}坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼到Word或Excel會是真正的表格。</div>
+ <div class="mut">${locsOf(cases.find(x=>x.id===curCase)).length>1?`Word含全部${locsOf(cases.find(x=>x.id===curCase)).length}個位置（依位置分節）；下方之數量、複製及CSV僅含目前位置「${esc(locsOf(cases.find(x=>x.id===curCase))[curLoc].name)}」。`:''}${zoneMates(curCase).length>1?`Word一次匯出${zoneMates(curCase).length}個工區（依工區分節）；下方之數量、複製及CSV僅含目前之${esc(zoneInfo(cases.find(x=>x.id===curCase)).zone)}：`:''}坡地評分 ${D.sIdx.filter(i=>D.sE[i].n>0).length} 期、野溪評分 ${D.cIdx.filter(i=>creekTotal(S.p[i]).n>0).length} 期、位置照片 ${nPh} 張。Word含表格、前言草稿與照片；表格貼至Word或Excel即為表格。</div>
  <div class="expbtns"><button class="act primary" data-xw="1"><i class="ic ic-file"></i>下載Word（含照片）</button>
  <div class="row" style="margin:0"><button class="act" data-copy="sT">複製坡地表格</button><button class="act" data-copy="cT">複製野溪表格</button><button class="act" data-xc="1">下載CSV</button></div>
  <a href="#" data-xcmp="1">修改前言草稿 →</a></div>`;
@@ -863,14 +863,14 @@ async function copyRich(html,txt,btn){
 }
 function viewNote(){
  return `<div class="card"><h3><span>使用方式</span></h3><ol style="margin:0;padding-left:18px">
- <li>上方選案件（或按「新增」建立）。每個案件分施工前／施工中／完工三期，期別名稱可改。</li>
- <li>每期的野溪、坡地照片分開存（各在自己的頁籤上傳），自動讀取照片GPS與拍攝時間。要有GPS請先用手機相機拍、再從相簿選（在選單裡直接拍的照片不帶GPS）；照片沒有GPS時可在照片下手填座標。案件有設計樁號資料時，照片下方會顯示推估樁號。</li>
- <li>各項目用下拉選單選級距，程式給建議分數；「採用」可在該級距範圍內依加分／扣分參考調整。改選另一級距時，採用分數會重設為建議值。</li>
- <li>第3、4、5、9項選單最後有「乾涸／斷流／伏流」，選了該項計0分。</li>
- <li>「匯出」可選設計階段（只列施工前，欄名標「設計階段」）或施工階段（施工前／施工中／完工三期），整理坡地、野溪兩張表，可複製成Word表格；並自動產生前言草稿（評估位置、乾涸項目、分數升降項目），＿＿＿處補原因即可。</li>
- <li>資料依案件存在雲端，手機、電腦開同一連結都看得到。</li></ol></div>
+ <li>於上方選取案件（或按「新增」建立）。各案件分施工前／施工中／完工三期，期別名稱得修改。</li>
+ <li>各期野溪、坡地照片分開存放（於各自頁籤上傳），自動讀取照片GPS與拍攝時間。工具內拍照者以手機定位取得GPS；以iPhone相機拍攝後自相簿選取者，選取照片時應按「選項」開啟位置；無GPS者得於照片下方手填座標。案件有設計樁號資料時，照片下方顯示推估樁號。</li>
+ <li>各項目以下拉選單選取級距，程式提供建議分數；「採用」得於該級距範圍內依加分／扣分參考調整。改選其他級距時，採用分數重設為建議值。</li>
+ <li>第3、4、5、9項選單末項為「乾涸／斷流／伏流」，選取者計0分。</li>
+ <li>「匯出」得選設計階段（僅列施工前，欄名標註「設計階段」）或施工階段（施工前／施工中／完工三期），整理坡地、野溪兩表，得複製為Word表格，並自動產生前言草稿（評估位置、乾涸項目、分數升降項目），＿＿＿處補填原因。</li>
+ <li>資料依案件儲存於雲端，手機及電腦開啟同一連結均可檢視。</li></ol></div>
  <div class="card"><h3><span>特殊判定</span></h3><ul style="margin:0;padding-left:18px" class="mut">
- <li><b>橫向連結性</b>：先選海拔（800 m 上下用不同切點）。長度、坡度、落差三項都選才計分；長度、坡度、落差各分4級，級距＝長度級＋（坡度級與落差級取較差者）。原表列出的組合結果一致，原表沒列的搭配為依此規則推斷。</li>
+ <li><b>橫向連結性</b>：先選取海拔（800 m 上下採不同切點）。長度、坡度、落差三項均選取後計分；長度、坡度、落差各分4級，級距＝長度級＋（坡度級與落差級取較差者）。原表列出之組合結果一致，原表未列之搭配依此規則推斷。</li>
  <li><b>溪床寬度變化</b>：原溪床≥10 m 的級距原表印刷矛盾，為依4級結構推斷。</li>
  <li><b>湍瀨出現頻率</b>：未見湍瀨直接判差；<b>縱向連結性</b>：無橫向構造物直接判佳，落差≥200 cm 為0分。</li></ul></div>
  <div class="card"><h3><span>級距分數</span></h3><div class="mut">20分項：佳16~20、良好11~15、普通6~10、差1~5（建議值18/13/8/3）。<br>10分項（左右岸各算）：佳9~10、良好6~8、普通3~5、差1~2（建議值9/7/4/2）。<br>坡地5因子各1~4分，總分≤7不理想、7~10尚可、10~16.7次理想、&gt;16.7最理想。</div></div>
@@ -911,7 +911,7 @@ document.addEventListener('click',e=>{
 function takeJump(to){let j=null;try{j=JSON.parse(lsGet('eco-jump')||'null')}catch(e){}
  if(!j||j.to!==to)return null;try{localStorage.removeItem('eco-jump')}catch(e){}return Date.now()-j.t<300000?j:null}
 function jumpNote(j){let b=$('jumpBox');if(b)b.remove();b=document.createElement('div');b.id='jumpBox';b.className='warn row';b.style.margin='6px auto';
- const s=document.createElement('span');s.style.flex='1';s.textContent=`「${j.name}」還沒有棲地評估，目前顯示上次的案件。`;
+ const s=document.createElement('span');s.style.flex='1';s.textContent=`「${j.name}」尚無棲地評估，目前顯示前次案件。`;
  const mk=(t,cls,f)=>{const x=document.createElement('button');x.className='act'+(cls?' '+cls:'');x.textContent=t;x.onclick=f;return x};
  b.append(s,mk('建立同名評估','primary',async()=>{b.remove();try{await flush();await db.collection('cases').doc(j.id).set({name:j.name,createdAt:Date.now(),p:[blank('施工前'),blank('施工中'),blank('完工')]});
    curCase=j.id;S.cur=0;curLoc=0;S.view='creek';loadCase(true);render()}catch(e){msg('案件建立失敗（'+(e.code||e.message)+'）')}}),mk('關閉','',()=>b.remove()));
@@ -930,7 +930,7 @@ async function addCase(){
 }
 async function delCase(b){
  const c=cases.find(x=>x.id===curCase);if(!c||!db)return;
- if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${c.name}」的三期評分會一起刪掉，無法復原。確定請再按「確認刪除」。`);
+ if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='確認刪除';msg(`「${c.name}」之三期評分將一併刪除，無法復原。確認刪除請再按「確認刪除」。`);
   delArm=setTimeout(()=>{b.dataset.armed='';b.textContent='刪除';msg('')},6000);return}
  clearTimeout(delArm);b.dataset.armed='';b.textContent='刪除';msg('');
  clearTimeout(saveTimer);saveTimer=null;saveFn=null;
