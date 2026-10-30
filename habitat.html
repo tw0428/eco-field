@@ -414,9 +414,10 @@ async function repoCheck(){
 }
 async function connect(){
  if(!ghToken){$('tokBox').hidden=false;$('conn').textContent='未設定金鑰';msg('第一次使用：請貼上 GitHub 金鑰（與現場紀錄同一組；同一支手機在現場紀錄設定過就不用再貼）');return}
+ geoStart(); // 定位不靠網路，先開始抓，不要等資料讀完
  $('conn').textContent=Object.keys(hStore).length?'更新中…':'讀取中…';
  const t0=performance.now();
- try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart();habFlush()}
+ try{await hLoad();$('tokBox').hidden=true;msg('');$('conn').textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;habFlush()}
  catch(e){$('conn').textContent=e.code==='bad_token'||e.code==='no_repo'?'金鑰無法使用':'讀取失敗';if(e.code==='no_repo'){$('tokBox').hidden=false;msg('這組金鑰看不到私人專案 eco-field-data。請到 GitHub 金鑰設定：Repository access 選「Only select repositories」並勾 eco-field-data，Contents 設 Read and write。')}
   else if(e.code==='bad_token'){$('tokBox').hidden=false;msg('金鑰無效或已過期，請重新產生一組貼上')}else msg('讀取失敗（'+(e.code||'網路')+'），請按↻重試')}
 }

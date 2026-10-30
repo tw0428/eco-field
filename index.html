@@ -2010,9 +2010,10 @@ async function repoCheck(){
 }
 async function connect(){
   if(!ghToken){$("tokBox").hidden=false;$("conn").textContent="未設定金鑰";return}
+  geoStart(); // 定位不靠網路，先開始抓（GPS要時間暖機），不要等資料讀完；網路差時讀取會很久甚至失敗
   $("conn").textContent=Object.keys(store.cases).length?"更新中…":"讀取中…";
   const t0=performance.now();
-  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`;geoStart()}
+  try{await loadAll();$("tokBox").hidden=true;$("conn").textContent=`已連線 ${((performance.now()-t0)/1000).toFixed(1)}秒${loadMode}`}
   catch(e){$("conn").textContent=e.code==="bad_token"||e.code==="no_repo"?"金鑰無法使用":"讀取失敗（"+(e.code||"網路")+"）";
     if(e.code==="bad_token"||e.code==="no_repo"){$("tokBox").hidden=false;$("tokMsg").textContent=e.code==="no_repo"?TOK_REPO_MSG:"金鑰無效或已過期，請重新產生一組貼上。";$("tokMsg").hidden=false}}
 }
