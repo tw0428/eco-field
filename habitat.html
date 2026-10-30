@@ -408,8 +408,7 @@ function geoStart(force){
 const geoFresh=()=>geo&&Date.now()-geo.t<120000?geo:null;
 async function geoWait(ms){geoStart();const t0=Date.now();while(!geoFresh()&&!geoDenied&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,500));return geoFresh()}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&geoWatch!=null)geoStart(true)});
-function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt);
- if(gt&&!geoDenied&&(!g||g.acc>100)){const t=document.createElement('div');t.textContent='定位慢？先開Google地圖等藍點穩定再回來拍；或用iPhone相機拍，再從相簿選（選照片時按「選項」打開位置）';e.appendChild(t)}}
+function geoShow(){const e=$('geoState');if(!e)return;const g=geoFresh();const gt=g?`${g.acc>100?"大概位置":"定位"} ±${g.acc}m（拍照會自動帶入）`:geoErr?geoErr:geoWatch!=null?'取得定位中…':'';e.textContent='';if(gt)e.append(ic('pin'),gt)}
 // 私人專案對沒權限的金鑰會回404（假裝不存在），不先確認會被當成「沒有案件」
 async function repoCheck(){
  const r=await fetch(GH_REPO_URL,{cache:'no-store',headers:{Authorization:'Bearer '+ghToken,Accept:'application/vnd.github+json'}});
@@ -563,7 +562,7 @@ function phItem(x,i,kind,cur){
 }
 function photosHtml(p,kind){
  const ph=phGet(p,kind),old=p.photos||[];
- let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns three"><label class="cam"><i class="ic ic-cam"></i>拍照<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label><i class="ic ic-img"></i>相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label><button type="button" data-recpick="${kind}"><i class="ic ic-file"></i>現場紀錄</button></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div id="phMsg" class="mut"></div><div class="phs">`;
+ let h=`<div class="card"><h3><span>${KNAME[kind]}評估位置照片</span><span class="mut">${ph.length?ph.length+' 張':''}</span></h3>`+(db&&assets?`<div class="photobtns three"><label class="cam"><i class="ic ic-cam"></i>拍照<input type="file" data-ph="${kind}" data-cam="1" accept="image/*" capture="environment"></label><label><i class="ic ic-img"></i>相簿<input type="file" data-ph="${kind}" accept="image/*" multiple></label><button type="button" data-recpick="${kind}"><i class="ic ic-file"></i>現場紀錄</button></div>`:'<div class="mut">尚未連線</div>')+`<div id="geoState" class="mut"></div><div class="mut" style="font-size:12px;line-height:1.5"><b>工具內拍照</b>：位置用手機定位，訊號差時較慢<br><b>iPhone相機拍→從相簿選</b>：位置用照片檔的GPS，較準（選照片時按「選項」打開位置）</div><div id="phMsg" class="mut"></div><div class="phs">`;
  ph.forEach((x,i)=>{h+=phItem(x,i,kind)});
  h+=`</div>`;
  if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張是改版前上傳、野溪坡地共用的照片，請按「移到${KNAME[kind]}」歸類（另一類的到另一頁籤再移）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
