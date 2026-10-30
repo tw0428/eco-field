@@ -424,7 +424,8 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div class="row" id="filtRow" hidden><label for="filtSel" class="lbl" style="margin:0;white-space:nowrap">篩選</label><select id="filtSel" class="grow"></select></div>
     <div id="offSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">離線包</b><button type="button" id="offClose">關閉</button></div><div id="offBox" class="expbox"></div></div></div>
     <div id="dlSheet" class="sheet" hidden><div class="sheetbody"><div class="sheethead"><b style="font-size:17px">下載照片</b><button type="button" id="dlClose">關閉</button></div><div class="expbox">
-      <div class="row" style="margin:0"><span class="lbl" style="margin:0">範圍</span><select id="dlDay" class="grow"></select></div>
+      <div class="row" style="margin:0" id="dlZoneRow" hidden><span class="lbl" style="margin:0">工區</span><select id="dlZone" class="grow"></select></div>
+      <div class="row" style="margin:0"><span class="lbl" style="margin:0">日期</span><select id="dlDay" class="grow"></select></div>
       <div class="hint" id="dlInfo"></div>
       <button type="button" id="apBtn" class="primary" hidden></button>
       <button type="button" id="zipBtn"><i class="ic ic-down"></i>下載壓縮檔（zip，依階段分資料夾）</button>
@@ -2279,14 +2280,26 @@ const exifDt=r=>{const s=r.takenAt||fmtMs(r.createdAt);return /^\d{4}\/\d\d\/\d\
 const zipDate=r=>{const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(exifDt(r));
   return m?new Date(Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5])):new Date(Date.now()-new Date().getTimezoneOffset()*60000)};
 /* 「下載照片」面板：唯一的下載入口。範圍（全部／某一天）同時套用到存相簿與zip */
-let dlDay="";
-const dlList=()=>records.filter(r=>r.caseId===curCase&&r.photos&&r.photos.length&&(!dlDay||recDay(r)===dlDay)).sort((a,b)=>a.createdAt-b.createdAt);
+let dlDay="",dlAllZones=true;
+// 分工區的案件預設一次下載全部工區（同一群組）；zip依「工區/階段/檔名」分資料夾，存相簿檔名前加工區
+const dlZones=()=>{const zs=zoneMates(curCase);return zs.length>1?zs:[]};
+const dlIds=()=>{const zs=dlZones();return zs.length&&dlAllZones?zs.map(z=>z.id):[curCase]};
+const dlList=()=>{const ids=dlIds();return records.filter(r=>ids.includes(r.caseId)&&r.photos&&r.photos.length&&(!dlDay||recDay(r)===dlDay))
+  .sort((a,b)=>ids.indexOf(a.caseId)-ids.indexOf(b.caseId)||a.createdAt-b.createdAt)};
+// 檔名各工區分開編（與單一工區下載時相同）；多工區時加工區資料夾
+function dlNames(list){const ids=[...new Set(list.map(r=>r.caseId))],multi=dlIds().length>1,out=new Array(list.length);
+  ids.forEach(id=>{const idx=list.map((r,i)=>r.caseId===id?i:-1).filter(i=>i>=0),nm=zipNames(idx.map(i=>list[i])),z=multi?safeName(zoneInfo(cases.find(c=>c.id===id)).zone)+"/":"";
+    idx.forEach((i,k)=>out[i]=nm[k].map(s=>z+s))});return out}
 function renderDl(){
-  const all=records.filter(r=>r.caseId===curCase&&r.photos&&r.photos.length),days=[...new Set(all.map(recDay))].sort().reverse();
+  const zs=dlZones();$("dlZoneRow").hidden=!zs.length;
+  if(zs.length){const zsel=$("dlZone"),cz=zoneInfo(cases.find(c=>c.id===curCase)).zone;zsel.innerHTML="";
+    [["all",`全部 ${zs.length} 個工區`],["one",`只有${cz}`]].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=(v==="all")===dlAllZones;zsel.appendChild(o)})}
+  const ids=dlIds(),all=records.filter(r=>ids.includes(r.caseId)&&r.photos&&r.photos.length),days=[...new Set(all.map(recDay))].sort().reverse();
   if(dlDay&&!days.includes(dlDay))dlDay="";
   const sel=$("dlDay");sel.innerHTML="";[["","全部日期"],...days.map(d=>[d,d])].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;o.selected=v===dlDay;sel.appendChild(o)});
   const list=dlList(),n=list.reduce((s,r)=>s+r.photos.length,0),gps=list.filter(r=>r.lat!=null&&r.lng!=null).reduce((s,r)=>s+r.photos.length,0);
-  $("dlInfo").textContent=n?`${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，每批20張。":""):"這個範圍沒有照片。";
+  const zn=ids.length>1?ids.map(id=>{const k=list.filter(r=>r.caseId===id).reduce((s,r)=>s+r.photos.length,0);return `${zoneInfo(cases.find(c=>c.id===id)).zone} ${k}張`}).join("、")+"。":"";
+  $("dlInfo").textContent=n?zn+`共 ${list.length} 筆紀錄、${n} 張照片，其中 ${gps} 張的紀錄有GPS。下載時寫入紀錄的GPS與拍攝時間（紀錄沒GPS的照片就沒有位置），檔名與Word匯出相同。`+(apOk()?"手機建議用「存到相簿」，每批20張。":""):"這個範圍沒有照片。";
   $("zipBtn").disabled=!n;apLabel();renderAlbum();
 }
 function openDl(){if(!curCase&&!camFiles.length)return;$("dlSheet").hidden=false;renderDl()}
@@ -2294,6 +2307,7 @@ $("dlBtn").onclick=openDl;
 $("dlClose").onclick=()=>{$("dlSheet").hidden=true};
 $("dlSheet").onclick=e=>{if(e.target.id==="dlSheet")$("dlSheet").hidden=true};
 $("dlDay").onchange=e=>{dlDay=e.target.value;renderDl()};
+$("dlZone").onchange=e=>{dlAllZones=e.target.value==="all";renderDl()};
 $("zipBtn").onclick=async()=>{
   const b=$("zipBtn"),old=[...b.childNodes].map(x=>x.cloneNode(true)),c=cases.find(x=>x.id===curCase);if(!c)return;
   const restore=()=>{b.textContent="";b.append(...old)};
@@ -2301,7 +2315,7 @@ $("zipBtn").onclick=async()=>{
   const total=list.reduce((n,r)=>n+r.photos.length,0);if(!total){b.textContent="這個範圍沒有照片";setTimeout(restore,2000);return}
   b.disabled=true;
   try{
-    await loadZip();const zip=new JSZip(),names=zipNames(list);let n=0;
+    await loadZip();const zip=new JSZip(),names=dlNames(list);let n=0;
     for(const [ri,r] of list.entries()){
       for(let i=0;i<r.photos.length;i++){
         b.textContent=`準備中 ${++n}/${total}…`;
@@ -2310,7 +2324,7 @@ $("zipBtn").onclick=async()=>{
     }
     b.textContent="壓縮中…";
     const blob=await zip.generateAsync({type:"blob"});
-    await downloads.save({filename:safeName(c.name)+"_照片"+(dlDay?"_"+dlDay.replace(/\//g,""):"")+".zip",data:blob});b.textContent="已下載";
+    await downloads.save({filename:(dlIds().length>1?safeName(zoneInfo(c).base)+"_全部工區":safeName(c.name))+"_照片"+(dlDay?"_"+dlDay.replace(/\//g,""):"")+".zip",data:blob});b.textContent="已下載";
   }catch(e){b.textContent="下載失敗（"+(e.message||"網路")+"）"}
   finally{b.disabled=false;setTimeout(restore,2500)}
 };
@@ -2318,8 +2332,8 @@ $("zipBtn").onclick=async()=>{
    iPhone 要求分享必須在點擊當下才能呼叫，所以分兩步：先按一下準備（每批20張），再按一下存；存完按同一顆接著下一批 */
 const AP_N=20;let ap={key:"",off:0,files:null};
 const apOk=()=>{try{return !!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"a.jpg",{type:"image/jpeg"})]}))}catch(e){return false}};
-function apItems(){const list=dlList(),names=zipNames(list);
-  return list.flatMap((r,ri)=>r.photos.map((id,i)=>({r,id,name:names[ri][i].split("/").pop()})))}
+function apItems(){const list=dlList(),names=dlNames(list),multi=dlIds().length>1;
+  return list.flatMap((r,ri)=>r.photos.map((id,i)=>{const p=names[ri][i].split("/");return {r,id,name:(multi?p[0]+"_":"")+p.pop()}}))}
 function apLabel(){const b=$("apBtn");if(!b)return;const its=apItems(),key=its.map(x=>x.id).sort().join(",");if(key!==ap.key)ap={key,off:0,files:null};
   const n=its.length;b.hidden=!apOk()||!n;if(b.hidden)return;
   setBt(b,"save",ap.files?`存這 ${ap.files.length} 張（${ap.gps}張有GPS，再點）`:ap.off>=n?"已存完（再點重來）":ap.off?`存下一批 ${ap.off+1}–${Math.min(n,ap.off+AP_N)}`:`存到相簿（${n}張）`)}
