@@ -2236,6 +2236,10 @@ function zipNames(list){const used=new Set();return list.map(r=>{const day=(r.ta
   return r.photos.map(()=>{const name=[day,safeName([r.category,r.sub,r.struct].filter(Boolean).join("-"))+(r.abcd||""),safeName(r.stake),safeName(r.species)].filter(Boolean).join("_");
     let k=name,j=2;while(used.has((r.stage||"")+k))k=name+"_"+j++;used.add((r.stage||"")+k);return (safeName(r.stage)||"未分階段")+"/"+k+".jpg"})})}
 const exifDt=r=>{const s=r.takenAt||fmtMs(r.createdAt);return /^\d{4}\/\d\d\/\d\d \d\d:\d\d$/.test(s)?s.replace(/\//g,":")+":00":""};
+// zip內檔案時間＝拍攝時間（沒有就用現在）。JSZip寫入的是UTC欄位、解壓時被當本地時間（台北早8小時，10/30實測），
+// 所以傳「本地時間數字當UTC」的Date
+const zipDate=r=>{const m=/^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/.exec(exifDt(r));
+  return m?new Date(Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5])):new Date(Date.now()-new Date().getTimezoneOffset()*60000)};
 $("zipBtn").onclick=async()=>{
   const b=$("zipBtn"),old=b.textContent,c=cases.find(x=>x.id===curCase);if(!c)return;
   const list=records.filter(r=>r.caseId===curCase&&r.photos&&r.photos.length).sort((a,b)=>a.createdAt-b.createdAt);
@@ -2246,7 +2250,7 @@ $("zipBtn").onclick=async()=>{
     for(const [ri,r] of list.entries()){
       for(let i=0;i<r.photos.length;i++){
         b.textContent=`準備中 ${++n}/${total}…`;
-        zip.file(names[ri][i],await withExif(await fileBlob(r.photos[i]),r.lat,r.lng,exifDt(r)));
+        zip.file(names[ri][i],await withExif(await fileBlob(r.photos[i]),r.lat,r.lng,exifDt(r)),{date:zipDate(r)});
       }
     }
     b.textContent="壓縮中…";
