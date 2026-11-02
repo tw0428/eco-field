@@ -957,7 +957,8 @@ $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
 // 電腦：把照片拖進視窗任何位置＝從相簿選（整頁顯示放開提示）
 // 網頁內自己拖的（照片牆的圖片、連結）不算：dragstart 只有頁內拖曳才會觸發
-{let dn=0,inner=false;addEventListener("dragstart",()=>{inner=true});addEventListener("dragend",()=>{inner=false});
+// 被取消的 dragstart（檢視器滑鼠拖曳移動畫面）不會有 dragend，不可記成頁內拖曳；拖曳期間不會有 mousemove，有就代表拖曳已結束
+{let dn=0,inner=false;addEventListener("dragstart",e=>{if(!e.defaultPrevented)inner=true});addEventListener("dragend",()=>{inner=false});addEventListener("mousemove",()=>{inner=false},{passive:true});
   const hasF=e=>!inner&&[...(e.dataTransfer&&e.dataTransfer.types||[])].includes("Files");
   const ov=document.createElement("div");ov.id="dropOv";ov.hidden=true;document.body.appendChild(ov);
   addEventListener("dragenter",e=>{if(!hasF(e))return;e.preventDefault();dn++;const c=cases.find(x=>x.id===curCase);ov.textContent=c?`放開即加入照片\n${c.name}\n本次階段：${curStage()}`:"請先選擇案件";ov.hidden=false});
