@@ -299,6 +299,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <button type="button" id="vPrev" hidden aria-label="上一張">‹</button>
     <button type="button" id="vNext" hidden aria-label="下一張">›</button>
     <button type="button" id="vPick" hidden>☐ 勾選</button>
+    <button type="button" id="vCopy" hidden>複製圖片</button>
     <button type="button" id="vTab">↗ 新分頁</button>
     <button type="button" id="vSave" hidden>下載</button>
     <button type="button" id="vClose" class="primary">關閉</button>
@@ -1137,6 +1138,7 @@ function loadPdfJs(){
 }
 async function openViewer(id,type,title){
   vCur={id,type,title};$("vSave").hidden=!downloads;
+  $("vCopy").hidden=type==="application/pdf"||!(navigator.clipboard&&navigator.clipboard.write&&window.ClipboardItem)||!matchMedia("(pointer:fine)").matches;
   // 從紀錄小窗打開時，大圖／平面圖要蓋在小窗上面（關掉後回到小窗）
   const tok=++vToken;$("vTitle").textContent=title;$("viewer").classList.toggle("over",!$("recView").hidden);$("viewer").hidden=false;document.body.style.overflow="hidden";
   const box=$("vContent");box.innerHTML='<div class="vmsg">載入中…</div>';vBase=[];vImg=null;box.style.margin="";
@@ -1181,6 +1183,11 @@ $("vTab").onclick=async()=>{if(!vCur)return;const b=$("vTab"),o=b.textContent,w=
   if(!w){b.textContent="彈出視窗遭封鎖";setTimeout(()=>b.textContent=o,2500);return}
   try{b.textContent="開啟中…";const bl=await fileBlob(vCur.id,vCur.type);w.location.href=URL.createObjectURL(new Blob([bl],{type:vCur.type||bl.type}))}
   catch(e){w.close();b.textContent="開啟失敗"}finally{setTimeout(()=>b.textContent=o,1800)}};
+// 電腦：複製大圖到剪貼簿，可直接貼到Word（剪貼簿只收PNG，先轉檔；大圖本身擋了右鍵選單，以便拖曳移動畫面）
+$("vCopy").onclick=async()=>{if(!vImg)return;const b=$("vCopy"),o="複製圖片",img=vImg;
+  const png=new Promise((res,rej)=>{const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext("2d").drawImage(img,0,0);c.toBlob(x=>x?res(x):rej(new Error("轉檔失敗")),"image/png")});
+  try{b.textContent="複製中…";await navigator.clipboard.write([new ClipboardItem({"image/png":png})]);b.textContent="已複製，得貼至Word"}
+  catch(e){b.textContent="複製失敗"}finally{setTimeout(()=>b.textContent=o,2500)}};
 $("vIn").onclick=()=>vSetZoom(vZoom*1.5);
 $("vOut").onclick=()=>vSetZoom(vZoom/1.5);
 $("vFit").onclick=vFit;
