@@ -473,7 +473,7 @@ const whoAsk=who;
 function share(){
   const tok=ghToken;
   if(!tok){alert("本機尚未設定金鑰，無法分享。");return}
-  const text="生態現場紀錄工具：以手機開啟本連結即自動設定金鑰（連結含金鑰，請勿外傳）\n"+new URL("./",location.href).href+"#k="+encodeURIComponent(tok);
+  const text="生態現場紀錄工具：以手機開啟本連結即自動設定金鑰（連結含金鑰，請勿外傳）\n"+ECO_HOME+"#k="+encodeURIComponent(tok);
   shareBox(text);
 }
 function shareBox(text){
