@@ -1,13 +1,13 @@
 // 網頁存手機：開啟時直接用手機上的副本（秒開、沒訊號也能開），背景再抓新版；
 // 新版和副本不同時通知頁面顯示「有新版本」提示條。只管兩個網頁本身，GitHub資料與照片另有暫存。
-const CACHE = "eco-pages-v5"; // 改這個檔的邏輯時要升版號（shared.js 的 ECO_PAGES_CACHE 要同名）
+const CACHE = "eco-pages-v6"; // 改這個檔的邏輯時要升版號（shared.js 的 ECO_PAGES_CACHE 要同名）
 // 離線包：圖磚由頁面「下載離線包」寫進 eco-tiles；地圖/PDF元件（cdnjs，網址含版號不會變）第一次用到就存
 const TILES = "eco-tiles", LIBS = "eco-libs";
 const PAGES = ["index.html", "habitat.html", "shared.css", "shared.js"]; // 兩個頁面＋兩個頁面共用的樣式與程式
 
 self.addEventListener("install", e => {
   // 網址加參數：GitHub Pages 的 CDN 對同一網址的舊副本會留約 10 分鐘（no-store 只管瀏覽器、管不到 CDN），加參數才抓得到剛上傳的新版
-  e.waitUntil(caches.open(CACHE).then(c => Promise.all(PAGES.map(async p => { const r = await fetch(p + "?swbust=" + Date.now(), { cache: "no-store" }); if (r.ok) await c.put(p, r); }))));
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(PAGES.map(async p => { const r = await fetch(p + "?swbust=" + Date.now(), { cache: "no-store" }); if (r.ok) await c.put(p, await plain(r)); }))));
   self.skipWaiting();
 });
 self.addEventListener("activate", e => {
@@ -24,8 +24,11 @@ function pageOf(url) {
   const scope = new URL("./", self.location).pathname;
   if (!u.pathname.startsWith(scope)) return null;
   const p = u.pathname.slice(scope.length) || "index.html";
-  return PAGES.includes(p) ? p : null;
+  // Cloudflare Pages 會把 habitat.html 轉成 /habitat：兩種網址視為同一頁
+  return PAGES.includes(p) ? p : PAGES.includes(p + ".html") ? p + ".html" : null;
 }
+// 經過轉址的回應不能直接交給頁面（瀏覽器會拒絕），重包成一般回應
+const plain = async r => r.redirected ? new Response(await r.blob(), { status: r.status, statusText: r.statusText, headers: r.headers }) : r;
 
 self.addEventListener("fetch", e => {
   const req = e.request;
@@ -58,6 +61,7 @@ self.addEventListener("fetch", e => {
     const old = hit ? await hit.clone().text() : null;
     const update = fetch(page + "?swbust=" + Date.now(), { cache: "no-store" }).then(async res => {
       if (!res.ok) return res;
+      res = await plain(res);
       const fresh = await res.clone().text();
       await cache.put(page, res.clone());
       if (old !== null && old !== fresh) {
