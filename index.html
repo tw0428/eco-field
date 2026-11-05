@@ -647,6 +647,8 @@ const ghDb={
 };
 const ghAssets={
   async upload(blob){const id=newId();await putNew("files/"+id,await blobB64(blob),"file "+id);return {id}},
+  async uploadMany(blobs,onEach){if(blobs.length===1)return [(await this.upload(blobs[0])).id];
+    const ids=blobs.map(()=>newId());await ghPutFiles(blobs.map((b,i)=>({path:"files/"+ids[i],blob:b})),`files ×${ids.length}`,onEach);return ids},
   delete(id){return serial(async()=>{const r=await gh("files/"+id);if(!r)return;const j=await r.json();await gh("files/"+id,{method:"DELETE",body:JSON.stringify({message:"delete file "+id,sha:j.sha})})})}
 };
 // 私人專案的照片要帶金鑰讀取，轉成本機網址顯示
@@ -690,7 +692,7 @@ async function obAddCheck(rid,doc){const it={qid:"chk_"+rid,kind:"check",rid,doc
 async function saveNew(doc,blobs){
   const recId=newId(),ids=[];
   if(navigator.onLine!==false){
-    try{for(const b of blobs)ids.push((await assets.upload(b)).id);
+    try{if(blobs.length)ids.push(...await assets.uploadMany(blobs));
       await db.collection("records").doc(recId).set({...doc,photos:ids});return "saved"}
     catch(e){if(!isNetErr(e))throw e}
   }
@@ -698,7 +700,7 @@ async function saveNew(doc,blobs){
 }
 async function flushOutbox(){
   if(flushing||!ghToken||!outbox.length||navigator.onLine===false)return;
-  flushing=true;obErr="";renderOutbox();
+  flushing=true;obErr="";renderOutbox();ecoAwake(true);
   try{
     for(const it of [...outbox].sort((a,b)=>a.at-b.at)){
       if(it.kind==="record"){
@@ -709,7 +711,7 @@ async function flushOutbox(){
       await obRemove(it.qid);
     }
   }catch(e){obErr=isNetErr(e)?"":"補傳失敗（"+(e.code||e.message)+"），稍後將自動重試"}
-  finally{flushing=false;renderOutbox()}
+  finally{ecoAwake(false);flushing=false;renderOutbox()}
 }
 function renderOutbox(){
   const box=$("obBox");if(!box)return;box.hidden=!outbox.length;if(!outbox.length)return;
@@ -919,25 +921,25 @@ $("batchBtn").onclick=async()=>{
     return {...fix,stake:manualStake&&!autoFilled?manualStake:fillOf(ns),createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
       lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})}};
   const cmp=async p=>{try{return await compress(p.file)}catch(err){return p.file}};
-  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;
+  saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;ecoAwake(true);
   const list=[...pending],total=list.length,snap=formSnap();let done=0,queued=0,i=0;
   list.forEach(p=>{p._sv=1});resetFields();renderPending();
   // 存好的從待存區拿掉（不整個重畫，照片多時才不會卡）
   const drop=ps=>{ps.forEach(p=>{URL.revokeObjectURL(p.url);if(p.thumb)URL.revokeObjectURL(p.thumb);if(p._el)p._el.remove()});pending=pending.filter(p=>!ps.includes(p))};
   try{
-    // 有訊號：照片一張張傳，紀錄每 10 筆寫一次（原本每筆都寫一次紀錄檔、整頁重畫）；壓縮下一張和上傳這一張同時進行
+    // 有訊號：每 10 張一批，照片同時傳、整批一次 commit，紀錄也一批寫一次；壓縮下一批和上傳這一批同時進行
     if(navigator.onLine!==false){
-      let grp={},gp=[],nx=cmp(list[0]);
+      const N=10,cmpAll=async ps=>{const bs=[];for(const p of ps)bs.push(await cmp(p));return bs};
+      let grp={},gp=[],nx=cmpAll(list.slice(0,N));
       const flush=async()=>{if(!gp.length)return;await writeMany("records",fix.caseId,grp);done+=gp.length;drop(gp);grp={};gp=[]};
       try{
-        for(;i<total;i++){
-          showMsg(`上傳 ${i+1}/${total}…`);
-          const blob=await nx;nx=i+1<total?cmp(list[i+1]):null;
-          const id=(await assets.upload(blob)).id;
-          grp[newId()]={...docOf(list[i]),photos:[id]};gp.push(list[i]);
-          if(gp.length>=10)await flush();
+        while(i<total){
+          const chunk=list.slice(i,i+N);showMsg(`上傳 ${i+1}/${total}…`);
+          const blobs=await nx;nx=i+N<total?cmpAll(list.slice(i+N,i+2*N)):null;
+          const ids=await assets.uploadMany(blobs,n=>showMsg(`上傳 ${Math.min(i+n+1,total)}/${total}…`));
+          chunk.forEach((p,j)=>{grp[newId()]={...docOf(p),photos:[ids[j]]};gp.push(p)});
+          i+=chunk.length;await flush();
         }
-        await flush();
       }catch(e){if(!isNetErr(e))throw e;
         // 中途斷線：已傳好照片、還沒寫紀錄的轉成待上傳
         for(const [rid,d] of Object.entries(grp)){const {photos,...doc}=d;await obAddRecord(rid,doc,[],photos);queued++}drop(gp);grp={};gp=[]}
@@ -951,7 +953,7 @@ $("batchBtn").onclick=async()=>{
   }catch(err){
     console.error(err);restoreFields(snap);
     showMsg(`已存 ${done+queued} 筆，其後失敗（${(err&&err.code)||"錯誤"}）。其餘照片仍保留於上方，得再按一次。`,true);
-  }finally{saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;list.forEach(p=>{p._sv=0});renderPending()}
+  }finally{ecoAwake(false);saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;list.forEach(p=>{p._sv=0});renderPending()}
 };
 $("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
@@ -1962,7 +1964,7 @@ $("recForm").onsubmit=async e=>{
   const f={stake:$("stakeIn").value.trim(),count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   if(!pending.length&&!f.species&&!f.note&&!f.stake&&!editing){showMsg("請至少拍攝一張照片或填寫一個欄位。",true);return}
   if(pending.length&&!assets){showMsg("本檢視無法上傳照片（須以本人帳號開啟）。",true);return}
-  saving=true;$("saveBtn").disabled=true;
+  saving=true;$("saveBtn").disabled=true;ecoAwake(true);
   // 這一筆的照片與欄位先固定下來（之後的拍照、輸入都算下一筆）；新增時表單馬上清空，編輯則存完才清
   const snapP=[...pending],snap=formSnap(),wasEditing=!!editing;
   snapP.forEach(p=>{p._sv=1});if(!wasEditing)resetFields();renderPending();
@@ -1990,7 +1992,7 @@ $("recForm").onsubmit=async e=>{
     let queued=false;
     if(editing){ // 編輯既有紀錄須連網（不進待上傳）
       const ids=[];
-      for(let i=0;i<blobs.length;i++){showMsg(`上傳照片 ${i+1}/${blobs.length}…`);ids.push((await assets.upload(blobs[i])).id)}
+      if(blobs.length){showMsg(`上傳照片（${blobs.length} 張）…`);ids.push(...await assets.uploadMany(blobs))}
       const upd={...body,photos:[...editKeep,...ids]};
       const removed=(editing.photos||[]).filter(p=>!editKeep.includes(p));
       if(editing.lat==null&&gp){upd.lat=gp.ex.lat;upd.lng=gp.ex.lng;upd.gpsSource=gp.ex.src||"exif";if(gp.ex.acc!=null)upd.gpsAcc=gp.ex.acc}
@@ -2012,7 +2014,7 @@ $("recForm").onsubmit=async e=>{
     const c=err&&err.code;
     if(!wasEditing)restoreFields(snap);
     showMsg(wasEditing&&isNetErr(err)?"編輯既有紀錄須連網，資料仍保留於表單，請於有訊號時重新儲存。":"儲存失敗（"+(c||"錯誤")+"），資料仍保留於表單。",true);
-  }finally{saving=false;$("saveBtn").disabled=false;snapP.forEach(p=>{p._sv=0});renderPending()}
+  }finally{ecoAwake(false);saving=false;$("saveBtn").disabled=false;snapP.forEach(p=>{p._sv=0});renderPending()}
 };
 
 /* ---------- 啟動 ---------- */
