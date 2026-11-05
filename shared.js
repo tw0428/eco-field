@@ -1,6 +1,8 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="c236f86a61"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
-const ECO_PAGES_CACHE="eco-pages-v5"; // 與 sw.js 的 CACHE 同名
+const ECO_VER="37aee6dc7a"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_PAGES_CACHE="eco-pages-v6"; // 與 sw.js 的 CACHE 同名
+// 分享連結一律用 Cloudflare 網址：部分公司網路擋 github.io（github.io 版仍同步更新，舊手機照常可用）
+const ECO_HOME="https://eco-field.pages.dev/";
 // 程式出錯時直接顯示在右上角狀態（避免只看到「連線中…」）
 window.addEventListener("error",e=>{const c=document.getElementById("conn");if(c)c.textContent="程式錯誤："+(e.message||"未知")+(e.lineno?"（第"+e.lineno+"行）":"")});
 
@@ -24,7 +26,7 @@ const appSig=d=>[...d.querySelectorAll("script:not([src]),style")].map(e=>e.text
 let appSigNow=null;document.addEventListener("DOMContentLoaded",()=>{appSigNow=appSig(document)});
 const ecoCssVer=()=>getComputedStyle(document.documentElement).getPropertyValue("--eco-ver").replace(/["' ]/g,"");
 async function appUpd(){
-  try{const p=location.pathname.split("/").pop()||"index.html",bust="?swbypass="+Date.now(),o={cache:"no-store"};
+  try{const p=(location.pathname.split("/").pop()||"index").replace(/^([^.]+)$/,"$1.html"),bust="?swbypass="+Date.now(),o={cache:"no-store"};
     const [r,rj,rc]=await Promise.all([fetch(p+bust,o),fetch("shared.js"+bust,o),fetch("shared.css"+bust,o)]);
     if(!r.ok||!rj.ok||!rc.ok||appSigNow==null)return false;
     const [t,tj,tc]=await Promise.all([r.text(),rj.text(),rc.text()]);
