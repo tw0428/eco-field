@@ -219,7 +219,7 @@ function share(){
  // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
  const tok=ghToken;
  if(!tok){alert('本機尚未設定金鑰，無法分享。');return}
- const url=new URL('./',location.href).href+'#k='+encodeURIComponent(tok);
+ const url=ECO_HOME+'#k='+encodeURIComponent(tok);
  const text='生態現場紀錄工具：以手機開啟本連結即自動設定金鑰（連結含金鑰，請勿外傳）\n'+url;
  shareBox(text);
 }
