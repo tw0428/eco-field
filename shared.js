@@ -1,5 +1,5 @@
 /* 現場紀錄與棲地評估共用的程式：啟動、更新機制、浮動選單、案件挑選器。改這裡兩頁一起變。 */
-const ECO_VER="37aee6dc7a"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
+const ECO_VER="6b97284bee"; // 版本章：deploy.ps1 依內容自動更新，不要手改（↻ 靠它判斷有沒有新版）
 const ECO_PAGES_CACHE="eco-pages-v6"; // 與 sw.js 的 CACHE 同名
 // 分享連結一律用 Cloudflare 網址：部分公司網路擋 github.io（github.io 版仍同步更新，舊手機照常可用）
 const ECO_HOME="https://eco-field.pages.dev/";
@@ -36,6 +36,33 @@ async function appUpd(){
     await Promise.all([[p,t,"text/html; charset=utf-8"],["shared.js",tj,"text/javascript; charset=utf-8"],["shared.css",tc,"text/css; charset=utf-8"]].map(([k,b,ct])=>c.put(k,new Response(b,{headers:{"Content-Type":ct}}))));
     return true
   }catch(e){return false}
+}
+
+// 上傳期間不讓螢幕自動關閉（螢幕一關，網頁就被手機暫停、上傳中斷）；回到前景時自動重新要求。不支援的瀏覽器略過
+let ecoWL=null,ecoWLn=0;
+function ecoWLget(){if(!ecoWLn||ecoWL||!navigator.wakeLock||document.visibilityState!=="visible")return;
+  navigator.wakeLock.request("screen").then(w=>{if(!ecoWLn){w.release();return}ecoWL=w;w.addEventListener("release",()=>{if(ecoWL===w)ecoWL=null})}).catch(()=>{})}
+function ecoAwake(on){ecoWLn=Math.max(0,ecoWLn+(on?1:-1));if(ecoWLn)ecoWLget();else if(ecoWL){const w=ecoWL;ecoWL=null;w.release().catch(()=>{})}}
+document.addEventListener("visibilitychange",ecoWLget);
+
+// 照片批次上傳（用頁面的 GH_REPO_URL、ghToken、serial、sleep、blobB64）：
+// 原本每張照片各一次 commit，同一分支只能一張張排隊；改成每張先建 blob（可同時傳 4 張），整批只 commit 一次
+async function ghGit(p,opt={},ms=30000){
+  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),ms);
+  try{const r=await fetch(GH_REPO_URL+"/git/"+p,{cache:"no-store",...opt,signal:ac.signal,headers:{Authorization:"Bearer "+ghToken,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});
+    if(!r.ok){const e=new Error("GitHub "+r.status);e.code=r.status===401||r.status===403?"bad_token":r.status===409||r.status===422?"conflict":"http_"+r.status;throw e}
+    return await r.json()}finally{clearTimeout(tm)}
+}
+async function ghPutFiles(items,msg,onEach){
+  const shas=new Array(items.length);let k=0,n=0;
+  await Promise.all(Array.from({length:Math.min(4,items.length)},async()=>{while(k<items.length){const i=k++;
+    shas[i]=(await ghGit("blobs",{method:"POST",body:JSON.stringify({content:await blobB64(items[i].blob),encoding:"base64"})},90000)).sha;if(onEach)onEach(++n)}}));
+  return serial(async()=>{for(let t=0;;t++){try{
+    const head=(await ghGit("ref/heads/main")).object.sha,c=await ghGit("commits/"+head);
+    const tree=await ghGit("trees",{method:"POST",body:JSON.stringify({base_tree:c.tree.sha,tree:items.map((x,i)=>({path:x.path,mode:"100644",type:"blob",sha:shas[i]}))})});
+    const nc=await ghGit("commits",{method:"POST",body:JSON.stringify({message:msg,tree:tree.sha,parents:[head]})});
+    await ghGit("refs/heads/main",{method:"PATCH",body:JSON.stringify({sha:nc.sha})});return}
+    catch(e){if(e.code!=="conflict"||t>=4)throw e;await sleep(800*(t+1))}}})
 }
 
 
