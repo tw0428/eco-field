@@ -113,7 +113,7 @@ body[data-view="creek"]{--accent:#40798c}body[data-view="slope"]{--accent:#7d6a5
 <body>
 <header>
 <div class="top"><h1>棲地評估算分</h1><span class="status"><a href="./" id="toField">現場紀錄</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-<div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="姓名" autocomplete="name"><a href="#" id="expLink" style="margin-left:auto"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
+<div class="sub"><a href="#" id="expLink" style="margin-left:auto"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
 <div class="row" id="tokBox" hidden><input id="tokIn" type="password" placeholder="貼上 GitHub 金鑰 github_pat_… 或 ghp_…" style="flex:1" autocomplete="off"><button class="act primary" id="tokSave">儲存並連線</button></div>
 <div class="row" id="caseBar" hidden><select id="caseSel" style="flex:1"></select><button class="act" id="caseAdd" hidden>新增</button><button class="act danger" id="caseDel" hidden>刪除</button></div>
 <div class="row" id="caseAddRow" hidden><input id="caseName" type="text" placeholder="案件名稱" style="flex:1"><button class="act primary" id="caseSave">建立</button></div>
@@ -210,11 +210,10 @@ const PREF='habitat_pref';
 try{S.exp=localStorage.getItem('habitat_exp')||'build'}catch(e){S.exp='build'}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
-/* 紀錄者（兩頁共用 eco-recorder）與分享連結 */
-function who(){return (lsGet('eco-recorder')||'').trim()}
-function whoShow(){$('whoIn').value=lsGet('eco-recorder')||''}
-const whoAsk=who;
-function addBy(q){const by=whoAsk();if(by){const l=(q.by||'').split('、').filter(Boolean);if(!l.includes(by)){l.push(by);q.by=l.join('、')}}return by}
+/* 紀錄者欄位已移除（2026-11-16，資料不存姓名）：清掉手機上舊的姓名；編輯時順手刪掉期別上殘留的 by */
+try{localStorage.removeItem('eco-recorder')}catch(e){}
+function addBy(q){delete q.by}
+/* 分享連結 */
 function share(){
  // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
  const tok=ghToken;
@@ -545,7 +544,7 @@ const todayStr=()=>{const d=new Date(),z=n=>String(n).padStart(2,'0');return `${
 // 已有評分/照片但沒日期的舊期別不動，免得誤填
 function isBlankP(p){return !p.date&&!Object.keys(p.creek||{}).length&&!Object.keys(p.slope||{}).length&&!['photos','photosCreek','photosSlope'].some(k=>(p[k]||[]).length)}
 const exifDay=s=>{const m=/^(\d{4}):(\d\d):(\d\d)/.exec(s||'');return m?`${m[1]}-${m[2]}-${m[3]}`:''};
-function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:84px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}" style="flex:1;min-width:0">${!p.date&&show?'<span class="mut">（本日，開始填寫時存入）</span>':''}</div>${p.by?`<div class="mut">紀錄者：${esc(p.by)}</div>`:''}`}
+function head(p){const show=p.date||(isBlankP(p)?todayStr():'');return `<div class="card"><div class="row"><label>期別</label><input type="text" data-f="name" value="${esc(p.name)}" style="width:84px"><label>日期</label><input type="date" data-f="date" value="${esc(show)}" style="flex:1;min-width:0">${!p.date&&show?'<span class="mut">（本日，開始填寫時存入）</span>':''}</div>`}
 /* 照片依評估類型分開存：photosCreek（野溪）／photosSlope（坡地）；舊版共用的 photos 視為「未分類」，可移到其中一邊 */
 const PK={creek:'photosCreek',slope:'photosSlope',old:'photos'};
 const KNAME={creek:'野溪',slope:'坡地'};
@@ -604,8 +603,8 @@ async function upPhotos(files,kind,fromCam){
    catch(e){if(!(navigator.onLine===false||e.name==='TypeError'||e.name==='AbortError'))throw e;r={id:await phQueue(blob)};queued++}
    if(curCase!==id||curLoc!==lc||!S.p)return;
    if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(ex.taken)||todayStr(); // 第一筆資料：用拍攝日期
-   const by=addBy(S.p[ci]);
-   phList(S.p[ci],kind).push({id:r.id,...(by?{by}:{}),lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
+   addBy(S.p[ci]);
+   phList(S.p[ci],kind).push({id:r.id,lat:ex.lat!=null?ex.lat:null,lng:ex.lng!=null?ex.lng:null,gps:ex.lat!=null?(ex.src||'exif'):'none',...(ex.acc!=null?{acc:ex.acc}:{}),taken:ex.taken||''});
    if(ex.lat==null){noGps++;if(ex.x&&ex.x!=='ok')fileNoLoc++}render();
   }catch(e){msg('照片上傳失敗（'+(e.code||e.message)+'）');return}
  }
@@ -633,8 +632,8 @@ async function recPick(kind){
      if(curCase!==id||curLoc!==lc||!S.p)return;
      const taken=recTaken(r);
      if(isBlankP(S.p[ci]))S.p[ci].date=exifDay(taken)||todayStr();
-     const by=addBy(S.p[ci]);
-     phList(S.p[ci],kind).push({id:up.id,...(by?{by}:{}),lat:r.lat!=null?r.lat:null,lng:r.lng!=null?r.lng:null,gps:r.lat!=null?(r.gpsSource==="device"?"device":"exif"):"none",...(r.gpsAcc!=null?{acc:r.gpsAcc}:{}),taken,fromRec:1});
+     addBy(S.p[ci]);
+     phList(S.p[ci],kind).push({id:up.id,lat:r.lat!=null?r.lat:null,lng:r.lng!=null?r.lng:null,gps:r.lat!=null?(r.gpsSource==="device"?"device":"exif"):"none",...(r.gpsAcc!=null?{acc:r.gpsAcc}:{}),taken,fromRec:1});
      render()}catch(e){msg("照片加入失敗（"+(e.code||e.message)+"）");return}}
    pm("完成")}}
  document.body.appendChild(pk);hydrateImgs();
@@ -974,7 +973,6 @@ makePicker($('caseSel'),'eco-recent-habitat',habMeta,{
   if(curCase===id){curCase=(cases.find(x=>!x.trashedAt)||{}).id||'';S.cur=0;curLoc=0;loadCase(true)}render()},
  restore:async id=>{await db.doc('cases/'+id).update({trashedAt:null});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=null;render()},
  trashed:()=>cases.filter(c=>c.trashedAt).sort((a,b)=>b.trashedAt-a.trashedAt)});
-whoShow();$('whoIn').oninput=e=>lsSet('eco-recorder',e.target.value);
 $('shareBtn').onclick=e=>{e.preventDefault();share()};
 render();
 initDb();
