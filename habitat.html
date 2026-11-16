@@ -783,7 +783,7 @@ function viewCmp(){
 /* ===== 匯出面板（與現場紀錄相同操作）：選範圍 → 下載Word（含照片）／複製表格／下載CSV ===== */
 let zipReady=null;
 function loadZip(){if(window.JSZip)return Promise.resolve();
- if(!zipReady)zipReady=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=()=>{zipReady=null;rej(new Error('壓縮元件載入失敗'))};document.head.appendChild(s)});return zipReady}
+ if(!zipReady)zipReady=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.integrity='sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==';s.crossOrigin='anonymous';s.onload=res;s.onerror=()=>{zipReady=null;rej(new Error('壓縮元件載入失敗'))};document.head.appendChild(s)});return zipReady}
 const saveFile=(name,blob)=>{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)};
 const safeName=s=>String(s||'').replace(/[\\/:*?"<>|\s]+/g,'_').replace(/^_+|_+$/g,'');
 const hasCreek=D=>D.cIdx.some(i=>creekTotal(S.p[i]).n>0),hasSlope=D=>D.sIdx.some(i=>D.sE[i].n>0);
