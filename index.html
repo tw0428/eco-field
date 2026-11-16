@@ -328,7 +328,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 <label for="camIn" id="fab" class="fab" hidden aria-label="拍照"><i class="ic ic-cam"></i></label>
 <div class="pagehead" id="pagehead">
   <div class="top"><h1>生態現場紀錄</h1><span class="status"><a href="habitat.html" id="toHab">棲地評估</a>｜<a href="admin.html">管理</a>｜<span id="conn">連線中…</span> <a href="#" id="reloadBtn">↻</a></span></div>
-  <div class="sub"><label for="whoIn">紀錄者</label><input type="text" id="whoIn" placeholder="姓名" autocomplete="name"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
+  <div class="sub"><a href="https://maps.nlsc.gov.tw/open/EMAP_B/WAYMETER,LANDSECT,DMAPS" target="_blank" rel="noopener" style="margin-left:auto">地籍圖↗</a><a href="#" id="expLink"><i class="ic ic-up"></i>匯出</a><a href="#" id="shareBtn">分享</a></div>
   <!-- 案件選單和棲地評估一樣放在置頂區，往下捲也看得到目前是哪一案 -->
   <div class="row">
     <select id="caseSel" class="grow" aria-label="案件"><option value="">（尚無案件，請先新增）</option></select>
@@ -466,10 +466,8 @@ let db=null, assets=null, cases=[], records=[], curCase="", cat="", abcd="", sub
 function lsGet(k){try{return localStorage.getItem(k)||""}catch(e){return ""}}
 function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 
-/* 紀錄者（兩頁共用 eco-recorder）：標題下方欄位直接輸入，新紀錄帶 by */
-function who(){return lsGet("eco-recorder").trim()}
-function whoShow(){$("whoIn").value=lsGet("eco-recorder")}
-const whoAsk=who;
+/* 紀錄者欄位已移除（2026-11-16，資料不存姓名）；清掉手機上舊的姓名 */
+try{localStorage.removeItem("eco-recorder")}catch(e){}
 // 分享連結＝這支手機目前的金鑰（網頁無法自己產生GitHub金鑰）
 function share(){
   const tok=ghToken;
@@ -707,7 +705,8 @@ async function flushOutbox(){
       if(it.kind==="record"){
         const ids=it.uploaded||[];
         for(let i=ids.length;i<it.photos.length;i++){const p=it.photos[i];ids.push((await assets.upload(new Blob([p.buf],{type:p.type}))).id);it.uploaded=ids;await obPut(it)}
-        await db.collection("records").doc(it.recId).set({...it.doc,photos:ids});
+        const {by,...doc}=it.doc;
+        await db.collection("records").doc(it.recId).set({...doc,photos:ids});
       }else if(it.kind==="check")await db.doc("checkres/"+it.rid).set(it.doc);
       await obRemove(it.qid);
     }
@@ -915,9 +914,8 @@ $("batchBtn").onclick=async()=>{
   if(!curCase){showMsg("請先選擇或新增案件。",true);return}
   const f={count:$("countIn").value.trim(),species:$("spIn").value.trim(),note:$("noteIn").value.trim()};
   const manualStake=$("stakeIn").value.trim(),autoFilled=manualStake.startsWith("約");
-  const by=whoAsk();
   // 按下當時的設定先固定下來：上傳中動到上面的分類、勾選也不影響這一批
-  const fix={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",sub:hasSub(cat)?sub:"",struct:cat==="棲地影像"&&sub==="構造物"?struct:"",...f,stage:curStage(),...(by?{by}:{}),...(linkCheck?{checkId:linkCheck}:{}),...($("opChk").checked?{op:true}:{})};
+  const fix={caseId:curCase,category:cat,abcd:isFM(cat)?abcd:"",sub:hasSub(cat)?sub:"",struct:cat==="棲地影像"&&sub==="構造物"?struct:"",...f,stage:curStage(),...(linkCheck?{checkId:linkCheck}:{}),...($("opChk").checked?{op:true}:{})};
   const docOf=p=>{const ns=p.ex.lat!=null?nearestStation(p.ex.lat,p.ex.lng):null;
     return {...fix,stake:manualStake&&!autoFilled?manualStake:fillOf(ns),createdAt:Date.now(),takenAt:p.ex.taken?fmtExifTime(p.ex.taken):"",
       lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})}};
@@ -1579,9 +1577,9 @@ function chkAddForm(c,phase,label,groups=[]){
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
   ok.onclick=async()=>{
     const text=tx.value.trim();if(!text){tx.focus();return}
-    const d=new Date(),by=who();
+    const d=new Date();
     const item={id:"u"+Date.now().toString(36),abcd:chkAddAbcdBy[phase]||"",text,stake:sk.value.trim(),
-      src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase,added:true};
+      src:`現場新增 ${d.getMonth()+1}/${d.getDate()}`,phase,added:true};
     if(chkAddGrpBy[phase])item.group=chkAddGrpBy[phase];
     ok.disabled=true;tx.blur();sk.blur();
     if(await saveChecks([...(c.checks||[]),item])){chkAddAbcdBy[phase]="";return item.id}
@@ -1760,9 +1758,8 @@ function recCard(r,c,onEdit){
           im.appendChild(b)}});
       el.appendChild(im);
     }
-    // 次要資訊（紀錄者、核對項、定位）縮成一行小字
+    // 次要資訊（核對項、定位）縮成一行小字
     const m2=document.createElement("div");m2.className="meta2";
-    if(r.by){const s=document.createElement("span");s.textContent="👤"+r.by;time.after(s)}
     if(r.checkId){const ck=((c.checks||[]).find(i=>i.id===r.checkId));if(ck){const s=document.createElement("span");s.textContent="核對："+ck.text.slice(0,14)+(ck.text.length>14?"…":"");m2.appendChild(s)}}
     if(r.lat!=null){
       const ns=nearestStation(r.lat,r.lng);
@@ -1987,13 +1984,13 @@ $("recForm").onsubmit=async e=>{
     const body={caseId:snap.caseId,category:snap.cat,abcd:isFM(snap.cat)?snap.abcd:"",sub:hasSub(snap.cat)?snap.sub:"",struct:snap.cat==="棲地影像"&&snap.sub==="構造物"?snap.struct:"",...f};
     if(snap.link)body.checkId=snap.link;else if(editing&&editing.checkId)body.checkId="";
     if(snap.op)body.op=true;else if(editing&&editing.op)body.op=false;
-    if(!editing){body.stage=snap.stage;const by=whoAsk();if(by)body.by=by}
+    if(!editing)body.stage=snap.stage;
     // 列入改善追蹤：先在改善意見清單加一條，這筆紀錄連到它
     let impFail=false,impAdded=false;
     if(!editing&&!snap.link&&snap.imp){
-      const c=cases.find(x=>x.id===snap.caseId),d=new Date(),by=who();
+      const c=cases.find(x=>x.id===snap.caseId),d=new Date();
       const item={id:"u"+Date.now().toString(36),abcd:"",text:f.note||f.species||"（待補說明）",stake:f.stake,
-        src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`+(by?" "+by:""),phase:"improve",added:true};
+        src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`,phase:"improve",added:true};
       if(c&&await saveChecks([...(c.checks||[]),item])){body.checkId=item.id;impAdded=true}else impFail=true;
     }
     let queued=false;
@@ -2399,9 +2396,9 @@ function expData(day,cid){cid=cid||curCase;
   const all=records.filter(r=>r.caseId===cid).sort((a,b)=>a.createdAt-b.createdAt);
   const wp=all.filter(r=>r.photos&&r.photos.length),nm=zipNames(wp),nmOf=new Map(wp.map((r,i)=>[r,nm[i]]));
   const recs=all.filter(r=>!day||recDay(r)===day);
-  const H1=["時間","階段","類別","細項","ABCD","樁號／位置","物種／對象","數量","說明","對應核對項目","緯度","經度","紀錄者","照片檔名（同下載照片）"];
+  const H1=["時間","階段","類別","細項","ABCD","樁號／位置","物種／對象","數量","說明","對應核對項目","緯度","經度","照片檔名（同下載照片）"];
   const R1=recs.map(r=>[r.takenAt||fmtMs(r.createdAt),r.stage||"",r.category||"",[r.sub,r.struct].filter(Boolean).join("・"),r.abcd||"",r.stake||"",r.species||"",r.count||"",r.note||"",
-    (chk.find(i=>i.id===r.checkId)||{}).text||"",r.lat!=null?r.lat:"",r.lng!=null?r.lng:"",r.by||"",(nmOf.get(r)||[]).join("\n")]);
+    (chk.find(i=>i.id===r.checkId)||{}).text||"",r.lat!=null?r.lat:"",r.lng!=null?r.lng:"",(nmOf.get(r)||[]).join("\n")]);
   const ymd=day&&day.replace(/\//g,""),d=day&&Object.values(checkRes).filter(x=>x.caseId===cid&&x.date===ymd&&x.st&&Object.keys(x.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
   const lbOf=(i,k)=>i.phase==="propose"?((CHK_PROP.find(s=>s[0]===k)||[,k])[1]):i.phase==="improve"?((CHK_IMP.find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
   const H2=["清單","ABCD","項目","樁號","結果","備註"];
@@ -2677,8 +2674,6 @@ makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)
   restore:async id=>{await db.doc("cases/"+id).update({trashedAt:null});const c=cases.find(x=>x.id===id);if(c)c.trashedAt=null;renderCases()},
   trashed:()=>cases.filter(c=>c.trashedAt).sort((a,b)=>b.trashedAt-a.trashedAt)});
 
-whoShow();
-$("whoIn").oninput=e=>lsSet("eco-recorder",e.target.value);
 $("shareBtn").onclick=e=>{e.preventDefault();share()};
 (async()=>{
   db.collection("cases").orderBy("createdAt").onSnapshot(s=>{cases=s.docs.map(d=>({id:d.id,...d.data()}));renderCases();renderRecords()},
