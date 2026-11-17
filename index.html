@@ -2728,6 +2728,10 @@ $("nearBox").onclick=ev=>{ev.preventDefault();openMap(true)};
 function headH(){const h=$("pagehead").getBoundingClientRect().bottom;document.documentElement.style.setProperty("--headh",Math.round(h)+"px");return h}
 function fabUpd(){const r=document.querySelector("#recForm .photobtns").getBoundingClientRect();$("fab").hidden=!curCase||srtOn||(r.bottom>headH()+10&&r.top<innerHeight)}
 addEventListener("scroll",fabUpd,{passive:true});addEventListener("resize",fabUpd);headH();
+// 電腦寬版：右欄（照片牆）還沒貼到頁首時，下緣會超出視窗、最後幾列看不到，要先捲左邊頁面才捲得到 → 高度依右欄實際位置算到視窗底
+{const WIDE=matchMedia("(min-width:1100px) and (pointer:fine)"),sec=document.querySelector(".wrap>section.list");let q=0;
+  const fit=()=>{q=0;if(!sec)return;if(!WIDE.matches){sec.style.maxHeight="";return}sec.style.maxHeight=Math.max(200,innerHeight-Math.max(sec.getBoundingClientRect().top,0)-10)+"px"};
+  const req=()=>{if(!q)q=requestAnimationFrame(fit)};addEventListener("scroll",req,{passive:true});addEventListener("resize",req);WIDE.addEventListener("change",req);new ResizeObserver(req).observe(document.body);fit()}
 
 // 階段沒選過＝畫面上預設的施工中（同curStage），分組也照這個
 makePicker($("caseSel"),"eco-recent-field",id=>{const c=cases.find(x=>x.id===id)||{},z=zoneInfo(c);return {name:c.name||"",area:c.area||"",plan:c.plan||"",stage:stageOf(id)||"施工中",group:z&&zoneMates(id).length>1?z.base:""}},{
