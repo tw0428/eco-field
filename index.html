@@ -1434,7 +1434,7 @@ const CHK_ST=[["ok","✓ 落實"],["adj","△ 部分落實"],["ng","✗ 未落�
 const CHK_PRE=[["ok","✓ 可落實"],["adj","△ 需調整"],["ng","✗ 無法落實"]];
 // 設計：只核對提審階段意見（phase:"report"），確認設計是否納入
 const CHK_DES=[["ok","✓ 已納入"],["adj","△ 部分納入"],["ng","✗ 未納入"]];
-const stLabels=stage=>stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_ST;
+const stLabels=stage=>stage==="提報"?CHK_PROP:stage==="開工前"?CHK_PRE:stage==="設計"?CHK_DES:CHK_ST;
 const stLabel=(stage,k)=>((stLabels(stage).find(s=>s[0]===k)||CHK_ST.find(s=>s[0]===k)||[,k])[1]);
 function today(){const d=new Date(),p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`}
 function curDay(){return today()}
@@ -1455,8 +1455,7 @@ function curRes(){const k=resId();if(checkRes[k])return checkRes[k];if(byDay())r
 // 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄 ok同意/adj調整/ng做不到/wait待回覆
 const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 無法辦理"],["wait","… 待回覆"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
-// 勾「列入意見」＝在該階段第二區清單（設計：預計提出意見；開工前：開工前提出意見；施工中／完工：改善意見）加一條，紀錄連到它；提報階段沒有清單，只標★
-const OP_LIST={"設計":["propose","預計提出意見"],"開工前":["start","開工前提出意見"],"施工中":["improve","改善意見"],"完工":["improve","改善意見"]};
+// 勾「列入意見」＝在該階段第二區清單（提報：提報意見；設計：預計提出意見；開工前：開工前提出意見；施工中／完工：改善意見）加一條，紀錄連到它const OP_LIST={"提報":["report","提報意見"],"設計":["propose","預計提出意見"],"開工前":["start","開工前提出意見"],"施工中":["improve","改善意見"],"完工":["improve","改善意見"]};
 async function addOpItem(stage,{text,stake,abcd},phase){
   const p=phase?[phase,"改善意見"]:OP_LIST[stage];if(!p)return null;
   const c=cases.find(x=>x.id===curCase),d=new Date();if(!c)return false;
@@ -1477,7 +1476,11 @@ function renderChecks(){
     titleText:stage==="設計"?"提審意見納入確認":pre?"設計意見落實確認":"現場核對清單",
     addPhase:stage==="設計"?"report":pre?"design":"start",addLabel:pre?"＋ 補登設計意見（清單未列者）":"＋ 新增核對事項（會議、現場討論之新增意見）"});
   // 第二區：設計＝預計提出意見；開工前＝開工前提出的意見（phase:"start"，施工中併入現場核對清單追蹤落實）；施工中／完工＝改善意見（phase:"improve"，追蹤是否改善）
-  const imp=stage==="施工中"||stage==="完工";
+  // 提報：本團隊提報（提審）意見＝phase:"report"，設計階段即在「提審意見納入確認」核對是否納入
+  const imp=stage==="施工中"||stage==="完工",rep=stage==="提報";
+  if(rep){$("propHint").textContent="提報階段本團隊提出之意見，記錄現場回應；設計階段列入「提審意見納入確認」，核對設計是否納入。";
+    renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,items:all.filter(i=>i.phase==="report"),
+      canAdd:!!c,labels:CHK_PROP,titleText:"提報意見",addPhase:"report",addLabel:"＋ 新增提報意見"});return}
   $("propHint").textContent=imp?"施工中發現之問題與改善意見，於其後每次現勘追蹤改善情形。":pre?"開工說明會、開工前現勘本團隊提出之意見，記錄施工單位當場回應；施工中列入現場核對清單，追蹤落實情形。":"本團隊預計提供設計單位之意見。現場可確定者記同意／調整／無法辦理，無法當場決定者記待回覆，俟設計單位書面回覆。";
   renderChkPanel({box:$("propBox"),list:$("propList"),title:$("propTitle"),count:$("propCount"),c,stage,
     items:stage==="設計"?all.filter(i=>i.phase==="propose"):pre?all.filter(i=>i.phase==="start"):imp?all.filter(i=>i.phase==="improve"):[],
@@ -1592,7 +1595,7 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
     el.appendChild(bs);
     if(st[it.id]==="adj"||st[it.id]==="ng"){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"?(st[it.id]==="adj"?"現場討論後之調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
+      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"||(it.phase==="report"&&stage==="提報")?(st[it.id]==="adj"?"現場討論後之調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
@@ -1622,7 +1625,7 @@ function chkAddForm(c,phase,label,groups=[]){
   const h=document.createElement("span");h.className="lbl";h.style.margin="0";h.textContent=label;
   const ab=document.createElement("div");ab.className="chips";
   chips(ab,ABCD.map(([k,l])=>[k,k+" "+l]),()=>chkAddAbcdBy[phase]||"",v=>{chkAddAbcdBy[phase]=chkAddAbcdBy[phase]===v?"":v;[...ab.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(ABCD[i][0]===chkAddAbcdBy[phase])))});
-  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder=phase==="improve"?"問題與改善意見（例：0K+040左岸棄土堆置溪床，請移至堆置區）":phase==="propose"?"意見內容（例：0K+030保留右岸茄苳，護岸改退縮）":"事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
+  const tx=document.createElement("textarea");tx.rows=2;tx.placeholder=phase==="improve"?"問題與改善意見（例：0K+040左岸棄土堆置溪床，請移至堆置區）":phase==="propose"||(phase==="report"&&curStage()==="提報")?"意見內容（例：0K+030保留右岸茄苳，護岸改退縮）":"事項內容（例：0K+050左岸保留大石，施工便道改走右岸）";tx.dataset.chk="new";
   const row=document.createElement("div");row.className="row";
   const sk=document.createElement("input");sk.type="text";sk.placeholder="樁號（可空白）";sk.className="grow";sk.dataset.chk="new";
   const ok=document.createElement("button");ok.type="button";ok.className="primary";ok.textContent="加入清單";
@@ -2466,7 +2469,7 @@ function expData(day,cid){cid=cid||curCase;
   const ymd=day&&day.replace(/\//g,""),d=day&&Object.values(checkRes).filter(x=>x.caseId===cid&&x.date===ymd&&x.st&&Object.keys(x.st).length).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
   const lbOf=(i,k)=>i.phase==="propose"?((CHK_PROP.find(s=>s[0]===k)||[,k])[1]):i.phase==="improve"?((CHK_IMP.find(s=>s[0]===k)||[,k])[1]):stLabel(d.stage,k);
   const H2=["清單","ABCD","項目","樁號","結果","備註"];
-  const R2=d?chk.filter(i=>d.st&&d.st[i.id]).map(i=>[i.phase==="propose"?"預計提出意見":i.phase==="improve"?"改善意見":i.phase==="start"&&d.stage==="開工前"?"開工前提出意見":"核對清單",i.abcd||"",i.text||"",i.stake||"",lbOf(i,d.st[i.id]),(d.notes||{})[i.id]||""]):[];
+  const R2=d?chk.filter(i=>d.st&&d.st[i.id]).map(i=>[i.phase==="propose"?"預計提出意見":i.phase==="improve"?"改善意見":i.phase==="start"&&d.stage==="開工前"?"開工前提出意見":i.phase==="report"&&d.stage==="提報"?"提報意見":"核對清單",i.abcd||"",i.text||"",i.stake||"",lbOf(i,d.st[i.id]),(d.notes||{})[i.id]||""]):[];
   return {c,H1,R1,H2,R2};
 }
 const hEsc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
