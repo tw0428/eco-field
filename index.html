@@ -1593,9 +1593,10 @@ function renderChkPanel({box,list,title,count,c,stage,items,canAdd,labels,titleT
       dx.onclick=()=>{if(dx.dataset.armed!=="1"){dx.dataset.armed="1";dx.textContent="再按一次刪除";setTimeout(()=>{dx.dataset.armed="";dx.textContent="刪除此項"},4000);return}
         saveChecks(((c.checks)||[]).filter(i=>i.id!==it.id))};bs.appendChild(dx)}
     el.appendChild(bs);
-    if(st[it.id]==="adj"||st[it.id]==="ng"){
+    // 選了任何狀態都可寫備註（同意／落實也可補充說明）
+    if(st[it.id]){
       const ta=document.createElement("textarea");ta.dataset.chk=it.id;ta.rows=2;
-      ta.placeholder=it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"||(it.phase==="report"&&stage==="提報")?(st[it.id]==="adj"?"現場討論後之調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
+      ta.placeholder=st[it.id]==="wait"?"待回覆事項（選填）":!(st[it.id]==="adj"||st[it.id]==="ng")?"備註（選填）":it.phase==="improve"?(st[it.id]==="adj"?"目前改善進度":"未改善原因／後續要求"):it.phase==="propose"||(it.phase==="report"&&stage==="提報")?(st[it.id]==="adj"?"現場討論後之調整內容":"無法辦理之原因（例：經費不足、水理安全、現地無空間）"):st[it.id]==="adj"?(labels===CHK_ST?"未落實部分（例：下游段保留，上游段已移除）":"調整方向（例：改設於0K+040下游側）"):"原因（例：經費不足、現地無空間）";
       ta.value=(notes[it.id])||"";ta.onchange=()=>setCheck(it.id,st[it.id],ta.value.trim());
       ta.onblur=()=>setTimeout(renderChecks,0);
       el.appendChild(ta);
