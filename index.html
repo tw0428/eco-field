@@ -247,6 +247,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
 #recView .chips.flash{border-radius:10px;animation:cpflash 1.2s ease-out 3}
 @keyframes cpflash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
 #recView .imgs .splitone{align-self:flex-end;margin:-2px 0 8px;white-space:nowrap}
+#recView .imgs .photorow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-2px 0 4px;font-size:13px}#recView .imgs .photorow .mut{flex:1;min-width:0;color:var(--mute)}#recView .imgs .photorow button{white-space:nowrap}
 /* 照片牆日期分組標題；整理分類工具列往下捲時固定在置頂區下方，不用回到頂端按「完成整理」 */
 .dayhead{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-weight:600;font-size:14px}
 .dayhead .n{font-weight:400;color:var(--muted);font-size:12px}.dayhead button{margin-left:auto}
@@ -599,6 +600,8 @@ async function mergeRecs(cid,sel,extra={}){
   const uniq=(k,sep)=>[...new Set(rs.map(r=>(r[k]||"").trim()).filter(Boolean))].join(sep);
   const first=k=>(rs.find(r=>r[k])||{})[k]||"";
   const u={photos:rs.flatMap(r=>r.photos||[]),note:uniq("note","\n"),species:uniq("species","、"),count:uniq("count","、"),stake:first("stake"),checkId:first("checkId")};
+  // 每張照片原本的位置／樁號／拍攝時間留在 pgeo，不因合併消失（設為首張、拆開時用）
+  const pg={};rs.forEach(r=>(r.photos||[]).forEach(p=>{const g=geoOf(r,p);if(g)pg[p]=g}));if(Object.keys(pg).length)u.pgeo=pg;
   if(rs.some(r=>r.op))u.op=true;Object.assign(u,extra); // extra：整理分類「合併＋改分類」同一次寫入
   if(base.lat==null){const g=rs.find(r=>r.lat!=null);if(g)Object.assign(u,{lat:g.lat,lng:g.lng,gpsSource:g.gpsSource||"exif"})}
   const drop=new Set(rs.slice(1).map(r=>r.id));
@@ -614,14 +617,34 @@ async function deleteMany(col,cid,ids){
 // 拆開（合併的反向）：多張照片的紀錄拆成一張一筆。第一張留在原紀錄，其餘各建一筆，
 // 類別、階段、樁號、說明等文字全部照抄（合併時接起來的說明無法分回去，拆完再各自修）
 async function splitRec(r){
-  const ps=r.photos||[];if(ps.length<2)return 0;const {id,...d}=r,map={[id]:{...d,photos:[ps[0]]}};
-  ps.slice(1).forEach((p,i)=>{map[newId()]={...d,photos:[p],createdAt:(d.createdAt||Date.now())+i+1}});
+  const ps=r.photos||[];if(ps.length<2)return 0;const {id,...d}=r,map={[id]:{...withGeo(d,r,ps[0]),photos:[ps[0]]}};
+  ps.slice(1).forEach((p,i)=>{map[newId()]={...withGeo(d,r,p),photos:[p],createdAt:(d.createdAt||Date.now())+i+1}});
   await writeMany("records",r.caseId,map);return ps.length;
+}
+// 照片各自的位置：pgeo 有就用；沒有的話只有首張能用紀錄本身的位置
+const GEO_KEYS=["lat","lng","gpsSource","gpsAcc","stake","takenAt"];
+function geoOf(r,p){
+  if(r.pgeo&&r.pgeo[p])return r.pgeo[p];
+  if((r.photos||[])[0]!==p||(r.lat==null&&!r.takenAt))return null;
+  const g={};GEO_KEYS.forEach(k=>{if(r[k]!=null&&r[k]!=="")g[k]=r[k]});return g;
+}
+// 拆出成單張的紀錄：位置／樁號／拍攝時間改回該張自己的（有的話），不再帶 pgeo
+function withGeo(d,r,p){const {pgeo,...o}=d,g=r.pgeo&&r.pgeo[p];if(!g)return o;GEO_KEYS.forEach(k=>{delete o[k]});return {...o,lat:null,lng:null,...g}}
+// 改照片順序：首張決定紀錄的位置／拍攝時間；樁號沒手動改過（＝原首張的）才跟著換
+async function reorderPhotos(r,ps){
+  const old=r.photos||[],pg={...(r.pgeo||{})},cur=geoOf(r,old[0]);if(cur&&!pg[old[0]])pg[old[0]]=cur;
+  const u={photos:ps,pgeo:pg},g=pg[ps[0]];
+  if(ps[0]!==old[0]&&g){["lat","lng","gpsSource","gpsAcc","takenAt"].forEach(k=>{u[k]=g[k]!=null?g[k]:(k==="lat"||k==="lng"?null:"")});
+    if(!r.stake||(cur&&r.stake===cur.stake))u.stake=g.stake||""}
+  await updateMany("records",r.caseId,[r.id],u);
 }
 // 只拆出其中一張：原紀錄拿掉這張，另建一筆只有這張（文字照抄）
 async function splitOne(r,p){
   const {id,...d}=r,i=(d.photos||[]).indexOf(p);if(i<0||d.photos.length<2)return;
-  await writeMany("records",r.caseId,{[id]:{...d,photos:d.photos.filter(x=>x!==p)},[newId()]:{...d,photos:[p],createdAt:(d.createdAt||Date.now())+i}});
+  const rest=d.photos.filter(x=>x!==p),keep=i===0?withGeo(d,r,rest[0]):{...d};
+  if(i===0&&rest.length>1&&r.pgeo)keep.pgeo=r.pgeo; // 拆的是首張：剩下的以新首張的位置為準
+  else if(r.pgeo&&rest.length>1)keep.pgeo=r.pgeo;else delete keep.pgeo;
+  await writeMany("records",r.caseId,{[id]:{...keep,photos:rest},[newId()]:{...withGeo(d,r,p),photos:[p],createdAt:(d.createdAt||Date.now())+i}});
 }
 // 紀錄搬到同案的其他工區：先寫進目標工區、成功後才從原工區刪（中途斷線頂多兩邊都有，不會不見）
 // 對應核對項目在目標工區沒有同id的就清掉；照片檔不動
@@ -690,11 +713,13 @@ async function obAddRecord(recId,doc,blobs,uploaded){
 }
 async function obAddCheck(rid,doc){const it={qid:"chk_"+rid,kind:"check",rid,doc,at:Date.now()};await obPut(it);outbox=outbox.filter(x=>x.qid!==it.qid);outbox.push(it);renderOutbox()}
 // 新紀錄：有訊號直接存，沒訊號或中途斷線就整筆轉成待上傳（已傳好的照片id一起記著，補傳時不重傳）
+// doc._pg：每張照片各自的位置（依照片順序的陣列），上傳後換成以照片id為鍵的 pgeo
+function pgOf(doc,ids){const {_pg,...d}=doc;if(!Array.isArray(_pg)||ids.length<2)return d;const pg={};ids.forEach((id,i)=>{if(_pg[i])pg[id]=_pg[i]});return Object.keys(pg).length?{...d,pgeo:pg}:d}
 async function saveNew(doc,blobs){
   const recId=newId(),ids=[];
   if(navigator.onLine!==false){
     try{if(blobs.length)ids.push(...await assets.uploadMany(blobs));
-      await db.collection("records").doc(recId).set({...doc,photos:ids});return "saved"}
+      await db.collection("records").doc(recId).set({...pgOf(doc,ids),photos:ids});return "saved"}
     catch(e){if(!isNetErr(e))throw e}
   }
   await obAddRecord(recId,doc,blobs,ids);return "queued";
@@ -708,7 +733,7 @@ async function flushOutbox(){
         const ids=it.uploaded||[];
         for(let i=ids.length;i<it.photos.length;i++){const p=it.photos[i];ids.push((await assets.upload(new Blob([p.buf],{type:p.type}))).id);it.uploaded=ids;await obPut(it)}
         const {by,...doc}=it.doc;
-        await db.collection("records").doc(it.recId).set({...doc,photos:ids});
+        await db.collection("records").doc(it.recId).set({...pgOf(doc,ids),photos:ids});
       }else if(it.kind==="check")await db.doc("checkres/"+it.rid).set(it.doc);
       await obRemove(it.qid);
     }
@@ -1754,8 +1779,15 @@ function recCard(r,c,onEdit){
     if(r.note){const n=document.createElement("div");n.className="note";n.textContent=r.note;el.appendChild(n)}
     if(r.photos&&r.photos.length){
       const im=document.createElement("div");im.className="imgs";
-      r.photos.forEach(p=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a);
-        // 詳情窗：多張時每張下面可「拆出這張」成獨立一筆
+      r.photos.forEach((p,pi)=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a);
+        // 詳情窗：多張時每張下面顯示該張的拍攝時間／樁號，可調順序（首張＝紀錄的位置）、拆出
+        if(onEdit&&r.photos.length>1){
+          const g=geoOf(r,p),row=document.createElement("div");row.className="photorow";
+          const cap=document.createElement("span");cap.className="mut";cap.textContent=(pi===0?"首張（紀錄位置）":`第${pi+1}張`)+(g?"｜"+[g.takenAt&&g.takenAt.slice(5),g.stake,g.lat==null?"無GPS":""].filter(Boolean).join("　"):"｜無個別位置紀錄");row.appendChild(cap);
+          const mv=(t,fn)=>{const x=document.createElement("button");x.type="button";x.className="mini";x.textContent=t;x.onclick=async()=>{if(!rvOk())return;x.disabled=true;try{await fn();rvDirty=null;const st=$("rvBody").scrollTop,nr=records.find(q=>q.id===r.id);if(nr){openRec(nr);$("rvBody").scrollTop=st}}catch(e){x.disabled=false;x.textContent="失敗，請再按一次"}};row.appendChild(x)};
+          if(pi>0){mv("‹ 前移",()=>{const o=[...r.photos];[o[pi-1],o[pi]]=[o[pi],o[pi-1]];return reorderPhotos(r,o)});
+            mv("設為首張",()=>reorderPhotos(r,[p,...r.photos.filter(x=>x!==p)]))}
+          im.appendChild(row)}
         if(onEdit&&r.photos.length>1){const b=document.createElement("button");b.type="button";b.className="mini splitone";b.textContent="拆出本張（另成一筆）";
           b.onclick=async()=>{if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="再按一次確認拆出";b.classList.add("danger");
               setTimeout(()=>{if(b.isConnected&&!b.disabled){b.dataset.armed="";b.textContent="拆出本張（另成一筆）";b.classList.remove("danger")}},4000);return}
@@ -1984,6 +2016,9 @@ $("recForm").onsubmit=async e=>{
     if(snapP.some(p=>p.ex.fresh&&p.ex.lat==null)){showMsg("等待定位…");const g=geoFresh()||await geoWait(20000);
       if(g)snapP.forEach(p=>{if(p.ex.fresh&&p.ex.lat==null)Object.assign(p.ex,{lat:g.lat,lng:g.lng,acc:g.acc,src:"device"})})}
     const gp=snapP.find(p=>p.ex.lat!=null);const tp=snapP.find(p=>p.ex.taken);
+    // 每張照片自己的位置／推估樁號／拍攝時間（多張存一筆時記在 pgeo）
+    const pGeo=p=>{const g={};if(p.ex.lat!=null){Object.assign(g,{lat:p.ex.lat,lng:p.ex.lng,gpsSource:p.ex.src||"exif"});if(p.ex.acc!=null)g.gpsAcc=p.ex.acc;const s=fillOf(nearestStation(p.ex.lat,p.ex.lng));if(s)g.stake=s}
+      if(p.ex.taken)g.takenAt=fmtExifTime(p.ex.taken);return Object.keys(g).length?g:null};
     // 樁號欄空白但有GPS：存檔時補上推估樁號（離中心線60m內才補）
     if(!f.stake&&gp){const v=fillOf(nearestStation(gp.ex.lat,gp.ex.lng));if(v)f.stake=v}
     const body={caseId:snap.caseId,category:snap.cat,abcd:isFM(snap.cat)?snap.abcd:"",sub:hasSub(snap.cat)?snap.sub:"",struct:snap.cat==="棲地影像"&&snap.sub==="構造物"?snap.struct:"",...f};
@@ -2003,6 +2038,7 @@ $("recForm").onsubmit=async e=>{
       const ids=[];
       if(blobs.length){showMsg(`上傳照片（${blobs.length} 張）…`);ids.push(...await assets.uploadMany(blobs))}
       const upd={...body,photos:[...editKeep,...ids]};
+      if(upd.photos.length>1){const pg={};editKeep.forEach(p=>{const g=geoOf(editing,p);if(g)pg[p]=g});ids.forEach((id,i)=>{const g=pGeo(snapP[i]);if(g)pg[id]=g});if(Object.keys(pg).length)upd.pgeo=pg}
       const removed=(editing.photos||[]).filter(p=>!editKeep.includes(p));
       if(editing.lat==null&&gp){upd.lat=gp.ex.lat;upd.lng=gp.ex.lng;upd.gpsSource=gp.ex.src||"exif";if(gp.ex.acc!=null)upd.gpsAcc=gp.ex.acc}
       if(!editing.takenAt&&tp)upd.takenAt=fmtExifTime(tp.ex.taken);
@@ -2012,7 +2048,7 @@ $("recForm").onsubmit=async e=>{
     }else{
       showMsg(blobs.length?`上傳照片（${blobs.length} 張）…`:"儲存中…");
       const doc={...body,createdAt:Date.now(),takenAt:tp?fmtExifTime(tp.ex.taken):"",
-        lat:gp?gp.ex.lat:null,lng:gp?gp.ex.lng:null,gpsSource:gp?(gp.ex.src||"exif"):"none",...(gp&&gp.ex.acc!=null?{gpsAcc:gp.ex.acc}:{})};
+        lat:gp?gp.ex.lat:null,lng:gp?gp.ex.lng:null,gpsSource:gp?(gp.ex.src||"exif"):"none",...(gp&&gp.ex.acc!=null?{gpsAcc:gp.ex.acc}:{}),...(snapP.length>1?{_pg:snapP.map(pGeo)}:{})};
       queued=(await saveNew(doc,blobs))==="queued";
     }
     dropPend(snapP);if(wasEditing)resetFields();
@@ -2567,6 +2603,9 @@ async function openMap(focusMe,focusRec){
     });
   });
   if(fr)L.circleMarker([fr.lat,fr.lng],{radius:15,weight:4,color:"#ff2a2a",fill:false,interactive:false}).addTo(mapLayers);
+  // 多張照片：每張自己的位置畫小紅點＋張次
+  if(focusRec&&(focusRec.photos||[]).length>1)focusRec.photos.forEach((p,i)=>{const g=geoOf(focusRec,p);if(!g||g.lat==null)return;
+    L.circleMarker([g.lat,g.lng],{radius:6,weight:2,color:"#fff",fillColor:"#ff2a2a",fillOpacity:1}).addTo(mapLayers).bindTooltip(String(i+1)+(g.stake?" "+g.stake:""),{permanent:true,direction:"top",className:"stklbl"});pts.push([g.lat,g.lng])});
   renderOverlayCtl(c);
   drawMe();clearInterval(mapTimer);mapTimer=setInterval(drawMe,3000);
   const g=geoFresh();
