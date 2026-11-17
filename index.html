@@ -960,6 +960,8 @@ $("batchBtn").onclick=async()=>{
       lat:p.ex.lat!=null?p.ex.lat:null,lng:p.ex.lat!=null?p.ex.lng:null,gpsSource:p.ex.lat!=null?(p.ex.src||"exif"):"none",...(p.ex.acc!=null?{gpsAcc:p.ex.acc}:{})}};
   const cmp=async p=>{try{return await compress(p.file)}catch(err){return p.file}};
   saving=true;$("saveBtn").disabled=true;$("batchBtn").disabled=true;ecoAwake(true);
+  // 列入意見：整批只在意見清單加一條，每筆都連到它
+  let opName="";if(fix.op&&!fix.checkId){try{const a=await addOpItem(fix.stage,{text:f.note||f.species,stake:manualStake&&!autoFilled?manualStake:"",abcd:fix.abcd});if(a){fix.checkId=a.id;opName=`已列入「${a.name}」清單。`}else if(a===false)opName="（意見清單項目新增失敗）"}catch(e){}}
   const list=[...pending],total=list.length,snap=formSnap();let done=0,queued=0,i=0;
   list.forEach(p=>{p._sv=1});resetFields();renderPending();
   // 存好的從待存區拿掉（不整個重畫，照片多時才不會卡）
@@ -987,7 +989,7 @@ $("batchBtn").onclick=async()=>{
       showMsg(`存到手機 ${i+1}/${total}…`);
       const r=await saveNew(docOf(p),[await cmp(p)]);r==="queued"?queued++:done++;drop([p])}
     const fresh=pending.filter(p=>!list.includes(p)).length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?`已存 ${done} 筆；${queued} 筆因無訊號暫存於手機（見上方「待上傳」），有訊號時自動上傳。`:`已建立 ${done} 筆紀錄，說明得於列表按「編輯」補充。`)+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued>0);
+    showMsg((queued?`已存 ${done} 筆；${queued} 筆因無訊號暫存於手機（見上方「待上傳」），有訊號時自動上傳。`:`已建立 ${done} 筆紀錄，說明得於列表按「編輯」補充。`)+opName+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued>0);
   }catch(err){
     console.error(err);restoreFields(snap);
     showMsg(`已存 ${done+queued} 筆，其後失敗（${(err&&err.code)||"錯誤"}）。其餘照片仍保留於上方，得再按一次。`,true);
@@ -1453,6 +1455,14 @@ function curRes(){const k=resId();if(checkRes[k])return checkRes[k];if(byDay())r
 // 設計階段另一區：本團隊預計提出的意見（phase:"propose"），現場記錄 ok同意/adj調整/ng做不到/wait待回覆
 const CHK_PROP=[["ok","✓ 同意"],["adj","△ 調整"],["ng","✗ 無法辦理"],["wait","… 待回覆"]];
 const CHK_IMP=[["ok","✓ 已改善"],["adj","△ 改善中"],["ng","✗ 未改善"]];
+// 勾「列入意見」＝在該階段第二區清單（設計：預計提出意見；開工前：開工前提出意見；施工中／完工：改善意見）加一條，紀錄連到它；提報階段沒有清單，只標★
+const OP_LIST={"設計":["propose","預計提出意見"],"開工前":["start","開工前提出意見"],"施工中":["improve","改善意見"],"完工":["improve","改善意見"]};
+async function addOpItem(stage,{text,stake,abcd},phase){
+  const p=phase?[phase,"改善意見"]:OP_LIST[stage];if(!p)return null;
+  const c=cases.find(x=>x.id===curCase),d=new Date();if(!c)return false;
+  const item={id:"u"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),abcd:abcd||"",text:text||"（待補說明）",stake:stake||"",src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`,phase:p[0],added:true};
+  return await saveChecks([...(c.checks||[]),item])?{id:item.id,name:p[1]}:false;
+}
 function renderChecks(){
   // 正在打字時不重繪（樁號選單不算；換案件一定重繪，避免顯示上一案的清單與樁號）
   const ae=document.activeElement;if(ae&&ae.dataset&&ae.dataset.chk&&ae.tagName!=="SELECT"&&chkCase===curCase)return;
@@ -1941,7 +1951,9 @@ function rvQuick(r){
     const u={category:qc,sub:hasSub(qc)?qs:"",struct:qc==="棲地影像"&&qs==="構造物"?qt:"",stake:st.value.trim(),species:sp.value.trim(),count:ct.value.trim(),note:nt.value.trim()};if(ck.checked)u.op=true;else if(r.op)u.op=false;
     if(lk.value!==(r.checkId||""))u.checkId=lk.value;
     sv.disabled=sn.disabled=true;msg.textContent="儲存中…";
-    try{await db.doc("records/"+r.id).update(u);Object.assign(r,u);init=snap();if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。";sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
+    let opMsg="";
+    try{if(ck.checked&&!r.op&&!r.checkId&&!u.checkId){const a=await addOpItem(r.stage,{text:u.note||u.species,stake:u.stake,abcd:r.abcd});if(a){u.checkId=a.id;opMsg=`已列入「${a.name}」清單。`}else if(a===false)opMsg="意見清單項目新增失敗。"}
+      await db.doc("records/"+r.id).update(u);Object.assign(r,u);init=snap();if(next){nx?openRec(nx):closeRec()}else{msg.textContent="已儲存。"+opMsg;sv.disabled=sn.disabled=false;$("rvTitle").textContent=recTitle(r)}}
     catch(e){msg.textContent="儲存失敗（"+((e&&e.code)||"網路")+"），請再按一次。";sv.disabled=sn.disabled=false}};
   sv.onclick=()=>save(false);sn.onclick=()=>save(true);
   const i=rvShown.findIndex(x=>x.id===r.id);if(i<0||i===rvShown.length-1)sn.textContent="儲存並關閉";
@@ -2037,13 +2049,12 @@ $("recForm").onsubmit=async e=>{
     if(snap.link)body.checkId=snap.link;else if(editing&&editing.checkId)body.checkId="";
     if(snap.op)body.op=true;else if(editing&&editing.op)body.op=false;
     if(!editing)body.stage=snap.stage;
-    // 列入改善追蹤：先在改善意見清單加一條，這筆紀錄連到它
-    let impFail=false,impAdded=false;
-    if(!editing&&!snap.link&&snap.imp){
-      const c=cases.find(x=>x.id===snap.caseId),d=new Date();
-      const item={id:"u"+Date.now().toString(36),abcd:"",text:f.note||f.species||"（待補說明）",stake:f.stake,
-        src:`現場紀錄 ${d.getMonth()+1}/${d.getDate()}`,phase:"improve",added:true};
-      if(c&&await saveChecks([...(c.checks||[]),item])){body.checkId=item.id;impAdded=true}else impFail=true;
+    // 列入改善追蹤／列入意見：先在該階段意見清單加一條，這筆紀錄連到它（已連到核對項目的不再加）
+    let impFail=false,impAdded="";
+    const wantImp=!editing&&snap.imp,wantOp=snap.op&&!(editing&&editing.op);
+    if(!snap.link&&!(editing&&editing.checkId)&&(wantImp||wantOp)){
+      const r=await addOpItem(editing?(editing.stage||snap.stage):snap.stage,{text:f.note||f.species,stake:f.stake,abcd:body.abcd},wantImp?"improve":null);
+      if(r){body.checkId=r.id;impAdded=r.name}else if(r===false)impFail=true;
     }
     let queued=false;
     if(editing){ // 編輯既有紀錄須連網（不進待上傳）
@@ -2065,7 +2076,7 @@ $("recForm").onsubmit=async e=>{
     }
     dropPend(snapP);if(wasEditing)resetFields();
     const fresh=pending.length; // 上傳期間新拍的，留在表單上當下一筆
-    showMsg((queued?"無訊號，已暫存於手機（見上方「待上傳」），有訊號時自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片未含GPS，請於樁號欄補填位置。")+(impFail?"（改善追蹤項目新增失敗，請於有訊號時至「改善意見」手動新增）":impAdded?"已列入改善意見清單。":"")+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued||impFail||(!gp&&blobs.length>0));
+    showMsg((queued?"無訊號，已暫存於手機（見上方「待上傳」），有訊號時自動上傳。":gp||!blobs.length?"已儲存。":"已儲存。照片未含GPS，請於樁號欄補填位置。")+(impFail?"（意見清單項目新增失敗，請於有訊號時手動新增）":impAdded?`已列入「${impAdded}」清單。`:"")+(fresh?`上傳期間新拍攝之 ${fresh} 張仍保留於表單。`:""),queued||impFail||(!gp&&blobs.length>0));
     if(fresh)suggestStake();
   }catch(err){
     const c=err&&err.code;
