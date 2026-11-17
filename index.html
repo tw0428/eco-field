@@ -631,6 +631,16 @@ function geoOf(r,p){
 }
 // 拆出成單張的紀錄：位置／樁號／拍攝時間改回該張自己的（有的話），不再帶 pgeo
 function withGeo(d,r,p){const {pgeo,...o}=d,g=r.pgeo&&r.pgeo[p];if(!g)return o;GEO_KEYS.forEach(k=>{delete o[k]});return {...o,lat:null,lng:null,...g}}
+// 照片順時針轉90度：重新存成新檔換掉原id（下載、匯出Word都是轉好的），原檔沒有其他紀錄共用才刪
+async function rotatePhoto(r,p){
+  const b=await fileBlob(p,"image/jpeg"),bm=await createImageBitmap(b),cv=document.createElement("canvas");
+  cv.width=bm.height;cv.height=bm.width;const x=cv.getContext("2d");x.translate(cv.width,0);x.rotate(Math.PI/2);x.drawImage(bm,0,0);if(bm.close)bm.close();
+  const nb=await new Promise((res,rej)=>cv.toBlob(o=>o?res(o):rej(new Error("轉檔失敗")),"image/jpeg",0.92));
+  const id=(await assets.upload(nb)).id,u={photos:(r.photos||[]).map(q=>q===p?id:q)};
+  if(r.pgeo&&r.pgeo[p]){const pg={...r.pgeo};pg[id]=pg[p];delete pg[p];u.pgeo=pg}
+  await updateMany("records",r.caseId,[r.id],u);
+  if(!photoShared(p,[r.id]))try{await assets.delete(p)}catch(e){}
+}
 // 改照片順序：首張決定紀錄的位置／拍攝時間；樁號沒手動改過（＝原首張的）才跟著換
 async function reorderPhotos(r,ps){
   const old=r.photos||[],pg={...(r.pgeo||{})},cur=geoOf(r,old[0]);if(cur&&!pg[old[0]])pg[old[0]]=cur;
@@ -1782,10 +1792,11 @@ function recCard(r,c,onEdit){
       const im=document.createElement("div");im.className="imgs";
       r.photos.forEach((p,pi)=>{const a=document.createElement("a");a.href="#";a.onclick=ev=>{ev.preventDefault();openViewer(p,"image/jpeg",r.species||"現場照片")};const i=document.createElement("img");setImg(i,p);i.alt="現場照片";i.loading="lazy";a.appendChild(i);im.appendChild(a);
         // 詳情窗：多張時每張下面顯示該張的拍攝時間／樁號，可調順序（首張＝紀錄的位置）、拆出
-        if(onEdit&&r.photos.length>1){
-          const g=geoOf(r,p),row=document.createElement("div");row.className="photorow";
-          const cap=document.createElement("span");cap.className="mut";cap.textContent=(pi===0?"首張（紀錄位置）":`第${pi+1}張`)+(g?"｜"+[g.takenAt&&g.takenAt.slice(5),g.stake,g.lat==null?"無GPS":""].filter(Boolean).join("　"):"｜無個別位置紀錄");row.appendChild(cap);
+        if(onEdit){
+          const multi=r.photos.length>1,g=geoOf(r,p),row=document.createElement("div");row.className="photorow";
+          const cap=document.createElement("span");cap.className="mut";cap.textContent=multi?(pi===0?"首張（紀錄位置）":`第${pi+1}張`)+(g?"｜"+[g.takenAt&&g.takenAt.slice(5),g.stake,g.lat==null?"無GPS":""].filter(Boolean).join("　"):"｜無個別位置紀錄"):"";row.appendChild(cap);
           const mv=(t,fn)=>{const x=document.createElement("button");x.type="button";x.className="mini";x.textContent=t;x.onclick=async()=>{if(!rvOk())return;x.disabled=true;try{await fn();rvDirty=null;const st=$("rvBody").scrollTop,nr=records.find(q=>q.id===r.id);if(nr){openRec(nr);$("rvBody").scrollTop=st}}catch(e){x.disabled=false;x.textContent="失敗，請再按一次"}};row.appendChild(x)};
+          mv("↻ 旋轉",()=>rotatePhoto(r,p));
           if(pi>0){mv("‹ 前移",()=>{const o=[...r.photos];[o[pi-1],o[pi]]=[o[pi],o[pi-1]];return reorderPhotos(r,o)});
             mv("設為首張",()=>reorderPhotos(r,[p,...r.photos.filter(x=>x!==p)]))}
           im.appendChild(row)}
