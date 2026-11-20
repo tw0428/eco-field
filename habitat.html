@@ -567,7 +567,7 @@ function photosHtml(p,kind){
  if(old.length){h+=`<div class="warn" style="margin-top:8px">以下 ${old.length} 張係改版前上傳、野溪坡地共用之照片，請按「移至${KNAME[kind]}」歸類（屬另一類者至另一頁籤移動）。</div><div class="phs">`;old.forEach((x,i)=>{h+=phItem(x,i,'old',kind)});h+=`</div>`}
  return h+`</div>`;
 }/* 樁號推估：案件doc有 stakes:[{label,st,note,lat,lng}] 時，把GPS投影到設計中心線（同現場紀錄App） */
-function fmtSt(st,r){if(r)return `${r}+${String(Math.round(st)).padStart(3,"0")}`;const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
+function fmtSt(st,r){const sg=st<0?"-":"+",a=Math.abs(st);if(r)return `${r}${sg}${String(Math.round(a)).padStart(3,"0")}`;const k=Math.floor(a/1000),m=a-k*1000;return `${k}K${sg}${String(Math.round(m)).padStart(3,"0")}`}
 function nearestStation(lat,lng){
  const c=cases.find(x=>x.id===curCase);const s=c&&c.stakes;if(!Array.isArray(s)||s.length<2||lat==null)return null;
  const lat0=s[0].lat,kx=Math.cos(lat0*Math.PI/180)*111320,ky=110540;
