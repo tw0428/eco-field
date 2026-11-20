@@ -856,7 +856,7 @@ async function compress(file){
 
 /* ---------- 樁號推估：把GPS投影到設計中心線 ---------- */
 // stakes 每點可帶 r（路線名，如「九01」）：一案可放多條樁號線，顯示成「九01+120」；沒有 r 的舊案維持「0K+120」
-function fmtSt(st,r){if(r)return `${r}+${String(Math.round(st)).padStart(3,"0")}`;const k=Math.floor(st/1000),m=st-k*1000;return `${k}K+${String(Math.round(m)).padStart(3,"0")}`}
+function fmtSt(st,r){const sg=st<0?"-":"+",a=Math.abs(st);if(r)return `${r}${sg}${String(Math.round(a)).padStart(3,"0")}`;const k=Math.floor(a/1000),m=a-k*1000;return `${k}K${sg}${String(Math.round(m)).padStart(3,"0")}`}
 function nearestStation(lat,lng){
   const c=cases.find(x=>x.id===curCase);const s=c&&Array.isArray(c.stakes)?c.stakes:null;if(lat==null)return null;
   if((!s||s.length<2)&&c&&c.sites&&c.sites.length){ // 無樁號的案子：找最近的工區標示點
