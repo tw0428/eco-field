@@ -995,7 +995,12 @@ $("batchBtn").onclick=async()=>{
     showMsg(`已存 ${done+queued} 筆，其後失敗（${(err&&err.code)||"錯誤"}）。其餘照片仍保留於上方，得再按一次。`,true);
   }finally{ecoAwake(false);saving=false;$("saveBtn").disabled=false;$("batchBtn").disabled=false;list.forEach(p=>{p._sv=0});renderPending()}
 };
-$("galIn").onchange=e=>{addFiles([...e.target.files],false);e.target.value=""};
+{const q=new URLSearchParams(location.search).get("heic");if(q==="1")lsSet("eco-heic","1");if(q==="0")lsSet("eco-heic","")}
+let galT0=0;if(lsGet("eco-heic")==="1")$("galIn").accept="image/*,image/heic,image/heif,.heic,.heif";
+$("galIn").addEventListener("click",()=>{galT0=Date.now()});
+$("galIn").onchange=async e=>{const fs=[...e.target.files],dt=galT0?((Date.now()-galT0)/1000).toFixed(1):"?";e.target.value="";
+  await addFiles(fs,false);
+  if(lsGet("eco-heic")==="1"){const nh=fs.filter(f=>/heic|heif/i.test(f.type)||/\.hei[cf]$/i.test(f.name)).length,m=$("formMsg");m.textContent=(m.hidden?"":m.textContent+"\n")+`［測試］${fs.length}張，其中HEIC ${nh}張，選取至回到頁面 ${dt} 秒。`;m.hidden=false}};
 $("camIn").onchange=e=>{addFiles([...e.target.files],true);e.target.value=""};
 // 電腦：把照片拖進視窗任何位置＝從相簿選（整頁顯示放開提示）
 // 網頁內自己拖的（照片牆的圖片、連結）不算：dragstart 只有頁內拖曳才會觸發
