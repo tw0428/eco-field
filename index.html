@@ -363,6 +363,7 @@ html{scroll-padding-top:calc(var(--headh,90px) + 8px)}
     <div class="row" id="areaPick" hidden style="flex-wrap:wrap;font-size:13px;color:var(--muted)"></div>
     <div class="hint" id="caseStakeInfo" hidden></div>
     <button type="button" id="mapBtn" class="mapbtn" hidden>🗺 地圖（樁號、紀錄位置、目前位置）</button>
+    <div class="row" id="gmapLinks" hidden style="flex-wrap:wrap;gap:6px 12px;font-size:14px"></div>
     <details id="planBox" class="plans checks" hidden>
       <summary><span style="flex:1">平面圖／圖說</span><span class="status" id="planCount"></span></summary>
       <div id="planList" class="planlist"></div>
@@ -1074,7 +1075,7 @@ function renderCases(){
     info.textContent=rs.length?`已載入設計樁號（${rs.join("、")}），照片具GPS者將自動推估樁號`:`已載入設計樁號 ${c.stakes[0].label}～${c.stakes[c.stakes.length-1].label}，照片具GPS者將自動推估樁號`;info.hidden=false}
   else if(c&&c.sites&&c.sites.length){info.textContent=`本案無樁號，以工區標示點推估位置（${c.sites.map(s=>s.label).join("、")}）`;info.hidden=false}
   else info.hidden=true;
-  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;offShow(c);flushStages();
+  renderPlans(c);renderStage();renderChecks();renderLinkSel();$("mapBtn").hidden=!c;renderGmap(c);offShow(c);flushStages();
   // 地區：使用者自己填（不從案名推測），候選＝其他案件已填過的地區
   $("areaRow").hidden=!c;if(c&&document.activeElement!==$("areaIn"))$("areaIn").value=c.area||"";
   // 座標跨兩個以上鄉鎮（溪流是界線）：列出候選，點一下就存
@@ -2733,6 +2734,15 @@ function relabel(){
   });
 }function closeMap(){$("mapView").hidden=true;if($("recView").hidden)document.body.style.overflow="";clearInterval(mapTimer)}
 $("mapBtn").onclick=()=>openMap(false);
+// Google地圖連結：有工區標示點逐一列；否則用樁號中點；再否則用本案第一筆有GPS的紀錄
+function renderGmap(c){const box=$("gmapLinks");box.textContent="";let L=[];
+  if(c){const ok=p=>p&&p.lat!=null&&p.lng!=null;
+    const si=(Array.isArray(c.sites)?c.sites:[]).filter(ok);
+    if(si.length)L=si.map(p=>[p.label||"工區",p]);
+    else{const st=(Array.isArray(c.stakes)?c.stakes:[]).filter(ok),r=records.find(r=>r.caseId===c.id&&ok(r));
+      const p=st.length?st[st.length>>1]:r;if(p)L=[["本案",p]]}}
+  L.forEach(([t,p])=>{const a=document.createElement("a");a.href=`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;a.target="_blank";a.rel="noopener";a.textContent=`📍 Google地圖：${t}`;box.appendChild(a)});
+  box.hidden=!L.length}
 $("rvMap").onclick=()=>{if(rvCur)openMap(false,rvCur)};
 $("mapClose").onclick=closeMap;
 $("mapBase").onclick=()=>{baseOn=baseOn==="EMAP"?"PHOTO2":"EMAP";$("mapBase").textContent=baseOn==="EMAP"?"正射影像":"電子地圖";if(map){baseLayer.remove();baseLayer=nlsc(baseOn).addTo(map)}};
