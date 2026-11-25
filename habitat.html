@@ -454,6 +454,8 @@ async function initDb(){
 function evalItem(it,side,p){
  const key=it.id+(side||'');const st=p.creek[key]||{};
  const ctx={high:p.high};
+ // 溪床寬度變化：施工前（第一期）無施工後寬度可比，不評分，顯示「－」
+ if(it.id==='wchg'&&S.p&&S.p[0]===p)return {key,st,na:true,max:it.max};
  let r=it.calc(st,ctx);
  if(it.dry&&st.v==='dry')r={zero:true,note:'乾涸／斷流／伏流，0分'};
  if(!r||r.pending)return {key,st,empty:true,max:it.max,hint:r&&r.note};
@@ -467,7 +469,7 @@ function creekAll(p){
  ITEMS.forEach(it=>{(it.sides?['L','R']:['']).forEach(sd=>out.push({it,sd,r:evalItem(it,sd,p)}))});
  return out;
 }
-function creekTotal(p){const a=creekAll(p);let t=0,n=0;a.forEach(x=>{if(x.r.score!=null){t+=x.r.score;n++}});return {t,n,all:a.length}}
+function creekTotal(p){const a=creekAll(p);let t=0,n=0;a.forEach(x=>{if(x.r.score!=null){t+=x.r.score;n++}});return {t,n,all:a.filter(x=>!x.r.na).length}}
 const SLOPE=[
  {k:'w',name:'木本植物覆蓋度',opts:[[0,'0%（1分）'],[10,'<15%（2分）'],[30,'15~55%（3分）'],[70,'≥55%（4分）']],f:v=>v===0?1:v<15?2:v<55?3:4},
  {k:'sp',name:'植生種數',opts:[[10,'<15種/100m²（1分）'],[17,'15~20種（2分）'],[25,'20~30種（3分）'],[35,'≥30種（4分）']],f:v=>v<15?1:v<20?2:v<30?3:4},
@@ -650,6 +652,7 @@ function viewCreek(){
    const r=evalItem(it,sd,p),st=r.st;
    h+=`<div class="${it.sides?'side':''}">`;
    if(it.sides)h+=`<div class="mut">${sd==='L'?'左岸':'右岸'}</div>`;
+   if(r.na){h+=`<div class="mut">－（施工前不評分）</div></div>`;return}
    h+=`<div class="flds">`+it.fields.map(f=>fieldHtml(it.id+sd,f,st,p,r.empty)).join('')+`</div>`;
    h+=resHtml(it,sd,r);
    h+=noteHtml(p,it.id+sd);
@@ -660,7 +663,7 @@ function viewCreek(){
   h+=`</div>`;
  });
  const T=creekTotal(p);
- h+=`<div class="card"><span class="tot">野溪總分 ${T.t} / 200</span> <span class="mut">（已評 ${T.n}/${T.all} 格）</span></div>`+memoCard(p,'creek');
+ h+=`<div class="card"><span class="tot">野溪總分 ${T.t} / ${S.p[0]===p?180:200}</span> <span class="mut">（已評 ${T.n}/${T.all} 格）</span></div>`+memoCard(p,'creek');
  return h;
 }
 /* 現場簡記：每期在評分頁下方隨手記（p.memo.{slope,creek}），匯出時列在該表後面，供寫前言／表9時參考；不取代前言草稿 */
@@ -715,7 +718,7 @@ function exportData(){
  const idx=design?[0]:[0,1,2];
  const cn=i=>design?'設計階段'+(fmtDate(S.p[i].date)?`（${fmtDate(S.p[i].date)}）`:''):colName(S.p[i]);
  const cIdx=idx,sIdx=idx;
- const creek={head:['評估項目',...cIdx.map(cn)],rows:cA[0].map((a,k)=>[sideName(a),...cIdx.map(i=>{const s=cA[i][k].r.score;return s==null?'':`${s}/${a.it.max}`})])};
+ const creek={head:['評估項目',...cIdx.map(cn)],rows:cA[0].map((a,k)=>[sideName(a),...cIdx.map(i=>{const s=cA[i][k].r.score;return cA[i][k].r.na?'－':s==null?'':`${s}/${a.it.max}`})])};
  const slope={head:['評估因子',...sIdx.map(cn)],rows:SLOPE.map((x,k)=>[x.name,...sIdx.map(i=>{const s=sE[i].rows[k].s;if(s==null)return '';
   const raw=String(S.p[i].slope[x.k]),o=(x.sel||x.opts).find(o=>String(o[0])===raw);
   return `${o?o[1].replace(/（\d分）$/,''):raw}（${s}）`})]),foot:['評級',...sIdx.map(i=>sE[i].n===5?sE[i].g:'')]};
